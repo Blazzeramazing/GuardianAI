@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#030712">
+    <link rel="manifest" href="manifest.json">
     <title>Defense VMS - Inteligência Artificial</title>
     
     <!-- Tailwind & Icons -->
@@ -38,24 +40,24 @@
 
     <!-- PAINEL TÁTICO DE ALARME (TELA CHEIA) -->
     <div id="tactical-alarm-panel" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/80 backdrop-blur-md pointer-events-auto">
-        <div class="alarm-flash border-4 border-red-500 rounded-2xl p-8 max-w-2xl w-full text-center flex flex-col items-center">
-            <i data-lucide="siren" class="w-20 h-20 text-white mb-2 animate-bounce"></i>
-            <h2 class="text-4xl font-black text-white uppercase tracking-widest mb-1">Ameaça Detectada</h2>
-            <p id="alarm-cam-name" class="text-2xl text-red-200 font-mono mb-6 font-bold tracking-wider"></p>
+        <div class="alarm-flash border-4 border-red-500 rounded-2xl p-4 md:p-8 max-w-2xl w-full text-center flex flex-col items-center">
+            <i data-lucide="siren" class="w-14 h-14 md:w-20 md:h-20 text-white mb-2 animate-bounce"></i>
+            <h2 class="text-2xl md:text-4xl font-black text-white uppercase tracking-widest mb-1">Ameaça Detectada</h2>
+            <p id="alarm-cam-name" class="text-lg md:text-2xl text-red-200 font-mono mb-4 md:mb-6 font-bold tracking-wider"></p>
             
-            <div class="flex gap-6 w-full mb-8 bg-black/50 p-4 rounded-xl border border-red-500/50">
-                <div class="w-1/3 flex flex-col items-center justify-center border-r border-red-500/30">
+            <div class="flex flex-col md:flex-row gap-4 md:gap-6 w-full mb-6 md:mb-8 bg-black/50 p-4 rounded-xl border border-red-500/50">
+                <div class="w-full md:w-1/3 flex flex-col items-center justify-center md:border-r border-red-500/30 md:pr-4">
                     <img id="alarm-person-photo" src="" class="w-24 h-24 rounded-full object-cover border-2 border-red-500 mb-2">
                     <p id="alarm-person-name" class="text-white font-bold text-xl uppercase"></p>
                     <p class="text-red-400 text-sm font-bold tracking-widest">ALVO CRÍTICO</p>
                 </div>
-                <div class="w-2/3 flex flex-col items-center justify-center relative">
+                <div class="w-full md:w-2/3 flex flex-col items-center justify-center relative">
                     <span class="absolute top-2 left-2 bg-red-600 text-white text-[10px] px-2 py-0.5 rounded animate-pulse">SNAPSHOT CÂMERA</span>
-                    <img id="alarm-snapshot" src="" class="max-h-48 rounded object-contain border border-gray-700">
+                    <img id="alarm-snapshot" src="" class="max-h-64 md:max-h-48 w-full rounded object-contain border border-gray-700">
                 </div>
             </div>
             
-            <button onclick="acknowledgeAlarm()" class="bg-white text-red-700 hover:bg-gray-200 font-bold py-4 px-10 rounded-lg text-xl uppercase tracking-widest transition-colors shadow-2xl active:scale-95 w-full">
+            <button onclick="acknowledgeAlarm()" class="bg-white text-red-700 hover:bg-gray-200 font-bold h-12 md:h-14 px-10 rounded-lg text-base md:text-xl uppercase tracking-widest transition-colors shadow-2xl active:scale-95 w-full">
                 Reconhecer Ocorrência
             </button>
         </div>
@@ -63,7 +65,10 @@
 
     <!-- CABEÇALHO GLOBAL -->
     <div class="h-8 bg-black border-b border-gray-800 flex items-center justify-between px-4 text-xs text-gray-500 font-mono z-20 shrink-0">
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-3">
+            <button id="mobile-menu-btn" onclick="openSidebarDrawer()" class="md:hidden h-11 w-11 -my-2 -ml-2 flex items-center justify-center rounded hover:bg-gray-900 text-gray-200" aria-label="Abrir menu">
+                <i data-lucide="menu" class="w-5 h-5"></i>
+            </button>
             <span class="flex items-center gap-1"><div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> VMS Online</span>
             <span id="ai-status" class="text-amber-500">IA Carregando...</span>
         </div>
@@ -71,24 +76,28 @@
     </div>
 
     <div class="flex flex-1 relative overflow-hidden">
+        <div id="sidebar-overlay" onclick="closeSidebarDrawer()" class="fixed inset-0 bg-black/70 z-40 hidden md:hidden"></div>
         <!-- BARRA LATERAL -->
-        <aside class="w-72 bg-gray-900 border-r border-gray-800 flex flex-col z-10 shadow-xl shrink-0">
+        <aside id="sidebar" class="fixed inset-y-0 left-0 w-72 bg-gray-900 border-r border-gray-800 flex flex-col z-50 shadow-xl shrink-0 transform -translate-x-full md:translate-x-0 md:static md:inset-auto transition-transform duration-200 ease-out">
             <div class="p-4 border-b border-gray-800 flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <i data-lucide="crosshair" class="w-6 h-6 text-red-500"></i>
                     <h1 class="text-xl font-bold text-white tracking-wide">Defense<span class="text-red-500">AI</span></h1>
                 </div>
+                <button onclick="closeSidebarDrawer()" class="md:hidden h-11 w-11 flex items-center justify-center rounded hover:bg-gray-800 text-gray-200" aria-label="Fechar menu">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
             </div>
 
             <!-- Abas de Navegação -->
             <div class="p-2 border-b border-gray-800 flex flex-col gap-1 bg-gray-950">
-                <button onclick="switchTab('live')" id="nav-live" class="nav-btn py-2.5 px-4 bg-blue-600 text-white rounded text-sm font-medium transition-colors flex items-center gap-3">
+                <button onclick="switchTab('live')" id="nav-live" class="nav-btn h-11 px-4 bg-blue-600 text-white rounded text-sm font-medium transition-colors flex items-center gap-3">
                     <i data-lucide="layout-grid" class="w-4 h-4"></i> Monitoramento (Ao Vivo)
                 </button>
-                <button onclick="switchTab('db')" id="nav-db" class="nav-btn py-2.5 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded text-sm font-medium transition-colors flex items-center gap-3">
+                <button onclick="switchTab('db')" id="nav-db" class="nav-btn h-11 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded text-sm font-medium transition-colors flex items-center gap-3">
                     <i data-lucide="users" class="w-4 h-4"></i> Banco de Faces (Alvos)
                 </button>
-                <button onclick="switchTab('logs')" id="nav-logs" class="nav-btn py-2.5 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded text-sm font-medium transition-colors flex items-center gap-3">
+                <button onclick="switchTab('logs')" id="nav-logs" class="nav-btn h-11 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded text-sm font-medium transition-colors flex items-center gap-3">
                     <i data-lucide="history" class="w-4 h-4"></i> Histórico de Eventos
                 </button>
             </div>
@@ -97,7 +106,7 @@
             <div class="p-4 flex-1 overflow-y-auto relative hidden flex-col" id="sidebar-cameras">
                 <div class="flex items-center justify-between mb-4 sticky top-0 bg-gray-900 z-10 pb-2">
                     <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500">Dispositivos</h2>
-                    <button onclick="openAddCameraModal()" class="p-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded shadow" title="Adicionar Câmera">
+                    <button onclick="openAddCameraModal()" class="h-11 w-11 flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded shadow" title="Adicionar Câmera">
                         <i data-lucide="plus" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -115,61 +124,105 @@
                         <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div> Monitoramento Tático
                     </h2>
                     <div class="flex items-center gap-1 bg-gray-950 p-1 rounded border border-gray-800 text-xs font-mono">
-                        <button onclick="setLayout(1)" class="px-2 py-1.5 rounded text-gray-400 hover:text-white">1x1</button>
-                        <button onclick="setLayout(4)" class="px-2 py-1.5 rounded bg-gray-800 text-blue-400">2x2</button>
-                        <button onclick="setLayout(9)" class="px-2 py-1.5 rounded text-gray-400 hover:text-white">3x3</button>
+                        <button id="layout-1" onclick="setLayout(1)" class="h-11 px-4 rounded text-gray-400 hover:text-white">1x1</button>
+                        <button id="layout-4" onclick="setLayout(4)" class="h-11 px-4 rounded text-gray-400 hover:text-white">2x2</button>
+                        <button id="layout-9" onclick="setLayout(9)" class="h-11 px-4 rounded text-gray-400 hover:text-white">3x3</button>
                     </div>
                 </header>
-                <div class="flex-1 p-2 overflow-hidden relative bg-black">
-                    <div id="video-grid" class="w-full h-full grid gap-1 grid-cols-2 grid-rows-2"></div>
+                <div class="flex-1 p-2 overflow-y-auto md:overflow-hidden relative bg-black">
+                    <div id="video-grid" class="w-full h-auto md:h-full grid gap-1 grid-cols-2 grid-rows-2"></div>
                 </div>
             </div>
 
             <!-- VISTA 2: BANCO DE FACES (CADASTRO) -->
             <div id="tab-db" class="tab-content hidden flex-col h-full w-full bg-gray-950 overflow-y-auto p-6">
-                <div class="max-w-4xl mx-auto w-full bg-gray-900 rounded-xl border border-gray-800 overflow-hidden shadow-2xl">
-                    <div class="p-6 border-b border-gray-800 bg-black/50">
-                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                            <i data-lucide="scan-face" class="text-blue-500"></i> Cadastro de Alvos e Pessoal
-                        </h2>
-                        <p class="text-sm text-gray-400 mt-1">A IA buscará estes rostos em todas as câmeras conectadas.</p>
-                    </div>
-                    
-                    <div class="flex flex-col md:flex-row p-6 gap-8">
-                        <!-- Câmera de Cadastro -->
-                        <div class="w-full md:w-1/2 flex flex-col items-center">
-                            <div class="w-64 h-64 bg-black rounded-full overflow-hidden relative border-4 border-gray-700 shadow-lg flex items-center justify-center mb-4">
-                                <video id="register-video" autoplay playsinline muted class="w-full h-full object-cover transform -scale-x-100"></video>
-                                <img id="register-preview" class="w-full h-full object-cover hidden">
-                                <div id="scan-animation" class="absolute inset-0 bg-blue-500/20 hidden">
-                                    <div class="w-full h-1 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,1)] animate-[scan_1.5s_infinite]"></div>
-                                </div>
-                            </div>
-                            <button id="btn-scan" onclick="captureFaceForDB()" disabled class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-full font-medium transition-colors shadow flex items-center gap-2 disabled:bg-gray-700">
-                                <i data-lucide="camera" class="w-5 h-5"></i> Extrair Biometria
-                            </button>
+                <div class="max-w-7xl mx-auto w-full grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden shadow-2xl">
+                        <div class="p-6 border-b border-gray-800 bg-black/50">
+                            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                                <i data-lucide="scan-face" class="text-blue-500"></i> Cadastro de Alvos e Pessoal
+                            </h2>
+                            <p class="text-sm text-gray-400 mt-1">A IA buscará estes rostos em todas as câmeras conectadas.</p>
                         </div>
-
-                        <!-- Formulário -->
-                        <form id="db-form" onsubmit="savePersonToDB(event)" class="w-full md:w-1/2 space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-400 mb-1">Nome de Identificação</label>
-                                <input type="text" id="person-name" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-blue-500 outline-none">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-400 mb-1">Grau de Atenção (Ameaça)</label>
-                                <select id="person-level" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-blue-500 outline-none">
-                                    <option value="normal">🟢 Normal (Apenas Registo)</option>
-                                    <option value="suspect">🟡 Suspeito (Aviso Silencioso)</option>
-                                    <option value="danger">🔴 Ameaça Crítica (Dispara Alarme Sonoro/Tático)</option>
-                                </select>
-                            </div>
-                            <div class="pt-4">
-                                <button type="submit" class="w-full bg-green-600 hover:bg-green-500 text-white font-medium py-3 rounded-lg transition-colors shadow flex justify-center items-center gap-2">
-                                    <i data-lucide="save" class="w-5 h-5"></i> Salvar no Firebase
+                        
+                        <div class="flex flex-col md:flex-row p-6 gap-8">
+                            <div class="w-full md:w-1/2 flex flex-col items-center">
+                                <div class="w-64 h-64 bg-black rounded-full overflow-hidden relative border-4 border-gray-700 shadow-lg flex items-center justify-center mb-4">
+                                    <video id="register-video" autoplay playsinline muted class="w-full h-full object-cover transform -scale-x-100"></video>
+                                    <img id="register-preview" class="w-full h-full object-cover hidden">
+                                    <div id="scan-animation" class="absolute inset-0 bg-blue-500/20 hidden">
+                                        <div class="w-full h-1 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,1)] animate-[scan_1.5s_infinite]"></div>
+                                    </div>
+                                </div>
+                                <button id="btn-scan" onclick="captureFaceForDB()" disabled class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-full font-medium transition-colors shadow flex items-center gap-2 disabled:bg-gray-700">
+                                    <i data-lucide="camera" class="w-5 h-5"></i> Extrair Biometria
                                 </button>
                             </div>
-                        </form>
+
+                            <form id="db-form" onsubmit="savePersonToDB(event)" class="w-full md:w-1/2 space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-1">Nome de Identificação</label>
+                                    <input type="text" id="person-name" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-blue-500 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-1">Grau de Atenção (Ameaça)</label>
+                                    <select id="person-level" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-blue-500 outline-none">
+                                        <option value="normal">🟢 Normal (Apenas Registo)</option>
+                                        <option value="suspect">🟡 Suspeito (Aviso Silencioso)</option>
+                                        <option value="danger">🔴 Ameaça Crítica (Dispara Alarme Sonoro/Tático)</option>
+                                    </select>
+                                </div>
+                                <div class="pt-4">
+                                    <button type="submit" class="w-full bg-green-600 hover:bg-green-500 text-white font-medium py-3 rounded-lg transition-colors shadow flex justify-center items-center gap-2">
+                                        <i data-lucide="save" class="w-5 h-5"></i> Salvar no Firebase
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden shadow-2xl flex flex-col min-h-[520px]">
+                        <div class="p-6 border-b border-gray-800 bg-black/50 flex flex-col gap-4">
+                            <div class="flex items-center justify-between gap-3">
+                                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                    <i data-lucide="users" class="text-blue-500"></i> Banco de Faces
+                                </h3>
+                                <div class="flex items-center gap-2">
+                                    <select id="faces-page-size" class="bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm">
+                                        <option value="10">Exibir 10</option>
+                                        <option value="25" selected>Exibir 25</option>
+                                        <option value="50">Exibir 50</option>
+                                        <option value="100">Exibir 100</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="flex flex-col md:flex-row gap-3">
+                                <div class="flex-1 relative">
+                                    <i data-lucide="search" class="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                                    <input id="faces-search" type="text" placeholder="Buscar por nome..." class="w-full bg-gray-950 border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:border-blue-500 outline-none text-sm">
+                                </div>
+                                <select id="faces-level-filter" class="bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm">
+                                    <option value="all" selected>Grau: Todos</option>
+                                    <option value="normal">🟢 Normal</option>
+                                    <option value="suspect">🟡 Suspeito</option>
+                                    <option value="danger">🔴 Ameaça Crítica</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="p-6 flex-1 overflow-y-auto">
+                            <div id="faces-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                        </div>
+
+                        <div class="px-6 py-4 border-t border-gray-800 bg-gray-950 flex items-center justify-between gap-3 flex-wrap">
+                            <div id="faces-page-indicator" class="text-xs text-gray-400 font-mono">Página 1 de 1</div>
+                            <div class="flex items-center gap-2">
+                            <button id="faces-first" class="h-11 px-4 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800">Primeira</button>
+                            <button id="faces-prev" class="h-11 px-4 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800">Anterior</button>
+                            <button id="faces-next" class="h-11 px-4 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800">Próxima</button>
+                            <button id="faces-last" class="h-11 px-4 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800">Última</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -177,28 +230,80 @@
             <!-- VISTA 3: HISTÓRICO DE OCORRÊNCIAS (LOGS) -->
             <div id="tab-logs" class="tab-content hidden flex-col h-full w-full bg-gray-950 p-6 overflow-y-auto">
                 <div class="max-w-6xl mx-auto w-full bg-gray-900 rounded-xl border border-gray-800 shadow-2xl overflow-hidden">
-                    <header class="p-6 border-b border-gray-800 bg-black/50 flex justify-between items-center">
-                        <div>
-                            <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                                <i data-lucide="clipboard-list" class="text-blue-500"></i> Relatório de Reconhecimentos
-                            </h2>
-                            <p class="text-sm text-gray-400 mt-1">Registros salvos em nuvem com captura de imagem.</p>
+                    <header class="p-6 border-b border-gray-800 bg-black/50 flex flex-col gap-4">
+                        <div class="flex items-center justify-between gap-3 flex-wrap">
+                            <div>
+                                <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                                    <i data-lucide="clipboard-list" class="text-blue-500"></i> Relatório de Reconhecimentos
+                                </h2>
+                                <p class="text-sm text-gray-400 mt-1">Registros salvos em nuvem com captura de imagem.</p>
+                            </div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <button onclick="exportLogsCsv()" class="h-11 px-4 bg-gray-950 hover:bg-gray-800 text-white rounded-lg border border-gray-700 text-sm font-medium flex items-center gap-2">
+                                    <i data-lucide="download" class="w-4 h-4"></i> Exportar CSV
+                                </button>
+                                <select id="logs-page-size" class="bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm">
+                                    <option value="10">Exibir 10</option>
+                                    <option value="25" selected>Exibir 25</option>
+                                    <option value="50">Exibir 50</option>
+                                    <option value="100">Exibir 100</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-12 gap-3">
+                            <div class="lg:col-span-4 relative">
+                                <i data-lucide="search" class="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                                <input id="logs-search" type="text" placeholder="Buscar por nome (página atual)..." class="w-full bg-gray-950 border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:border-blue-500 outline-none text-sm">
+                            </div>
+                            <div class="lg:col-span-3">
+                                <select id="logs-camera-filter" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm">
+                                    <option value="all" selected>Câmera: Todas</option>
+                                </select>
+                            </div>
+                            <div class="lg:col-span-3">
+                                <select id="logs-level-filter" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm">
+                                    <option value="all" selected>Grau: Todos</option>
+                                    <option value="normal">🟢 Normal</option>
+                                    <option value="suspect">🟡 Suspeito</option>
+                                    <option value="danger">🔴 Ameaça Crítica</option>
+                                </select>
+                            </div>
+                            <div class="lg:col-span-2">
+                                <select id="logs-period-filter" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm">
+                                    <option value="today">Hoje</option>
+                                    <option value="7d" selected>Últimos 7 dias</option>
+                                    <option value="month">Mês atual</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3 flex-wrap">
+                            <div id="logs-page-indicator" class="text-xs text-gray-400 font-mono">Página 1 de 1</div>
+                            <div class="flex items-center gap-2">
+                                <button id="logs-first" class="h-11 px-4 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800">Primeira</button>
+                                <button id="logs-prev" class="h-11 px-4 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800">Anterior</button>
+                                <button id="logs-next" class="h-11 px-4 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800">Próxima</button>
+                                <button id="logs-last" class="h-11 px-4 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800">Última</button>
+                            </div>
                         </div>
                     </header>
-                    <table class="w-full text-left">
-                        <thead>
-                            <tr class="bg-gray-950 border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wider">
-                                <th class="p-4 w-20">Snapshot</th>
-                                <th class="p-4">Data/Hora</th>
-                                <th class="p-4">Identificação</th>
-                                <th class="p-4">Câmera</th>
-                                <th class="p-4">Nível</th>
-                            </tr>
-                        </thead>
-                        <tbody id="logs-table-body" class="text-sm text-gray-300 divide-y divide-gray-800/50">
-                            <!-- Injetado via JS -->
-                        </tbody>
-                    </table>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left min-w-[820px]">
+                            <thead>
+                                <tr class="bg-gray-950 border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wider">
+                                    <th class="p-4 w-20">Snapshot</th>
+                                    <th class="p-4">Data/Hora</th>
+                                    <th class="p-4">Identificação</th>
+                                    <th class="p-4">Câmera</th>
+                                    <th class="p-4">Nível</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logs-table-body" class="text-sm text-gray-300 divide-y divide-gray-800/50">
+                                <!-- Injetado via JS -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
@@ -229,35 +334,87 @@
         </div>
     </div>
 
+    <div id="edit-person-modal" class="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-800 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-white">Editar Alvo</h3>
+                <button onclick="closeEditPersonModal()" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <form id="edit-person-form" onsubmit="savePersonEdits(event)" class="p-6 space-y-4">
+                <div class="flex items-center gap-4">
+                    <img id="edit-person-photo" src="" class="w-16 h-16 rounded-full object-cover border border-gray-700 bg-black">
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Nome</label>
+                        <input type="text" id="edit-person-name" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-blue-500 outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">Grau de Atenção</label>
+                    <select id="edit-person-level" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-blue-500 outline-none">
+                        <option value="normal">🟢 Normal</option>
+                        <option value="suspect">🟡 Suspeito</option>
+                        <option value="danger">🔴 Ameaça Crítica</option>
+                    </select>
+                </div>
+                <div class="pt-2 flex gap-3">
+                    <button type="button" onclick="closeEditPersonModal()" class="flex-1 py-2.5 bg-gray-950 hover:bg-gray-800 text-white rounded font-medium border border-gray-700">Cancelar</button>
+                    <button type="submit" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded font-medium">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- LÓGICA DO SISTEMA -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc, getDocs, query, where, orderBy, limit, startAfter, endBefore, limitToLast, getCountFromServer } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         lucide.createIcons();
 
-        // Variáveis Globais
         let db = null;
         let isAiReady = false;
         let activeTab = 'live';
-        let layout = 4;
+        let layout = Number(localStorage.getItem('vms_layout')) || 4;
         let faceMatcher = null;
         
         let persons = [];
-        let logs = [];
         let cameras = JSON.parse(localStorage.getItem('vms_cameras')) || [
             { id: 'cam-webcam', name: 'Webcam Local (Testes IA)', type: 'webcam', url: 'local' }
         ];
 
-        // Controle de IA nas câmeras
         let aiLoops = {}; // Guarda os IDs dos intervalos de cada câmera
         const lastDetectionTime = {}; // Cooldown para não dar spam de alarmes
 
-        // Som de Alarme
         let audioCtx = null;
         let alarmOscillator = null;
+        let alarmSirenIntervalId = null;
+        let isVisibilityPaused = document.hidden;
 
-        // 1. FIREBASE INIT
+        const facesState = {
+            search: '',
+            level: 'all',
+            pageSize: 25,
+            page: 1,
+            loading: false
+        };
+
+        const logsState = {
+            search: '',
+            camera: 'all',
+            level: 'all',
+            period: '7d',
+            pageSize: 25,
+            page: 1,
+            totalPages: 1,
+            totalCount: 0,
+            loading: false,
+            firstDoc: null,
+            lastDoc: null,
+            items: []
+        };
+
+        let currentEditPersonId = null;
+
         const firebaseConfig = {
             apiKey: "AIzaSyC7J_J7JCagM65E5qkl1z-Kn2V360ldmdg",
             authDomain: "minhas-credenciais-firebase.firebaseapp.com",
@@ -275,20 +432,13 @@
                 persons = [];
                 snapshot.forEach(doc => persons.push({ id: doc.id, ...doc.data() }));
                 updateFaceMatcher();
-            });
-
-            onSnapshot(collection(db, "logs"), (snapshot) => {
-                logs = [];
-                snapshot.forEach(doc => logs.push({ id: doc.id, ...doc.data() }));
-                logs.sort((a, b) => b.timestamp - a.timestamp);
-                renderLogs();
+                renderFaces();
             });
         } catch (error) {
             console.error("Firebase Offline:", error);
             showToast("Erro: Credenciais do Firebase inválidas. Funcionalidades de nuvem desativadas.", "error");
         }
 
-        // 2. INICIALIZAR IA
         async function initAI() {
             try {
                 const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/';
@@ -311,21 +461,23 @@
         }
 
         function updateFaceMatcher() {
-            if (persons.length === 0) return;
+            if (!isAiReady || persons.length === 0) {
+                faceMatcher = null;
+                return;
+            }
             const labeledDescriptors = persons.map(p => {
                 return new faceapi.LabeledFaceDescriptors(p.id, [new Float32Array(p.descriptor)]);
             });
             faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.55); // 0.55 margem de confiança
         }
 
-        // 3. NAVEGAÇÃO
         window.switchTab = async (tab) => {
             activeTab = tab;
             
             document.querySelectorAll('.nav-btn').forEach(btn => {
-                btn.className = "nav-btn py-2.5 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded text-sm font-medium transition-colors flex items-center gap-3";
+                btn.className = "nav-btn h-11 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded text-sm font-medium transition-colors flex items-center gap-3";
             });
-            document.getElementById(`nav-${tab}`).className = "nav-btn py-2.5 px-4 bg-blue-600 text-white rounded text-sm font-medium transition-colors flex items-center gap-3";
+            document.getElementById(`nav-${tab}`).className = "nav-btn h-11 px-4 bg-blue-600 text-white rounded text-sm font-medium transition-colors flex items-center gap-3";
 
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             document.getElementById(`tab-${tab}`).classList.add('active');
@@ -348,13 +500,21 @@
                 video.srcObject = stream;
                 video.play();
                 window.currentRegisterStream = stream; // guardar para desligar depois
+                hydrateFacesControls();
+                renderFaces();
             } else if (window.currentRegisterStream) {
                 window.currentRegisterStream.getTracks().forEach(t => t.stop());
                 window.currentRegisterStream = null;
             }
+
+            if (tab === 'logs') {
+                hydrateLogsControls();
+                await refreshLogs({ mode: 'first' });
+            }
+
+            closeSidebarDrawer();
         };
 
-        // 4. CADASTRO DE ROSTOS
         let tempDescriptor = null;
         let tempPhoto = null;
 
@@ -415,8 +575,13 @@
             }
         };
 
-        // 5. GESTÃO DE CÂMERAS NO MOSAICO
-        window.setLayout = (num) => { layout = num; renderGrid(); };
+        window.setLayout = (num) => {
+            layout = num;
+            if (![1, 4, 9].includes(layout)) layout = 4;
+            localStorage.setItem('vms_layout', String(layout));
+            updateLayoutButtons();
+            renderGrid();
+        };
         
         function renderSidebarCameras() {
             const list = document.getElementById('camera-list');
@@ -428,7 +593,7 @@
                             <i data-lucide="video" class="w-4 h-4 text-gray-500 shrink-0"></i>
                             <span class="text-sm truncate">${cam.name}</span>
                         </div>
-                        <button onclick="removeCamera('${cam.id}')" class="text-gray-600 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        <button onclick="removeCamera('${cam.id}')" class="h-11 w-11 flex items-center justify-center rounded text-gray-600 hover:text-red-500 hover:bg-gray-900"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                     </li>
                 `;
             });
@@ -455,23 +620,29 @@
             localStorage.setItem('vms_cameras', JSON.stringify(cameras));
             renderSidebarCameras();
             renderGrid();
+            hydrateLogsControls();
         };
 
-        // 6. MOTOR DE MONITORAMENTO TÁTICO (VMS + IA)
         async function renderGrid() {
             stopAllAILoops(); // Para análises antigas
             
             const grid = document.getElementById('video-grid');
+            const isMobile = window.matchMedia('(max-width: 767px)').matches;
             let cols = Math.ceil(Math.sqrt(layout));
             let rows = Math.ceil(layout / cols);
             grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
-            grid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
+            if (isMobile && layout === 9) {
+                grid.style.gridTemplateRows = `repeat(${rows}, minmax(200px, 1fr))`;
+            } else {
+                grid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
+            }
             grid.innerHTML = '';
 
             for (let i = 0; i < layout; i++) {
                 const cam = cameras[i];
                 const slot = document.createElement('div');
                 slot.className = "camera-slot bg-gray-900 rounded border border-gray-800 overflow-hidden flex items-center justify-center relative";
+                if (isMobile && layout === 9) slot.classList.add('min-h-[200px]');
                 
                 if (cam) {
                     let mediaHtml = '';
@@ -500,7 +671,7 @@
                     }
 
                     // Inicia o motor de IA para esta câmera específica
-                    if (isAiReady && faceMatcher) {
+                    if (isAiReady && faceMatcher && !document.hidden) {
                         startCameraAI(cam);
                     }
 
@@ -518,13 +689,14 @@
         }
 
         function startCameraAI(cam) {
+            if (aiLoops[cam.id]) return;
             const media = document.getElementById(`media-${cam.id}`);
             const canvas = document.getElementById(`canvas-${cam.id}`);
             if (!media || !canvas) return;
 
             // Executa a cada 800ms para poupar CPU
             aiLoops[cam.id] = setInterval(async () => {
-                if (activeTab !== 'live' || !media.clientWidth) return;
+                if (document.hidden || activeTab !== 'live' || !media.clientWidth) return;
                 
                 try {
                     const displaySize = { width: media.clientWidth, height: media.clientHeight };
@@ -575,7 +747,16 @@
             }, 800); 
         }
 
-        // 7. PROCESSAMENTO DE AMEAÇAS E LOGS
+        function resumeAILoopsIfNeeded() {
+            if (document.hidden || activeTab !== 'live') return;
+            if (!isAiReady || !faceMatcher) return;
+            for (let i = 0; i < layout; i++) {
+                const cam = cameras[i];
+                if (!cam) continue;
+                startCameraAI(cam);
+            }
+        }
+
         async function processDetection(person, cam, mediaElement) {
             // Tira um print da tela no momento
             let snapshotBase64 = "";
@@ -594,14 +775,18 @@
             // 1. Salva no Firebase
             if (db) {
                 try {
-                    await addDoc(collection(db, "logs"), {
+                    const logEntry = {
                         personName: person.name,
                         level: person.level,
                         cameraName: cam.name,
                         time: time,
                         timestamp: Date.now(),
                         snapshot: snapshotBase64
-                    });
+                    };
+                    await addDoc(collection(db, "logs"), logEntry);
+                    if (activeTab === 'logs') {
+                        tryInsertLocalLog(logEntry);
+                    }
                 } catch(e) { console.error("Erro Firebase Log", e); }
             }
 
@@ -616,7 +801,6 @@
             }
         }
 
-        // 8. PAINEL TÁTICO E SOM
         function triggerTacticalAlarm(person, cam, snapshot) {
             document.getElementById('tactical-alarm-panel').classList.remove('hidden');
             document.getElementById('tactical-alarm-panel').classList.add('flex');
@@ -637,7 +821,8 @@
             alarmOscillator.frequency.setValueAtTime(600, audioCtx.currentTime); // Pitch inicial
             
             // Sirene sobe e desce
-            setInterval(() => {
+            if (alarmSirenIntervalId) clearInterval(alarmSirenIntervalId);
+            alarmSirenIntervalId = setInterval(() => {
                 if(!alarmOscillator) return;
                 try {
                     alarmOscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.5);
@@ -656,6 +841,10 @@
         window.acknowledgeAlarm = () => {
             document.getElementById('tactical-alarm-panel').classList.add('hidden');
             document.getElementById('tactical-alarm-panel').classList.remove('flex');
+            if (alarmSirenIntervalId) {
+                clearInterval(alarmSirenIntervalId);
+                alarmSirenIntervalId = null;
+            }
             if (alarmOscillator) {
                 alarmOscillator.stop();
                 alarmOscillator.disconnect();
@@ -669,37 +858,577 @@
             const gain = audioCtx.createGain();
             osc.frequency.value = 400;
             osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(); gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
+            setTimeout(() => {
+                try { osc.stop(); } catch {}
+                try { osc.disconnect(); } catch {}
+                try { gain.disconnect(); } catch {}
+            }, 600);
         }
 
-        // 9. HISTÓRICO
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        function debounce(fn, waitMs) {
+            let t = null;
+            return (...args) => {
+                if (t) clearTimeout(t);
+                t = setTimeout(() => fn(...args), waitMs);
+            };
+        }
+
+        function levelBadgeHtml(level) {
+            if (level === 'suspect') return '<span class="bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">Suspeito</span>';
+            if (level === 'danger') return '<span class="bg-red-500/20 text-red-400 px-2 py-1 rounded border border-red-500/50 animate-pulse">Ameaça Crítica</span>';
+            return '<span class="bg-green-500/20 text-green-400 px-2 py-1 rounded">Normal</span>';
+        }
+
+        function setButtonDisabled(el, disabled) {
+            if (!el) return;
+            el.disabled = !!disabled;
+            el.classList.toggle('opacity-50', !!disabled);
+            el.classList.toggle('cursor-not-allowed', !!disabled);
+        }
+
         function renderLogs() {
             const tbody = document.getElementById('logs-table-body');
             tbody.innerHTML = '';
-            
-            if (logs.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500">Nenhum evento registrado.</td></tr>';
+            const queryText = logsState.search.trim().toLowerCase();
+            const items = queryText
+                ? logsState.items.filter(l => String(l.personName ?? '').toLowerCase().includes(queryText))
+                : logsState.items;
+
+            if (logsState.loading) {
+                tbody.innerHTML = Array.from({ length: Math.min(8, logsState.pageSize) }).map(() => `
+                    <tr class="animate-pulse">
+                        <td class="p-4"><div class="w-16 h-12 bg-gray-800 rounded border border-gray-700"></div></td>
+                        <td class="p-4"><div class="h-3 bg-gray-800 rounded w-32"></div></td>
+                        <td class="p-4"><div class="h-3 bg-gray-800 rounded w-40"></div></td>
+                        <td class="p-4"><div class="h-3 bg-gray-800 rounded w-36"></div></td>
+                        <td class="p-4"><div class="h-6 bg-gray-800 rounded w-28"></div></td>
+                    </tr>
+                `).join('');
                 return;
             }
 
-            logs.forEach(log => {
-                let badge = '<span class="bg-green-500/20 text-green-400 px-2 py-1 rounded">Normal</span>';
-                if (log.level === 'suspect') badge = '<span class="bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">Suspeito</span>';
-                if (log.level === 'danger') badge = '<span class="bg-red-500/20 text-red-400 px-2 py-1 rounded border border-red-500/50 animate-pulse">Ameaça Crítica</span>';
+            if (items.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="p-10 text-center">
+                            <div class="flex flex-col items-center gap-3 text-gray-400">
+                                <i data-lucide="inbox" class="w-10 h-10 text-gray-600"></i>
+                                <div class="text-sm font-medium text-gray-300">Nenhum evento encontrado</div>
+                                <div class="text-xs text-gray-500">Ajuste os filtros ou tente outra busca.</div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                lucide.createIcons();
+                return;
+            }
 
+            items.forEach(log => {
+                const badge = levelBadgeHtml(log.level);
                 tbody.innerHTML += `
                     <tr class="hover:bg-gray-800/50">
                         <td class="p-4">
-                            <img src="${log.snapshot}" class="w-16 h-12 object-cover rounded border border-gray-700" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' fill=\\'%23374151\\' viewBox=\\'0 0 24 24\\'><path d=\\'M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z\\'/></svg>'">
+                            <img src="${escapeHtml(log.snapshot)}" class="w-16 h-12 object-cover rounded border border-gray-700" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' fill=\\'%23374151\\' viewBox=\\'0 0 24 24\\'><path d=\\'M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z\\'/></svg>'">
                         </td>
-                        <td class="p-4 font-mono text-xs text-gray-400">${log.time}</td>
-                        <td class="p-4 font-bold text-white">${log.personName}</td>
-                        <td class="p-4 text-gray-400"><i data-lucide="video" class="w-3 h-3 inline mr-1"></i>${log.cameraName}</td>
+                        <td class="p-4 font-mono text-xs text-gray-400">${escapeHtml(log.time)}</td>
+                        <td class="p-4 font-bold text-white">${escapeHtml(log.personName)}</td>
+                        <td class="p-4 text-gray-400"><i data-lucide="video" class="w-3 h-3 inline mr-1"></i>${escapeHtml(log.cameraName)}</td>
                         <td class="p-4">${badge}</td>
                     </tr>
                 `;
             });
             lucide.createIcons();
+        }
+
+        function getVisibleLogsForExport() {
+            const queryText = logsState.search.trim().toLowerCase();
+            return queryText
+                ? logsState.items.filter(l => String(l.personName ?? '').toLowerCase().includes(queryText))
+                : logsState.items.slice();
+        }
+
+        function csvEscape(value) {
+            const s = String(value ?? '');
+            const needsQuotes = s.includes('"') || s.includes(',') || s.includes('\n') || s.includes('\r');
+            const escaped = s.replaceAll('"', '""');
+            return needsQuotes ? `"${escaped}"` : escaped;
+        }
+
+        window.exportLogsCsv = () => {
+            const items = getVisibleLogsForExport();
+            if (!items.length) return showToast("Nenhum evento para exportar com os filtros atuais.", "warning");
+            const header = ['Data/Hora', 'Identificação', 'Câmera', 'Nível', 'Timestamp'];
+            const rows = items.map(l => [
+                csvEscape(l.time),
+                csvEscape(l.personName),
+                csvEscape(l.cameraName),
+                csvEscape(l.level),
+                csvEscape(l.timestamp)
+            ].join(','));
+            const csv = [header.join(','), ...rows].join('\r\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const stamp = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
+            a.href = url;
+            a.download = `vms-historico-${stamp}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        };
+
+        function renderLogsPagination() {
+            const indicator = document.getElementById('logs-page-indicator');
+            if (indicator) indicator.innerText = `Página ${logsState.page} de ${logsState.totalPages}`;
+            setButtonDisabled(document.getElementById('logs-first'), logsState.loading || logsState.page <= 1);
+            setButtonDisabled(document.getElementById('logs-prev'), logsState.loading || logsState.page <= 1);
+            setButtonDisabled(document.getElementById('logs-next'), logsState.loading || logsState.page >= logsState.totalPages);
+            setButtonDisabled(document.getElementById('logs-last'), logsState.loading || logsState.page >= logsState.totalPages);
+        }
+
+        function periodStartTimestamp(period) {
+            const now = new Date();
+            if (period === 'today') {
+                const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+                return start.getTime();
+            }
+            if (period === 'month') {
+                const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+                return start.getTime();
+            }
+            return Date.now() - 7 * 24 * 60 * 60 * 1000;
+        }
+
+        function buildLogsBaseConstraints({ order = 'desc' } = {}) {
+            const constraints = [];
+            const startTs = periodStartTimestamp(logsState.period);
+            constraints.push(where('timestamp', '>=', startTs));
+            if (logsState.camera !== 'all') constraints.push(where('cameraName', '==', logsState.camera));
+            if (logsState.level !== 'all') constraints.push(where('level', '==', logsState.level));
+            constraints.push(orderBy('timestamp', order));
+            return constraints;
+        }
+
+        async function refreshLogsCount() {
+            if (!db) return;
+            try {
+                const base = query(collection(db, 'logs'), ...buildLogsBaseConstraints({ order: 'desc' }));
+                const snapshot = await getCountFromServer(base);
+                const totalCount = snapshot.data().count || 0;
+                logsState.totalCount = totalCount;
+                logsState.totalPages = Math.max(1, Math.ceil(totalCount / logsState.pageSize));
+            } catch (e) {
+                logsState.totalCount = 0;
+                logsState.totalPages = 1;
+                showToast("Falha ao carregar total de páginas do histórico.", "warning");
+            }
+        }
+
+        async function fetchLogsPage({ mode }) {
+            if (!db) return;
+            logsState.loading = true;
+            renderLogsPagination();
+            renderLogs();
+
+            try {
+                let q = null;
+                if (mode === 'last') {
+                    q = query(collection(db, 'logs'), ...buildLogsBaseConstraints({ order: 'asc' }), limit(logsState.pageSize));
+                    const snap = await getDocs(q);
+                    const docs = snap.docs;
+                    logsState.items = docs.map(d => ({ id: d.id, ...d.data() })).reverse();
+                    logsState.firstDoc = docs.length ? docs[docs.length - 1] : null;
+                    logsState.lastDoc = docs.length ? docs[0] : null;
+                    logsState.loading = false;
+                    renderLogsPagination();
+                    renderLogs();
+                    return;
+                }
+
+                const base = [collection(db, 'logs'), ...buildLogsBaseConstraints({ order: 'desc' })];
+                if (mode === 'first') {
+                    q = query(...base, limit(logsState.pageSize));
+                } else if (mode === 'next') {
+                    if (!logsState.lastDoc) throw new Error('missing_cursor_next');
+                    q = query(...base, startAfter(logsState.lastDoc), limit(logsState.pageSize));
+                } else if (mode === 'prev') {
+                    if (!logsState.firstDoc) throw new Error('missing_cursor_prev');
+                    q = query(...base, endBefore(logsState.firstDoc), limitToLast(logsState.pageSize));
+                } else {
+                    q = query(...base, limit(logsState.pageSize));
+                }
+
+                const snap = await getDocs(q);
+                logsState.items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                logsState.firstDoc = snap.docs.length ? snap.docs[0] : null;
+                logsState.lastDoc = snap.docs.length ? snap.docs[snap.docs.length - 1] : null;
+            } catch (e) {
+                if (String(e?.message || '').includes('index')) {
+                    showToast("Filtro exige índice no Firestore. Verifique o console do Firebase.", "warning");
+                } else if (e?.message === 'missing_cursor_prev' || e?.message === 'missing_cursor_next') {
+                    showToast("Navegação indisponível. Atualize a consulta.", "warning");
+                } else {
+                    showToast("Erro ao buscar histórico no Firestore.", "error");
+                }
+                logsState.items = [];
+                logsState.firstDoc = null;
+                logsState.lastDoc = null;
+            } finally {
+                logsState.loading = false;
+                renderLogsPagination();
+                renderLogs();
+            }
+        }
+
+        async function refreshLogs({ mode = 'first' } = {}) {
+            logsState.page = mode === 'last' ? logsState.totalPages : 1;
+            logsState.firstDoc = null;
+            logsState.lastDoc = null;
+            await refreshLogsCount();
+            logsState.page = mode === 'last' ? logsState.totalPages : 1;
+            await fetchLogsPage({ mode });
+        }
+
+        function tryInsertLocalLog(logEntry) {
+            const startTs = periodStartTimestamp(logsState.period);
+            if ((logEntry.timestamp ?? 0) < startTs) return;
+            if (logsState.camera !== 'all' && logEntry.cameraName !== logsState.camera) return;
+            if (logsState.level !== 'all' && logEntry.level !== logsState.level) return;
+            if (logsState.page !== 1) return;
+            logsState.items = [logEntry, ...logsState.items].slice(0, logsState.pageSize);
+            renderLogs();
+        }
+
+        function hydrateLogsControls() {
+            const cameraSelect = document.getElementById('logs-camera-filter');
+            if (cameraSelect && cameraSelect.dataset.hydrated !== '1') {
+                cameraSelect.dataset.hydrated = '1';
+                cameraSelect.addEventListener('change', async (e) => {
+                    logsState.camera = e.target.value;
+                    await refreshLogs({ mode: 'first' });
+                });
+            }
+
+            const levelSelect = document.getElementById('logs-level-filter');
+            if (levelSelect && levelSelect.dataset.hydrated !== '1') {
+                levelSelect.dataset.hydrated = '1';
+                levelSelect.addEventListener('change', async (e) => {
+                    logsState.level = e.target.value;
+                    await refreshLogs({ mode: 'first' });
+                });
+            }
+
+            const periodSelect = document.getElementById('logs-period-filter');
+            if (periodSelect && periodSelect.dataset.hydrated !== '1') {
+                periodSelect.dataset.hydrated = '1';
+                periodSelect.addEventListener('change', async (e) => {
+                    logsState.period = e.target.value;
+                    await refreshLogs({ mode: 'first' });
+                });
+            }
+
+            const pageSizeSelect = document.getElementById('logs-page-size');
+            if (pageSizeSelect && pageSizeSelect.dataset.hydrated !== '1') {
+                pageSizeSelect.dataset.hydrated = '1';
+                pageSizeSelect.addEventListener('change', async (e) => {
+                    logsState.pageSize = Number(e.target.value) || 25;
+                    await refreshLogs({ mode: 'first' });
+                });
+            }
+
+            const searchInput = document.getElementById('logs-search');
+            if (searchInput && searchInput.dataset.hydrated !== '1') {
+                searchInput.dataset.hydrated = '1';
+                const handler = debounce((value) => {
+                    logsState.search = value;
+                    renderLogs();
+                }, 300);
+                searchInput.addEventListener('input', (e) => handler(e.target.value));
+            }
+
+            const camNames = [...new Set(cameras.map(c => c.name))];
+            if (cameraSelect) {
+                const current = logsState.camera;
+                const options = ['all', ...camNames];
+                cameraSelect.innerHTML = options.map(v => `<option value="${escapeHtml(v)}"${v === current ? ' selected' : ''}>${v === 'all' ? 'Câmera: Todas' : escapeHtml(v)}</option>`).join('');
+            }
+
+            const firstBtn = document.getElementById('logs-first');
+            if (firstBtn && firstBtn.dataset.hydrated !== '1') {
+                firstBtn.dataset.hydrated = '1';
+                firstBtn.addEventListener('click', async () => {
+                    logsState.page = 1;
+                    await fetchLogsPage({ mode: 'first' });
+                });
+            }
+            const prevBtn = document.getElementById('logs-prev');
+            if (prevBtn && prevBtn.dataset.hydrated !== '1') {
+                prevBtn.dataset.hydrated = '1';
+                prevBtn.addEventListener('click', async () => {
+                    if (logsState.page <= 1) return;
+                    logsState.page -= 1;
+                    await fetchLogsPage({ mode: 'prev' });
+                });
+            }
+            const nextBtn = document.getElementById('logs-next');
+            if (nextBtn && nextBtn.dataset.hydrated !== '1') {
+                nextBtn.dataset.hydrated = '1';
+                nextBtn.addEventListener('click', async () => {
+                    if (logsState.page >= logsState.totalPages) return;
+                    logsState.page += 1;
+                    await fetchLogsPage({ mode: 'next' });
+                });
+            }
+            const lastBtn = document.getElementById('logs-last');
+            if (lastBtn && lastBtn.dataset.hydrated !== '1') {
+                lastBtn.dataset.hydrated = '1';
+                lastBtn.addEventListener('click', async () => {
+                    logsState.page = logsState.totalPages;
+                    await fetchLogsPage({ mode: 'last' });
+                });
+            }
+            renderLogsPagination();
+        }
+
+        function filteredPersons() {
+            const q = facesState.search.trim().toLowerCase();
+            return persons.filter(p => {
+                if (facesState.level !== 'all' && p.level !== facesState.level) return false;
+                if (!q) return true;
+                return String(p.name ?? '').toLowerCase().includes(q);
+            });
+        }
+
+        function renderFaces() {
+            const grid = document.getElementById('faces-grid');
+            if (!grid) return;
+
+            if (facesState.loading) {
+                grid.innerHTML = Array.from({ length: Math.min(6, facesState.pageSize) }).map(() => `
+                    <div class="animate-pulse bg-gray-950 border border-gray-800 rounded-xl p-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-full bg-gray-800 border border-gray-700"></div>
+                            <div class="flex-1">
+                                <div class="h-3 bg-gray-800 rounded w-2/3 mb-2"></div>
+                                <div class="h-3 bg-gray-800 rounded w-1/3"></div>
+                            </div>
+                        </div>
+                        <div class="mt-4 h-8 bg-gray-800 rounded"></div>
+                    </div>
+                `).join('');
+                return;
+            }
+
+            const all = filteredPersons();
+            const totalPages = Math.max(1, Math.ceil(all.length / facesState.pageSize));
+            facesState.page = Math.min(Math.max(1, facesState.page), totalPages);
+
+            const start = (facesState.page - 1) * facesState.pageSize;
+            const pageItems = all.slice(start, start + facesState.pageSize);
+
+            const indicator = document.getElementById('faces-page-indicator');
+            if (indicator) indicator.innerText = `Página ${facesState.page} de ${totalPages}`;
+            setButtonDisabled(document.getElementById('faces-first'), facesState.page <= 1);
+            setButtonDisabled(document.getElementById('faces-prev'), facesState.page <= 1);
+            setButtonDisabled(document.getElementById('faces-next'), facesState.page >= totalPages);
+            setButtonDisabled(document.getElementById('faces-last'), facesState.page >= totalPages);
+
+            if (pageItems.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full">
+                        <div class="p-10 text-center bg-gray-950 border border-gray-800 rounded-xl">
+                            <div class="flex flex-col items-center gap-3 text-gray-400">
+                                <i data-lucide="inbox" class="w-10 h-10 text-gray-600"></i>
+                                <div class="text-sm font-medium text-gray-300">Nenhum alvo encontrado</div>
+                                <div class="text-xs text-gray-500">Ajuste os filtros ou cadastre um novo alvo.</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            grid.innerHTML = pageItems.map(p => `
+                <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 flex flex-col gap-3">
+                    <div class="flex items-center gap-3">
+                        <img src="${escapeHtml(p.photo)}" class="w-12 h-12 rounded-full object-cover border border-gray-700 bg-black" onerror="this.src=''; this.classList.add('bg-gray-800')">
+                        <div class="min-w-0 flex-1">
+                            <div class="text-sm font-bold text-white truncate">${escapeHtml(p.name)}</div>
+                            <div class="text-xs text-gray-400 font-mono">${levelBadgeHtml(p.level)}</div>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="openEditPersonModal('${escapeHtml(p.id)}')" class="flex-1 h-11 px-3 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800 flex items-center justify-center gap-2">
+                            <i data-lucide="pencil" class="w-4 h-4"></i> Editar
+                        </button>
+                        <button onclick="deletePerson('${escapeHtml(p.id)}')" class="h-11 px-3 rounded bg-red-900/30 border border-red-900/60 text-red-200 text-xs hover:bg-red-900/50 flex items-center justify-center gap-2">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function hydrateFacesControls() {
+            const pageSizeSelect = document.getElementById('faces-page-size');
+            if (pageSizeSelect && pageSizeSelect.dataset.hydrated !== '1') {
+                pageSizeSelect.dataset.hydrated = '1';
+                pageSizeSelect.addEventListener('change', (e) => {
+                    facesState.pageSize = Number(e.target.value) || 25;
+                    facesState.page = 1;
+                    renderFaces();
+                });
+            }
+
+            const levelSelect = document.getElementById('faces-level-filter');
+            if (levelSelect && levelSelect.dataset.hydrated !== '1') {
+                levelSelect.dataset.hydrated = '1';
+                levelSelect.addEventListener('change', (e) => {
+                    facesState.level = e.target.value;
+                    facesState.page = 1;
+                    renderFaces();
+                });
+            }
+
+            const searchInput = document.getElementById('faces-search');
+            if (searchInput && searchInput.dataset.hydrated !== '1') {
+                searchInput.dataset.hydrated = '1';
+                const handler = debounce((value) => {
+                    facesState.search = value;
+                    facesState.page = 1;
+                    renderFaces();
+                }, 300);
+                searchInput.addEventListener('input', (e) => handler(e.target.value));
+            }
+
+            const firstBtn = document.getElementById('faces-first');
+            if (firstBtn && firstBtn.dataset.hydrated !== '1') {
+                firstBtn.dataset.hydrated = '1';
+                firstBtn.addEventListener('click', () => {
+                    facesState.page = 1;
+                    renderFaces();
+                });
+            }
+            const prevBtn = document.getElementById('faces-prev');
+            if (prevBtn && prevBtn.dataset.hydrated !== '1') {
+                prevBtn.dataset.hydrated = '1';
+                prevBtn.addEventListener('click', () => {
+                    facesState.page = Math.max(1, facesState.page - 1);
+                    renderFaces();
+                });
+            }
+            const nextBtn = document.getElementById('faces-next');
+            if (nextBtn && nextBtn.dataset.hydrated !== '1') {
+                nextBtn.dataset.hydrated = '1';
+                nextBtn.addEventListener('click', () => {
+                    facesState.page += 1;
+                    renderFaces();
+                });
+            }
+            const lastBtn = document.getElementById('faces-last');
+            if (lastBtn && lastBtn.dataset.hydrated !== '1') {
+                lastBtn.dataset.hydrated = '1';
+                lastBtn.addEventListener('click', () => {
+                    const total = Math.max(1, Math.ceil(filteredPersons().length / facesState.pageSize));
+                    facesState.page = total;
+                    renderFaces();
+                });
+            }
+        }
+
+        window.openEditPersonModal = (id) => {
+            const p = persons.find(x => x.id === id);
+            if (!p) return;
+            currentEditPersonId = id;
+            document.getElementById('edit-person-photo').src = p.photo || '';
+            document.getElementById('edit-person-name').value = p.name || '';
+            document.getElementById('edit-person-level').value = p.level || 'normal';
+            document.getElementById('edit-person-modal').classList.remove('hidden');
+            lucide.createIcons();
+        };
+
+        window.closeEditPersonModal = () => {
+            currentEditPersonId = null;
+            document.getElementById('edit-person-modal').classList.add('hidden');
+        };
+
+        window.savePersonEdits = async (e) => {
+            e.preventDefault();
+            if (!db) return showToast("Banco Offline", "error");
+            if (!currentEditPersonId) return;
+            const name = document.getElementById('edit-person-name').value.trim();
+            const level = document.getElementById('edit-person-level').value;
+            try {
+                await updateDoc(doc(db, 'students', currentEditPersonId), { name, level });
+                showToast("Alvo atualizado.", "success");
+                closeEditPersonModal();
+            } catch (err) {
+                showToast("Erro ao atualizar alvo.", "error");
+            }
+        };
+
+        window.deletePerson = async (id) => {
+            if (!db) return showToast("Banco Offline", "error");
+            const p = persons.find(x => x.id === id);
+            const ok = confirm(`Excluir o alvo "${p?.name ?? 'sem nome'}"?`);
+            if (!ok) return;
+            try {
+                await deleteDoc(doc(db, 'students', id));
+                showToast("Alvo excluído.", "success");
+            } catch (err) {
+                showToast("Erro ao excluir alvo.", "error");
+            }
+        };
+
+        window.openSidebarDrawer = () => {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            if (!sidebar || !overlay) return;
+            if (window.matchMedia('(min-width: 768px)').matches) return;
+            sidebar.classList.remove('-translate-x-full');
+            overlay.classList.remove('hidden');
+            document.body.classList.add('overflow-hidden');
+        };
+
+        window.closeSidebarDrawer = () => {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            if (!sidebar || !overlay) return;
+            if (window.matchMedia('(min-width: 768px)').matches) {
+                overlay.classList.add('hidden');
+                sidebar.classList.remove('-translate-x-full');
+                document.body.classList.remove('overflow-hidden');
+                return;
+            }
+            sidebar.classList.add('-translate-x-full');
+            overlay.classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
+        };
+
+        function updateLayoutButtons() {
+            const variants = [1, 4, 9];
+            variants.forEach(v => {
+                const btn = document.getElementById(`layout-${v}`);
+                if (!btn) return;
+                const active = layout === v;
+                btn.classList.toggle('bg-gray-800', active);
+                btn.classList.toggle('text-blue-400', active);
+                btn.classList.toggle('text-gray-400', !active);
+            });
         }
 
         // Utils
@@ -717,8 +1446,26 @@
         }, 1000);
 
         // Início
+        if (![1, 4, 9].includes(layout)) layout = 4;
+        updateLayoutButtons();
         initAI();
         switchTab('live');
+        hydrateFacesControls();
+        hydrateLogsControls();
+        closeSidebarDrawer();
+
+        document.addEventListener('visibilitychange', () => {
+            isVisibilityPaused = document.hidden;
+            if (isVisibilityPaused) {
+                stopAllAILoops();
+            } else {
+                resumeAILoopsIfNeeded();
+            }
+        });
+
+        if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+            navigator.serviceWorker.register('./sw.js').catch(() => {});
+        }
 
     </script>
 </body>
