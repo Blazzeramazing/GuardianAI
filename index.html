@@ -3,207 +3,261 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guardian AI - Monitoramento Escolar</title>
+    <title>Defense VMS - Inteligência Artificial</title>
     
-    <!-- Tailwind CSS para Estilização -->
+    <!-- Tailwind & Icons -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Ícones Lucide -->
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- Face API (Inteligência Artificial) -->
+    <!-- Face API -->
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
 
     <style>
-        /* Animações customizadas */
-        @keyframes scan {
-            0% { transform: translateY(-300%); opacity: 0; }
-            50% { opacity: 1; }
-            100% { transform: translateY(300%); opacity: 0; }
-        }
-        .animate-scan {
-            animation: scan 1.5s ease-in-out infinite;
-        }
+        .toast-enter { animation: slideIn 0.3s ease-out forwards; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #111827; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
         
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        .toast-enter {
-            animation: slideIn 0.3s ease-out forwards;
-        }
-
-        /* Ocultar elementos nas abas não ativas */
         .tab-content { display: none; }
         .tab-content.active { display: flex; }
+
+        /* Animação do Alarme Tático */
+        .alarm-flash { animation: pulseRed 0.8s infinite alternate; }
+        @keyframes pulseRed { 0% { background-color: rgba(220, 38, 38, 0.95); box-shadow: inset 0 0 100px rgba(153, 27, 27, 1); } 100% { background-color: rgba(153, 27, 27, 0.95); box-shadow: inset 0 0 20px rgba(220, 38, 38, 1); } }
+        
+        /* Bounding Box da IA sobre as câmeras */
+        .camera-slot { position: relative; }
+        .ai-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
     </style>
 </head>
-<body class="min-h-screen bg-slate-100 flex text-slate-800 font-sans">
+<body class="bg-gray-950 text-gray-300 font-sans overflow-hidden h-screen flex flex-col">
 
-    <!-- MENU LATERAL -->
-    <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl z-10 shrink-0">
-        <div class="p-6 flex items-center gap-3 text-white border-b border-slate-800">
-            <i data-lucide="shield-check" class="text-blue-500 w-8 h-8"></i>
-            <h1 class="text-xl font-bold tracking-tight">Guardian<span class="text-blue-500">AI</span></h1>
+    <!-- TOASTS -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- PAINEL TÁTICO DE ALARME (TELA CHEIA) -->
+    <div id="tactical-alarm-panel" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/80 backdrop-blur-md pointer-events-auto">
+        <div class="alarm-flash border-4 border-red-500 rounded-2xl p-8 max-w-2xl w-full text-center flex flex-col items-center">
+            <i data-lucide="siren" class="w-20 h-20 text-white mb-2 animate-bounce"></i>
+            <h2 class="text-4xl font-black text-white uppercase tracking-widest mb-1">Ameaça Detectada</h2>
+            <p id="alarm-cam-name" class="text-2xl text-red-200 font-mono mb-6 font-bold tracking-wider"></p>
+            
+            <div class="flex gap-6 w-full mb-8 bg-black/50 p-4 rounded-xl border border-red-500/50">
+                <div class="w-1/3 flex flex-col items-center justify-center border-r border-red-500/30">
+                    <img id="alarm-person-photo" src="" class="w-24 h-24 rounded-full object-cover border-2 border-red-500 mb-2">
+                    <p id="alarm-person-name" class="text-white font-bold text-xl uppercase"></p>
+                    <p class="text-red-400 text-sm font-bold tracking-widest">ALVO CRÍTICO</p>
+                </div>
+                <div class="w-2/3 flex flex-col items-center justify-center relative">
+                    <span class="absolute top-2 left-2 bg-red-600 text-white text-[10px] px-2 py-0.5 rounded animate-pulse">SNAPSHOT CÂMERA</span>
+                    <img id="alarm-snapshot" src="" class="max-h-48 rounded object-contain border border-gray-700">
+                </div>
+            </div>
+            
+            <button onclick="acknowledgeAlarm()" class="bg-white text-red-700 hover:bg-gray-200 font-bold py-4 px-10 rounded-lg text-xl uppercase tracking-widest transition-colors shadow-2xl active:scale-95 w-full">
+                Reconhecer Ocorrência
+            </button>
         </div>
-        
-        <nav class="flex-1 p-4 space-y-2">
-            <button onclick="switchTab('camera')" id="btn-camera" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors bg-blue-600 text-white">
-                <i data-lucide="video" class="w-5 h-5"></i> Portaria
-            </button>
-            
-            <button onclick="switchTab('register')" id="btn-register" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors hover:bg-slate-800">
-                <i data-lucide="user-plus" class="w-5 h-5"></i> Cadastrar
-            </button>
-            
-            <button onclick="switchTab('logs')" id="btn-logs" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors hover:bg-slate-800">
-                <i data-lucide="history" class="w-5 h-5"></i> Histórico
-            </button>
-        </nav>
-    </aside>
+    </div>
 
-    <!-- ÁREA PRINCIPAL -->
-    <main class="flex-1 flex flex-col relative overflow-hidden h-screen">
-        
-        <!-- CABEÇALHO -->
-        <header class="bg-white p-6 shadow-sm flex justify-between items-center z-0 shrink-0">
-            <h2 id="page-title" class="text-2xl font-bold text-slate-800">Monitoramento da Portaria</h2>
-            <div id="ai-status-container">
-                <div class="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200">
-                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Carregando IA...
-                </div>
-            </div>
-        </header>
+    <!-- CABEÇALHO GLOBAL -->
+    <div class="h-8 bg-black border-b border-gray-800 flex items-center justify-between px-4 text-xs text-gray-500 font-mono z-20 shrink-0">
+        <div class="flex items-center gap-4">
+            <span class="flex items-center gap-1"><div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> VMS Online</span>
+            <span id="ai-status" class="text-amber-500">IA Carregando...</span>
+        </div>
+        <div id="vms-clock" class="font-bold text-gray-300">--:--:--</div>
+    </div>
 
-        <!-- CONTEÚDO DAS ABAS -->
-        <div class="flex-1 p-6 overflow-y-auto">
-            
-            <!-- ABA 1: CÂMERA (MONITORAMENTO) -->
-            <div id="tab-camera" class="tab-content active flex-col lg:flex-row gap-6 h-full">
-                <!-- Vídeo da Portaria -->
-                <div class="flex-1 bg-black rounded-2xl overflow-hidden relative shadow-lg flex items-center justify-center min-h-[400px]">
-                    <video id="monitor-video" autoplay playsinline muted class="w-full h-full object-cover opacity-90"></video>
-                    <canvas id="monitor-canvas" class="absolute inset-0 w-full h-full object-cover pointer-events-none"></canvas>
-                    
-                    <div id="empty-db-warning" class="absolute inset-0 flex flex-col items-center justify-center bg-black/60 text-white hidden">
-                        <i data-lucide="users" class="w-12 h-12 text-blue-400 mb-4"></i>
-                        <h3 class="text-xl font-bold">Base de Dados Vazia</h3>
-                        <p class="text-slate-300 mt-2">Vá na aba "Cadastrar" e registre rostos primeiro!</p>
-                    </div>
-                    
-                    <div class="absolute top-4 left-4 bg-red-600/90 text-white text-xs px-2 py-1 rounded flex items-center gap-1 font-bold tracking-wider">
-                        <span class="w-2 h-2 rounded-full bg-white animate-pulse"></span> AO VIVO
-                    </div>
-                </div>
-
-                <!-- Painel de Alertas -->
-                <div class="w-full lg:w-96 flex flex-col gap-6 shrink-0">
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex-1 overflow-hidden flex flex-col max-h-full">
-                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                            <i data-lucide="bell" class="w-5 h-5 text-blue-600"></i> Alertas em Tempo Real
-                        </h3>
-                        <div id="live-alerts" class="overflow-y-auto space-y-3 pr-2 flex-1">
-                            <p class="text-sm text-slate-400 text-center py-4">Aguardando movimento...</p>
-                        </div>
-                    </div>
+    <div class="flex flex-1 relative overflow-hidden">
+        <!-- BARRA LATERAL -->
+        <aside class="w-72 bg-gray-900 border-r border-gray-800 flex flex-col z-10 shadow-xl shrink-0">
+            <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="crosshair" class="w-6 h-6 text-red-500"></i>
+                    <h1 class="text-xl font-bold text-white tracking-wide">Defense<span class="text-red-500">AI</span></h1>
                 </div>
             </div>
 
-            <!-- ABA 2: CADASTRO -->
-            <div id="tab-register" class="tab-content max-w-4xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div class="flex flex-col md:flex-row w-full">
+            <!-- Abas de Navegação -->
+            <div class="p-2 border-b border-gray-800 flex flex-col gap-1 bg-gray-950">
+                <button onclick="switchTab('live')" id="nav-live" class="nav-btn py-2.5 px-4 bg-blue-600 text-white rounded text-sm font-medium transition-colors flex items-center gap-3">
+                    <i data-lucide="layout-grid" class="w-4 h-4"></i> Monitoramento (Ao Vivo)
+                </button>
+                <button onclick="switchTab('db')" id="nav-db" class="nav-btn py-2.5 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded text-sm font-medium transition-colors flex items-center gap-3">
+                    <i data-lucide="users" class="w-4 h-4"></i> Banco de Faces (Alvos)
+                </button>
+                <button onclick="switchTab('logs')" id="nav-logs" class="nav-btn py-2.5 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded text-sm font-medium transition-colors flex items-center gap-3">
+                    <i data-lucide="history" class="w-4 h-4"></i> Histórico de Eventos
+                </button>
+            </div>
+
+            <!-- Lista de Câmeras (Apenas na aba Ao Vivo) -->
+            <div class="p-4 flex-1 overflow-y-auto relative hidden flex-col" id="sidebar-cameras">
+                <div class="flex items-center justify-between mb-4 sticky top-0 bg-gray-900 z-10 pb-2">
+                    <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500">Dispositivos</h2>
+                    <button onclick="openAddCameraModal()" class="p-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded shadow" title="Adicionar Câmera">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <ul id="camera-list" class="space-y-2"></ul>
+            </div>
+        </aside>
+
+        <!-- ÁREA PRINCIPAL -->
+        <main class="flex-1 flex flex-col z-0 relative bg-black overflow-hidden">
+            
+            <!-- VISTA 1: MONITORAMENTO AO VIVO -->
+            <div id="tab-live" class="tab-content active flex-col h-full w-full">
+                <header class="h-14 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-6 shrink-0">
+                    <h2 class="text-lg font-medium text-white flex items-center gap-2">
+                        <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div> Monitoramento Tático
+                    </h2>
+                    <div class="flex items-center gap-1 bg-gray-950 p-1 rounded border border-gray-800 text-xs font-mono">
+                        <button onclick="setLayout(1)" class="px-2 py-1.5 rounded text-gray-400 hover:text-white">1x1</button>
+                        <button onclick="setLayout(4)" class="px-2 py-1.5 rounded bg-gray-800 text-blue-400">2x2</button>
+                        <button onclick="setLayout(9)" class="px-2 py-1.5 rounded text-gray-400 hover:text-white">3x3</button>
+                    </div>
+                </header>
+                <div class="flex-1 p-2 overflow-hidden relative bg-black">
+                    <div id="video-grid" class="w-full h-full grid gap-1 grid-cols-2 grid-rows-2"></div>
+                </div>
+            </div>
+
+            <!-- VISTA 2: BANCO DE FACES (CADASTRO) -->
+            <div id="tab-db" class="tab-content hidden flex-col h-full w-full bg-gray-950 overflow-y-auto p-6">
+                <div class="max-w-4xl mx-auto w-full bg-gray-900 rounded-xl border border-gray-800 overflow-hidden shadow-2xl">
+                    <div class="p-6 border-b border-gray-800 bg-black/50">
+                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                            <i data-lucide="scan-face" class="text-blue-500"></i> Cadastro de Alvos e Pessoal
+                        </h2>
+                        <p class="text-sm text-gray-400 mt-1">A IA buscará estes rostos em todas as câmeras conectadas.</p>
+                    </div>
                     
-                    <!-- Captura da Câmera -->
-                    <div class="w-full md:w-1/2 p-6 bg-slate-50 border-r border-slate-200 flex flex-col items-center justify-center">
-                        <div class="w-64 h-64 bg-slate-200 rounded-full mb-6 overflow-hidden relative border-4 border-white shadow-lg flex items-center justify-center">
-                            
-                            <video id="register-video" autoplay playsinline muted class="w-full h-full object-cover transform -scale-x-100"></video>
-                            <img id="register-preview" class="w-full h-full object-cover hidden" alt="Rosto Capturado">
-                            
-                            <div id="scan-animation" class="absolute inset-0 bg-blue-500/20 flex items-center justify-center rounded-full hidden">
-                               <div class="w-full h-1 bg-blue-500 animate-scan shadow-[0_0_15px_rgba(59,130,246,0.8)]"></div>
+                    <div class="flex flex-col md:flex-row p-6 gap-8">
+                        <!-- Câmera de Cadastro -->
+                        <div class="w-full md:w-1/2 flex flex-col items-center">
+                            <div class="w-64 h-64 bg-black rounded-full overflow-hidden relative border-4 border-gray-700 shadow-lg flex items-center justify-center mb-4">
+                                <video id="register-video" autoplay playsinline muted class="w-full h-full object-cover transform -scale-x-100"></video>
+                                <img id="register-preview" class="w-full h-full object-cover hidden">
+                                <div id="scan-animation" class="absolute inset-0 bg-blue-500/20 hidden">
+                                    <div class="w-full h-1 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,1)] animate-[scan_1.5s_infinite]"></div>
+                                </div>
                             </div>
-                        </div>
-                        
-                        <div id="capture-controls">
-                            <button id="btn-scan" onclick="captureAndAnalyze()" disabled class="flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-full hover:bg-blue-700 transition-colors shadow-md disabled:bg-slate-400">
-                                <i data-lucide="camera" class="w-5 h-5"></i> Escanear Rosto com IA
+                            <button id="btn-scan" onclick="captureFaceForDB()" disabled class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-full font-medium transition-colors shadow flex items-center gap-2 disabled:bg-gray-700">
+                                <i data-lucide="camera" class="w-5 h-5"></i> Extrair Biometria
                             </button>
                         </div>
-                        <p class="text-xs text-slate-500 mt-4 text-center max-w-xs">Olhe para a câmera sem óculos escuros ou bonés em um local iluminado.</p>
-                    </div>
 
-                    <!-- Formulário -->
-                    <form id="register-form" onsubmit="saveStudent(event)" class="w-full md:w-1/2 p-8 flex flex-col justify-center">
-                        <h3 class="text-xl font-semibold mb-6">Dados do Aluno</h3>
-                        <div class="space-y-5">
+                        <!-- Formulário -->
+                        <form id="db-form" onsubmit="savePersonToDB(event)" class="w-full md:w-1/2 space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">Nome do Aluno</label>
-                                <input type="text" id="student-name" required placeholder="Ex: João Silva" class="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none">
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Nome de Identificação</label>
+                                <input type="text" id="person-name" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-blue-500 outline-none">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">WhatsApp do Responsável</label>
-                                <input type="tel" id="parent-phone" required placeholder="(00) 00000-0000" class="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none">
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Grau de Atenção (Ameaça)</label>
+                                <select id="person-level" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-blue-500 outline-none">
+                                    <option value="normal">🟢 Normal (Apenas Registo)</option>
+                                    <option value="suspect">🟡 Suspeito (Aviso Silencioso)</option>
+                                    <option value="danger">🔴 Ameaça Crítica (Dispara Alarme Sonoro/Tático)</option>
+                                </select>
                             </div>
                             <div class="pt-4">
-                                <button type="submit" class="w-full bg-slate-900 text-white font-medium py-3 rounded-lg hover:bg-slate-800 transition-colors shadow-md flex justify-center items-center gap-2">
-                                    <i data-lucide="user-plus" class="w-5 h-5"></i> Salvar Aluno
+                                <button type="submit" class="w-full bg-green-600 hover:bg-green-500 text-white font-medium py-3 rounded-lg transition-colors shadow flex justify-center items-center gap-2">
+                                    <i data-lucide="save" class="w-5 h-5"></i> Salvar no Firebase
                                 </button>
                             </div>
-                        </div>
-                    </form>
+                        </form>
+                    </div>
                 </div>
             </div>
 
-            <!-- ABA 3: HISTÓRICO -->
-            <div id="tab-logs" class="tab-content bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-slate-50 border-b border-slate-200 text-sm text-slate-600">
-                            <th class="p-4 font-semibold">Horário</th>
-                            <th class="p-4 font-semibold">Aluno</th>
-                            <th class="p-4 font-semibold">Evento</th>
-                        </tr>
-                    </thead>
-                    <tbody id="logs-table-body" class="divide-y divide-slate-100">
-                        <tr><td colspan="3" class="p-8 text-center text-slate-500">Nenhum registro no histórico.</td></tr>
-                    </tbody>
-                </table>
+            <!-- VISTA 3: HISTÓRICO DE OCORRÊNCIAS (LOGS) -->
+            <div id="tab-logs" class="tab-content hidden flex-col h-full w-full bg-gray-950 p-6 overflow-y-auto">
+                <div class="max-w-6xl mx-auto w-full bg-gray-900 rounded-xl border border-gray-800 shadow-2xl overflow-hidden">
+                    <header class="p-6 border-b border-gray-800 bg-black/50 flex justify-between items-center">
+                        <div>
+                            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                                <i data-lucide="clipboard-list" class="text-blue-500"></i> Relatório de Reconhecimentos
+                            </h2>
+                            <p class="text-sm text-gray-400 mt-1">Registros salvos em nuvem com captura de imagem.</p>
+                        </div>
+                    </header>
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="bg-gray-950 border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wider">
+                                <th class="p-4 w-20">Snapshot</th>
+                                <th class="p-4">Data/Hora</th>
+                                <th class="p-4">Identificação</th>
+                                <th class="p-4">Câmera</th>
+                                <th class="p-4">Nível</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-table-body" class="text-sm text-gray-300 divide-y divide-gray-800/50">
+                            <!-- Injetado via JS -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
+        </main>
+    </div>
+
+    <!-- MODAL DE ADICIONAR CÂMERA MANUALMENTE -->
+    <div id="add-cam-modal" class="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-800 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-white">Adicionar Câmera IP</h3>
+                <button onclick="closeAddCameraModal()" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-4 bg-blue-900/20 border-b border-blue-900/50 text-xs text-blue-200">
+                <strong>Atenção (CORS):</strong> Para a IA extrair pixels e reconhecer rostos, a câmera deve estar na mesma rede local ou permitir conexões CORS. Caso contrário, a tela ficará preta.
+            </div>
+            <form onsubmit="saveCamera(event)" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">Nome (Ex: Portão Principal)</label>
+                    <input type="text" id="new-cam-name" class="w-full bg-gray-950 border border-gray-700 rounded px-4 py-2 text-white" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">URL do Fluxo MJPEG</label>
+                    <input type="url" id="new-cam-url" placeholder="http://192.168.1.10/video.cgi" class="w-full bg-gray-950 border border-gray-700 rounded px-4 py-2 text-white" required>
+                </div>
+                <button type="submit" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded font-medium mt-2">Salvar Câmera</button>
+            </form>
         </div>
-        
-        <!-- Container de Notificações (Toasts) -->
-        <div id="toast-container" class="absolute bottom-6 right-6 flex flex-col gap-3 z-50"></div>
+    </div>
 
-    </main>
-
-    <!-- LÓGICA JAVASCRIPT -->
+    <!-- LÓGICA DO SISTEMA -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Inicializa os ícones do Lucide
         lucide.createIcons();
 
-        // Variáveis de Estado
-        let students = [];
-        let logs = [];
+        // Variáveis Globais
+        let db = null;
         let isAiReady = false;
-        let activeTab = 'camera';
-        let db = null; // Variável global do banco de dados
-        
-        // Variáveis Temporárias para Cadastro
-        let tempPhoto = null;
-        let tempDescriptor = null;
-
-        // Variáveis de Câmera e IA
-        let currentStream = null;
+        let activeTab = 'live';
+        let layout = 4;
         let faceMatcher = null;
-        let monitorInterval = null;
-        const lastDetectionTime = {};
+        
+        let persons = [];
+        let logs = [];
+        let cameras = JSON.parse(localStorage.getItem('vms_cameras')) || [
+            { id: 'cam-webcam', name: 'Webcam Local (Testes IA)', type: 'webcam', url: 'local' }
+        ];
 
-        // 0. INICIALIZAÇÃO DO FIREBASE COM PROTEÇÃO CONTRA FALHAS
+        // Controle de IA nas câmeras
+        let aiLoops = {}; // Guarda os IDs dos intervalos de cada câmera
+        const lastDetectionTime = {}; // Cooldown para não dar spam de alarmes
+
+        // Som de Alarme
+        let audioCtx = null;
+        let alarmOscillator = null;
+
+        // 1. FIREBASE INIT
         const firebaseConfig = {
             apiKey: "AIzaSyC7J_J7JCagM65E5qkl1z-Kn2V360ldmdg",
             authDomain: "minhas-credenciais-firebase.firebaseapp.com",
@@ -217,417 +271,454 @@
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
 
-            // Listeners do Banco de Dados em Tempo Real
             onSnapshot(collection(db, "students"), (snapshot) => {
-                students = [];
-                snapshot.forEach((doc) => {
-                    students.push({ id: doc.id, ...doc.data() });
-                });
+                persons = [];
+                snapshot.forEach(doc => persons.push({ id: doc.id, ...doc.data() }));
                 updateFaceMatcher();
-                
-                const emptyWarning = document.getElementById('empty-db-warning');
-                if (emptyWarning) {
-                    emptyWarning.classList.toggle('hidden', students.length > 0);
-                }
             });
 
             onSnapshot(collection(db, "logs"), (snapshot) => {
                 logs = [];
-                snapshot.forEach((doc) => {
-                    logs.push({ id: doc.id, ...doc.data() });
-                });
+                snapshot.forEach(doc => logs.push({ id: doc.id, ...doc.data() }));
                 logs.sort((a, b) => b.timestamp - a.timestamp);
-                updateLogsTable();
+                renderLogs();
             });
-            
         } catch (error) {
-            console.error("Aviso: Falha ao inicializar o Firebase. Credenciais falsas?", error);
-            setTimeout(() => {
-                showToast("Modo Offline: Credenciais do Firebase inválidas. O app funcionará, mas não salvará na nuvem.", "error");
-            }, 2000);
+            console.error("Firebase Offline:", error);
+            showToast("Erro: Credenciais do Firebase inválidas. Funcionalidades de nuvem desativadas.", "error");
         }
 
-        // Expondo as funções para o HTML
-        window.switchTab = switchTab;
-        window.captureAndAnalyze = captureAndAnalyze;
-        window.resetRegistrationForm = resetRegistrationForm;
-        window.saveStudent = saveStudent;
-
-        // 1. CARREGAMENTO DA IA (FACE-API)
+        // 2. INICIALIZAR IA
         async function initAI() {
             try {
-                await new Promise(resolve => {
-                    const check = setInterval(() => {
-                        if (window.faceapi) {
-                            clearInterval(check);
-                            resolve();
-                        }
-                    }, 100);
-                });
-
                 const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/';
                 await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
                 
                 isAiReady = true;
-                
-                document.getElementById('ai-status-container').innerHTML = `
-                    <div class="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-1.5 rounded-full border border-green-200">
-                        <i data-lucide="shield-check" class="w-4 h-4"></i> IA Ativa e Pronta
-                    </div>
-                `;
-                lucide.createIcons();
+                document.getElementById('ai-status').innerText = "IA Pronta";
+                document.getElementById('ai-status').classList.replace('text-amber-500', 'text-green-500');
                 document.getElementById('btn-scan').disabled = false;
                 
                 updateFaceMatcher();
-            } catch (error) {
-                console.error("Erro ao carregar IA:", error);
-                showToast("Erro ao carregar modelos de IA.", "error");
+                renderGrid(); // Inicia o monitoramento se já estiver na aba Ao Vivo
+            } catch (err) {
+                console.error("Erro na IA:", err);
+                document.getElementById('ai-status').innerText = "Erro na IA";
+                document.getElementById('ai-status').classList.replace('text-amber-500', 'text-red-500');
             }
         }
 
-        // 2. NAVEGAÇÃO E CONTROLE DE ABAS (SPA) E CÂMERA
-        const tabTitles = {
-            'camera': 'Monitoramento da Portaria',
-            'register': 'Cadastro de Biometria Facial',
-            'logs': 'Histórico de Acessos'
+        function updateFaceMatcher() {
+            if (persons.length === 0) return;
+            const labeledDescriptors = persons.map(p => {
+                return new faceapi.LabeledFaceDescriptors(p.id, [new Float32Array(p.descriptor)]);
+            });
+            faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.55); // 0.55 margem de confiança
+        }
+
+        // 3. NAVEGAÇÃO
+        window.switchTab = async (tab) => {
+            activeTab = tab;
+            
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.className = "nav-btn py-2.5 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded text-sm font-medium transition-colors flex items-center gap-3";
+            });
+            document.getElementById(`nav-${tab}`).className = "nav-btn py-2.5 px-4 bg-blue-600 text-white rounded text-sm font-medium transition-colors flex items-center gap-3";
+
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+
+            const sidebarCams = document.getElementById('sidebar-cameras');
+            if (tab === 'live') {
+                sidebarCams.classList.remove('hidden');
+                sidebarCams.classList.add('flex');
+                renderSidebarCameras();
+                renderGrid();
+            } else {
+                sidebarCams.classList.add('hidden');
+                sidebarCams.classList.remove('flex');
+                stopAllAILoops();
+            }
+
+            if (tab === 'db') {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const video = document.getElementById('register-video');
+                video.srcObject = stream;
+                video.play();
+                window.currentRegisterStream = stream; // guardar para desligar depois
+            } else if (window.currentRegisterStream) {
+                window.currentRegisterStream.getTracks().forEach(t => t.stop());
+                window.currentRegisterStream = null;
+            }
         };
 
-        async function switchTab(tabId) {
-            activeTab = tabId;
-            document.getElementById('page-title').innerText = tabTitles[tabId];
+        // 4. CADASTRO DE ROSTOS
+        let tempDescriptor = null;
+        let tempPhoto = null;
 
-            document.querySelectorAll('.nav-btn').forEach(btn => {
-                btn.className = "nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors hover:bg-slate-800 text-slate-300";
-            });
-            document.getElementById(`btn-${tabId}`).className = "nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors bg-blue-600 text-white";
-
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            document.getElementById(`tab-${tabId}`).classList.add('active');
-
-            if (monitorInterval) {
-                clearInterval(monitorInterval);
-                monitorInterval = null;
-            }
-
-            if (currentStream) {
-                currentStream.getTracks().forEach(track => track.stop());
-            }
-
-            // Ativa a Câmera
-            if (tabId === 'camera' || tabId === 'register') {
-                try {
-                    // Validação de ambiente seguro (file:// restrição)
-                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                        throw new Error("LocalhostRequired");
-                    }
-
-                    currentStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
-                    
-                    if (tabId === 'camera') {
-                        const videoEl = document.getElementById('monitor-video');
-                        videoEl.srcObject = currentStream;
-                        // Força a reprodução de forma assíncrona
-                        videoEl.play().catch(e => console.warn("Autoplay da câmera bloqueado pelo navegador", e));
-                        
-                        if(isAiReady) startMonitoring();
-                        
-                        const emptyWarning = document.getElementById('empty-db-warning');
-                        if (emptyWarning) emptyWarning.classList.toggle('hidden', students.length > 0);
-                    } 
-                    else if (tabId === 'register') {
-                        const registerVid = document.getElementById('register-video');
-                        registerVid.srcObject = currentStream;
-                        registerVid.play().catch(e => console.warn("Autoplay bloqueado", e));
-                        resetRegistrationForm();
-                    }
-                } catch (err) {
-                    console.error("Erro na câmera:", err);
-                    
-                    if (err.message === "LocalhostRequired" || window.location.protocol === 'file:') {
-                        showToast("ERRO: O navegador bloqueia a câmera em arquivos locais (file://). Você precisa abrir o projeto via 'Live Server' no VS Code ou usar localhost.", "error");
-                    } else {
-                        showToast("Permita o acesso à câmera no topo do navegador e recarregue a página.", "error");
-                    }
-                }
-            }
-        }
-
-        // 3. LÓGICA DE CADASTRO
-        async function captureAndAnalyze() {
+        window.captureFaceForDB = async () => {
             if (!isAiReady) return;
-            
             const video = document.getElementById('register-video');
             const scanAnim = document.getElementById('scan-animation');
-            const btnScan = document.getElementById('btn-scan');
             
-            btnScan.disabled = true;
-            btnScan.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Analisando...';
-            lucide.createIcons();
             scanAnim.classList.remove('hidden');
-            
-            showToast("Analisando biometria... Fique parado.");
+            showToast("Analisando pontos faciais...");
 
             try {
-                const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-                                               .withFaceLandmarks()
-                                               .withFaceDescriptor();
-                
+                const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
                 if (detection) {
                     const canvas = document.createElement('canvas');
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
+                    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
                     canvas.getContext('2d').drawImage(video, 0, 0);
                     tempPhoto = canvas.toDataURL('image/jpeg');
-                    
                     tempDescriptor = Array.from(detection.descriptor);
                     
                     video.classList.add('hidden');
-                    const previewEl = document.getElementById('register-preview');
-                    previewEl.src = tempPhoto;
-                    previewEl.classList.remove('hidden');
-
-                    document.getElementById('capture-controls').innerHTML = `
-                        <button type="button" onclick="resetRegistrationForm()" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
-                            Refazer Escaneamento Facial
-                        </button>
-                    `;
-                    showToast("Rosto mapeado com sucesso!");
+                    const preview = document.getElementById('register-preview');
+                    preview.src = tempPhoto;
+                    preview.classList.remove('hidden');
+                    showToast("Face mapeada com sucesso!", "success");
                 } else {
-                    showToast("Nenhum rosto detectado. Melhore a luz e tente novamente.", "error");
-                    btnScan.disabled = false;
-                    btnScan.innerHTML = '<i data-lucide="camera" class="w-5 h-5"></i> Escanear Rosto com IA';
-                    lucide.createIcons();
+                    showToast("Nenhum rosto claro detectado.", "error");
                 }
-            } catch (error) {
-                console.error(error);
-                showToast("Erro na análise facial.", "error");
+            } catch (err) {
+                showToast("Erro ao analisar imagem.", "error");
             } finally {
                 scanAnim.classList.add('hidden');
             }
-        }
+        };
 
-        function resetRegistrationForm() {
-            tempPhoto = null;
-            tempDescriptor = null;
-            document.getElementById('register-preview').classList.add('hidden');
-            document.getElementById('register-video').classList.remove('hidden');
-            document.getElementById('capture-controls').innerHTML = `
-                <button id="btn-scan" type="button" onclick="captureAndAnalyze()" class="flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-full hover:bg-blue-700 transition-colors shadow-md">
-                    <i data-lucide="camera" class="w-5 h-5"></i> Escanear Rosto com IA
-                </button>
-            `;
-            lucide.createIcons();
-        }
-
-        async function saveStudent(e) {
+        window.savePersonToDB = async (e) => {
             e.preventDefault();
-            
-            if (!db) {
-                showToast("Erro Crítico: Banco de dados não conectado. Verifique as credenciais do Firebase.", "error");
-                return;
-            }
+            if (!db) return showToast("Banco Offline", "error");
+            if (!tempDescriptor || !tempPhoto) return showToast("Extraia a biometria primeiro!", "error");
 
-            const name = document.getElementById('student-name').value;
-            const phone = document.getElementById('parent-phone').value;
-
-            if (!tempPhoto || !tempDescriptor) {
-                showToast("Por favor, escaneie o rosto do aluno primeiro!", "error");
-                return;
-            }
-
-            const newStudent = {
-                name: name,
-                parentPhone: phone,
+            const person = {
+                name: document.getElementById('person-name').value,
+                level: document.getElementById('person-level').value,
                 photo: tempPhoto,
                 descriptor: tempDescriptor
             };
 
             try {
-                await addDoc(collection(db, "students"), newStudent);
+                await addDoc(collection(db, "students"), person); // Usa 'students' para manter a regra do Firebase que criamos
+                showToast("Alvo salvo na base de dados!", "success");
                 
-                document.getElementById('register-form').reset();
-                resetRegistrationForm();
-                showToast(`${name} cadastrado com sucesso!`);
-                
-                switchTab('camera');
-            } catch (error) {
-                console.error("Erro ao salvar no Firebase:", error);
-                showToast("Erro ao conectar com o banco de dados.", "error");
+                document.getElementById('db-form').reset();
+                tempDescriptor = null; tempPhoto = null;
+                document.getElementById('register-preview').classList.add('hidden');
+                document.getElementById('register-video').classList.remove('hidden');
+            } catch (err) {
+                showToast("Erro ao salvar no Firebase.", "error");
             }
-        }
+        };
 
-        // 4. LÓGICA DE MONITORAMENTO (A CÂMERA DE SEGURANÇA)
-        function updateFaceMatcher() {
-            if (students.length === 0) return;
-            
-            const labeledDescriptors = students.map(student => {
-                return new faceapi.LabeledFaceDescriptors(
-                    student.id, 
-                    [new Float32Array(student.descriptor)]
-                );
+        // 5. GESTÃO DE CÂMERAS NO MOSAICO
+        window.setLayout = (num) => { layout = num; renderGrid(); };
+        
+        function renderSidebarCameras() {
+            const list = document.getElementById('camera-list');
+            list.innerHTML = '';
+            cameras.forEach(cam => {
+                list.innerHTML += `
+                    <li class="flex items-center justify-between p-2 bg-gray-950 border border-gray-800 rounded">
+                        <div class="flex items-center gap-2 truncate">
+                            <i data-lucide="video" class="w-4 h-4 text-gray-500 shrink-0"></i>
+                            <span class="text-sm truncate">${cam.name}</span>
+                        </div>
+                        <button onclick="removeCamera('${cam.id}')" class="text-gray-600 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </li>
+                `;
             });
-            
-            faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
+            lucide.createIcons();
         }
 
-        async function startMonitoring() {
-            const video = document.getElementById('monitor-video');
-            const canvas = document.getElementById('monitor-canvas');
+        window.openAddCameraModal = () => document.getElementById('add-cam-modal').classList.remove('hidden');
+        window.closeAddCameraModal = () => document.getElementById('add-cam-modal').classList.add('hidden');
+        
+        window.saveCamera = (e) => {
+            e.preventDefault();
+            const name = document.getElementById('new-cam-name').value;
+            const url = document.getElementById('new-cam-url').value;
+            cameras.push({ id: `cam-${Date.now()}`, name, type: 'mjpeg', url });
+            localStorage.setItem('vms_cameras', JSON.stringify(cameras));
+            closeAddCameraModal();
+            renderSidebarCameras();
+            renderGrid();
+        };
+
+        window.removeCamera = (id) => {
+            if(id === 'cam-webcam') return showToast("Não pode remover a webcam de testes.", "error");
+            cameras = cameras.filter(c => c.id !== id);
+            localStorage.setItem('vms_cameras', JSON.stringify(cameras));
+            renderSidebarCameras();
+            renderGrid();
+        };
+
+        // 6. MOTOR DE MONITORAMENTO TÁTICO (VMS + IA)
+        async function renderGrid() {
+            stopAllAILoops(); // Para análises antigas
             
-            if (students.length === 0 || !faceMatcher) return;
+            const grid = document.getElementById('video-grid');
+            let cols = Math.ceil(Math.sqrt(layout));
+            let rows = Math.ceil(layout / cols);
+            grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+            grid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
+            grid.innerHTML = '';
 
-            if (video.readyState !== 4) {
-                video.onloadeddata = () => startMonitoringLoop(video, canvas);
-            } else {
-                startMonitoringLoop(video, canvas);
-            }
-        }
-
-        function startMonitoringLoop(video, canvas) {
-            const displaySize = { width: video.videoWidth || 640, height: video.videoHeight || 480 };
-            faceapi.matchDimensions(canvas, displaySize);
-
-            monitorInterval = setInterval(async () => {
-                if (activeTab !== 'camera' || video.paused || video.ended) return;
-
-                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
-                                                .withFaceLandmarks()
-                                                .withFaceDescriptors();
+            for (let i = 0; i < layout; i++) {
+                const cam = cameras[i];
+                const slot = document.createElement('div');
+                slot.className = "camera-slot bg-gray-900 rounded border border-gray-800 overflow-hidden flex items-center justify-center relative";
                 
-                const resizedDetections = faceapi.resizeResults(detections, displaySize);
-                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-
-                resizedDetections.forEach(detection => {
-                    const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
-                    
-                    const isKnown = bestMatch.label !== 'unknown';
-                    const box = detection.detection.box;
-                    const student = isKnown ? students.find(s => s.id === bestMatch.label) : null;
-                    
-                    const drawBox = new faceapi.draw.DrawBox(box, { 
-                        label: isKnown ? student.name : 'Desconhecido',
-                        boxColor: isKnown ? '#10b981' : '#ef4444' 
-                    });
-                    drawBox.draw(canvas);
-
-                    if (isKnown) {
-                        const now = Date.now();
-                        const lastTime = lastDetectionTime[student.id] || 0;
-                        
-                        if (now - lastTime > 15000) {
-                            lastDetectionTime[student.id] = now;
-                            registerLogAndNotify(student);
-                        }
+                if (cam) {
+                    let mediaHtml = '';
+                    if (cam.type === 'webcam') {
+                        mediaHtml = `<video id="media-${cam.id}" autoplay playsinline muted class="w-full h-full object-cover"></video>`;
+                    } else {
+                        mediaHtml = `<img id="media-${cam.id}" src="${cam.url}" crossorigin="anonymous" class="w-full h-full object-cover" onerror="this.src=''; this.alt='Sinal Perdido ou Bloqueado por CORS';">`;
                     }
-                });
-            }, 500);
+
+                    slot.innerHTML = `
+                        ${mediaHtml}
+                        <canvas id="canvas-${cam.id}" class="ai-canvas"></canvas>
+                        <div class="absolute top-2 left-2 bg-black/60 px-2 py-1 rounded text-xs font-mono text-white flex items-center gap-2 backdrop-blur-sm z-20">
+                            <div class="w-1.5 h-1.5 rounded-full bg-green-500"></div> ${cam.name}
+                        </div>
+                        <div class="absolute top-2 right-2 bg-blue-600/80 px-1.5 py-0.5 rounded text-[10px] text-white z-20"><i data-lucide="brain" class="w-3 h-3 inline"></i> ON</div>
+                    `;
+                    grid.appendChild(slot);
+
+                    // Liga Webcam se for o caso
+                    if (cam.type === 'webcam') {
+                        try {
+                            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                            document.getElementById(`media-${cam.id}`).srcObject = stream;
+                        } catch (e) { console.error("Webcam recusada"); }
+                    }
+
+                    // Inicia o motor de IA para esta câmera específica
+                    if (isAiReady && faceMatcher) {
+                        startCameraAI(cam);
+                    }
+
+                } else {
+                    slot.innerHTML = `<i data-lucide="video-off" class="w-8 h-8 text-gray-700"></i>`;
+                    grid.appendChild(slot);
+                }
+            }
+            lucide.createIcons();
         }
 
-        async function registerLogAndNotify(student) {
-            if (!db) return; // Proteção offline
+        function stopAllAILoops() {
+            Object.values(aiLoops).forEach(clearInterval);
+            aiLoops = {};
+        }
 
-            const isEntry = Math.random() > 0.5;
-            const type = isEntry ? 'Entrada' : 'Saída';
-            const time = new Date().toLocaleTimeString('pt-BR');
-            
-            const logItem = { 
-                studentName: student.name, 
-                studentId: student.id,
-                time: time, 
-                type: type,
-                timestamp: Date.now()
-            };
-            
-            try {
-                await addDoc(collection(db, "logs"), logItem);
+        function startCameraAI(cam) {
+            const media = document.getElementById(`media-${cam.id}`);
+            const canvas = document.getElementById(`canvas-${cam.id}`);
+            if (!media || !canvas) return;
+
+            // Executa a cada 800ms para poupar CPU
+            aiLoops[cam.id] = setInterval(async () => {
+                if (activeTab !== 'live' || !media.clientWidth) return;
                 
-                const message = `🔔 *Escola Guardian*\nSua filha(o) ${student.name} registrou *${type.toLowerCase()}* na escola às ${time}.`;
-                showToast(`Mensagem enviada para ${student.parentPhone}:\n"${message}"`, 'success');
-            } catch (error) {
-                console.error("Erro ao salvar log no Firebase:", error);
+                try {
+                    const displaySize = { width: media.clientWidth, height: media.clientHeight };
+                    faceapi.matchDimensions(canvas, displaySize);
+
+                    const detections = await faceapi.detectAllFaces(media, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
+                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                    
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    resizedDetections.forEach(det => {
+                        const bestMatch = faceMatcher.findBestMatch(det.descriptor);
+                        const isKnown = bestMatch.label !== 'unknown';
+                        const person = isKnown ? persons.find(p => p.id === bestMatch.label) : null;
+                        
+                        let color = '#3b82f6'; // Desconhecido (Azul)
+                        let text = 'Desconhecido';
+                        
+                        if (person) {
+                            text = person.name;
+                            if (person.level === 'normal') color = '#10b981'; // Verde
+                            else if (person.level === 'suspect') color = '#eab308'; // Amarelo
+                            else if (person.level === 'danger') color = '#ef4444'; // Vermelho
+                        }
+
+                        // Desenha o quadrado
+                        const box = det.detection.box;
+                        const drawBox = new faceapi.draw.DrawBox(box, { label: text, boxColor: color });
+                        drawBox.draw(canvas);
+
+                        // Lógica de Notificação e Banco de Dados
+                        if (person) {
+                            const now = Date.now();
+                            const lastTime = lastDetectionTime[person.id] || 0;
+                            
+                            // Cooldown de 20s
+                            if (now - lastTime > 20000) {
+                                lastDetectionTime[person.id] = now;
+                                processDetection(person, cam, media);
+                            }
+                        }
+                    });
+                } catch (e) {
+                    // Erros comuns aqui são CORS de imagens MJPEG
+                    // console.warn("Erro IA na cam", cam.id, e);
+                }
+            }, 800); 
+        }
+
+        // 7. PROCESSAMENTO DE AMEAÇAS E LOGS
+        async function processDetection(person, cam, mediaElement) {
+            // Tira um print da tela no momento
+            let snapshotBase64 = "";
+            try {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = mediaElement.videoWidth || mediaElement.naturalWidth || 640;
+                tempCanvas.height = mediaElement.videoHeight || mediaElement.naturalHeight || 480;
+                tempCanvas.getContext('2d').drawImage(mediaElement, 0, 0, tempCanvas.width, tempCanvas.height);
+                snapshotBase64 = tempCanvas.toDataURL('image/jpeg', 0.6); // 60% qualidade
+            } catch (e) {
+                console.warn("Não foi possível tirar print (CORS?)");
+            }
+
+            const time = new Date().toLocaleString('pt-BR');
+
+            // 1. Salva no Firebase
+            if (db) {
+                try {
+                    await addDoc(collection(db, "logs"), {
+                        personName: person.name,
+                        level: person.level,
+                        cameraName: cam.name,
+                        time: time,
+                        timestamp: Date.now(),
+                        snapshot: snapshotBase64
+                    });
+                } catch(e) { console.error("Erro Firebase Log", e); }
+            }
+
+            // 2. Aciona Interface
+            if (person.level === 'danger') {
+                triggerTacticalAlarm(person, cam, snapshotBase64);
+            } else if (person.level === 'suspect') {
+                showToast(`SUSPEITO DETECTADO: ${person.name} em ${cam.name}`, "warning");
+                playBeep();
+            } else {
+                showToast(`Reconhecimento: ${person.name} passou por ${cam.name}`, "success");
             }
         }
 
-        function updateLogsTable() {
-            const tbody = document.getElementById('logs-table-body');
-            const alertsContainer = document.getElementById('live-alerts');
+        // 8. PAINEL TÁTICO E SOM
+        function triggerTacticalAlarm(person, cam, snapshot) {
+            document.getElementById('tactical-alarm-panel').classList.remove('hidden');
+            document.getElementById('tactical-alarm-panel').classList.add('flex');
             
+            document.getElementById('alarm-cam-name').innerText = `LOCAL: ${cam.name}`;
+            document.getElementById('alarm-person-name').innerText = person.name;
+            document.getElementById('alarm-person-photo').src = person.photo;
+            document.getElementById('alarm-snapshot').src = snapshot || person.photo; // fallback se falhar print
+
+            // Som de Sirene
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            alarmOscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            alarmOscillator.type = 'square';
+            alarmOscillator.frequency.setValueAtTime(600, audioCtx.currentTime); // Pitch inicial
+            
+            // Sirene sobe e desce
+            setInterval(() => {
+                if(!alarmOscillator) return;
+                try {
+                    alarmOscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.5);
+                    setTimeout(() => {
+                        if(alarmOscillator) alarmOscillator.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.5);
+                    }, 500);
+                } catch(e){}
+            }, 1000);
+
+            gainNode.gain.value = 0.2; // Volume
+            alarmOscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            alarmOscillator.start();
+        }
+
+        window.acknowledgeAlarm = () => {
+            document.getElementById('tactical-alarm-panel').classList.add('hidden');
+            document.getElementById('tactical-alarm-panel').classList.remove('flex');
+            if (alarmOscillator) {
+                alarmOscillator.stop();
+                alarmOscillator.disconnect();
+                alarmOscillator = null;
+            }
+        };
+
+        function playBeep() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.frequency.value = 400;
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
+        }
+
+        // 9. HISTÓRICO
+        function renderLogs() {
+            const tbody = document.getElementById('logs-table-body');
             tbody.innerHTML = '';
-            alertsContainer.innerHTML = '';
             
             if (logs.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" class="p-8 text-center text-slate-500">Nenhum registro no histórico.</td></tr>';
-                alertsContainer.innerHTML = '<p class="text-sm text-slate-400 text-center py-4">Aguardando movimento...</p>';
+                tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500">Nenhum evento registrado.</td></tr>';
                 return;
             }
 
             logs.forEach(log => {
-                const badgeClass = log.type === 'Entrada' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800';
+                let badge = '<span class="bg-green-500/20 text-green-400 px-2 py-1 rounded">Normal</span>';
+                if (log.level === 'suspect') badge = '<span class="bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">Suspeito</span>';
+                if (log.level === 'danger') badge = '<span class="bg-red-500/20 text-red-400 px-2 py-1 rounded border border-red-500/50 animate-pulse">Ameaça Crítica</span>';
+
                 tbody.innerHTML += `
-                    <tr class="hover:bg-slate-50">
-                        <td class="p-4 text-sm text-slate-600">${log.time}</td>
-                        <td class="p-4 font-medium text-slate-800">${log.studentName}</td>
+                    <tr class="hover:bg-gray-800/50">
                         <td class="p-4">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeClass}">
-                                ${log.type}
-                            </span>
+                            <img src="${log.snapshot}" class="w-16 h-12 object-cover rounded border border-gray-700" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' fill=\\'%23374151\\' viewBox=\\'0 0 24 24\\'><path d=\\'M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z\\'/></svg>'">
                         </td>
+                        <td class="p-4 font-mono text-xs text-gray-400">${log.time}</td>
+                        <td class="p-4 font-bold text-white">${log.personName}</td>
+                        <td class="p-4 text-gray-400"><i data-lucide="video" class="w-3 h-3 inline mr-1"></i>${log.cameraName}</td>
+                        <td class="p-4">${badge}</td>
                     </tr>
                 `;
             });
-
-            logs.slice(0, 5).forEach(log => {
-                const dotColor = log.type === 'Entrada' ? 'bg-green-500' : 'bg-orange-500';
-                alertsContainer.innerHTML += `
-                    <div class="flex gap-3 text-sm border-b border-slate-100 pb-3 last:border-0 toast-enter">
-                        <div class="mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${dotColor}"></div>
-                        <div>
-                            <p class="font-medium">${log.studentName} <span class="text-slate-500 font-normal ml-1">registrou ${log.type.toLowerCase()}</span></p>
-                            <p class="text-xs text-slate-400 mt-1">${log.time} - Notificação enviada</p>
-                        </div>
-                    </div>
-                `;
-            });
+            lucide.createIcons();
         }
 
-        // 5. UTILIDADES (Notificações)
-        function showToast(message, type = 'success') {
-            const container = document.getElementById('toast-container');
-            const toastId = 'toast-' + Date.now();
-            
-            const isSuccess = type === 'success';
-            const bgColor = isSuccess ? 'bg-slate-900 text-white' : 'bg-red-50 border-l-4 border-red-500 text-red-800';
-            const iconName = isSuccess ? 'check-circle-2' : 'alert-circle';
-            const iconColor = isSuccess ? 'text-green-400' : 'text-red-500';
-
-            const toastHTML = `
-                <div id="${toastId}" class="p-4 rounded-xl shadow-xl flex items-start gap-3 max-w-sm toast-enter ${bgColor}">
-                    <i data-lucide="${iconName}" class="mt-0.5 w-5 h-5 shrink-0 ${iconColor}"></i>
-                    <div>
-                        <p class="font-medium text-sm whitespace-pre-wrap">${message}</p>
-                    </div>
-                </div>
-            `;
-            
-            container.insertAdjacentHTML('beforeend', toastHTML);
-            lucide.createIcons(); 
-            
-            setTimeout(() => {
-                const el = document.getElementById(toastId);
-                if (el) {
-                    el.style.opacity = '0';
-                    el.style.transform = 'translateX(100%)';
-                    el.style.transition = 'all 0.3s ease';
-                    setTimeout(() => el.remove(), 300);
-                }
-            }, 5000);
+        // Utils
+        function showToast(message, type = 'info') {
+            const c = document.getElementById('toast-container');
+            const color = type === 'error' ? 'bg-red-900 border-red-500' : type === 'success' ? 'bg-green-900 border-green-500' : type === 'warning' ? 'bg-yellow-900 border-yellow-500' : 'bg-blue-900 border-blue-500';
+            const html = `<div class="${color} border text-white px-4 py-3 rounded shadow-xl flex items-center gap-2 text-sm toast-enter pointer-events-auto"><span>${message}</span></div>`;
+            c.insertAdjacentHTML('beforeend', html);
+            setTimeout(() => { if(c.lastChild) c.lastChild.remove(); }, 4000);
         }
 
-        // INICIAR APLICAÇÃO 
+        // Relógio Global
+        setInterval(() => {
+            document.getElementById('vms-clock').innerText = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+        }, 1000);
+
+        // Início
         initAI();
-        switchTab('camera'); 
+        switchTab('live');
 
     </script>
 </body>
