@@ -186,11 +186,12 @@
         // Inicializa os ícones do Lucide
         lucide.createIcons();
 
-        // Variáveis de Estado (Banco de Dados em Memória -> Agora vinculadas ao Firebase)
+        // Variáveis de Estado
         let students = [];
         let logs = [];
         let isAiReady = false;
         let activeTab = 'camera';
+        let db = null; // Variável global do banco de dados
         
         // Variáveis Temporárias para Cadastro
         let tempPhoto = null;
@@ -202,7 +203,7 @@
         let monitorInterval = null;
         const lastDetectionTime = {};
 
-        // 0. INICIALIZAÇÃO DO FIREBASE
+        // 0. INICIALIZAÇÃO DO FIREBASE COM PROTEÇÃO CONTRA FALHAS
         const firebaseConfig = {
             apiKey: "AIzaSyC7J_J7JCagM65E5qkl1z-Kn2V360ldmdg",
             authDomain: "minhas-credenciais-firebase.firebaseapp.com",
@@ -212,35 +213,41 @@
             appId: "1:90146495031:web:04bdab47de65f7444cbdb2"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
 
-        // Listeners do Banco de Dados em Tempo Real (Atualiza a tela se o Firebase mudar)
-        onSnapshot(collection(db, "students"), (snapshot) => {
-            students = [];
-            snapshot.forEach((doc) => {
-                students.push({ id: doc.id, ...doc.data() });
+            // Listeners do Banco de Dados em Tempo Real
+            onSnapshot(collection(db, "students"), (snapshot) => {
+                students = [];
+                snapshot.forEach((doc) => {
+                    students.push({ id: doc.id, ...doc.data() });
+                });
+                updateFaceMatcher();
+                
+                const emptyWarning = document.getElementById('empty-db-warning');
+                if (emptyWarning) {
+                    emptyWarning.classList.toggle('hidden', students.length > 0);
+                }
             });
-            updateFaceMatcher();
+
+            onSnapshot(collection(db, "logs"), (snapshot) => {
+                logs = [];
+                snapshot.forEach((doc) => {
+                    logs.push({ id: doc.id, ...doc.data() });
+                });
+                logs.sort((a, b) => b.timestamp - a.timestamp);
+                updateLogsTable();
+            });
             
-            // Oculta aviso se já houver alunos cadastrados e a aba ativa for a câmera
-            const emptyWarning = document.getElementById('empty-db-warning');
-            if (emptyWarning) {
-                emptyWarning.classList.toggle('hidden', students.length > 0);
-            }
-        });
+        } catch (error) {
+            console.error("Aviso: Falha ao inicializar o Firebase. Credenciais falsas?", error);
+            setTimeout(() => {
+                showToast("Modo Offline: Credenciais do Firebase inválidas. O app funcionará, mas não salvará na nuvem.", "error");
+            }, 2000);
+        }
 
-        onSnapshot(collection(db, "logs"), (snapshot) => {
-            logs = [];
-            snapshot.forEach((doc) => {
-                logs.push({ id: doc.id, ...doc.data() });
-            });
-            // Ordena do mais recente para o mais antigo
-            logs.sort((a, b) => b.timestamp - a.timestamp);
-            updateLogsTable();
-        });
-
-        // Expondo as funções para o HTML (pois type="module" isola o escopo do clique do mouse)
+        // Expondo as funções para o HTML
         window.switchTab = switchTab;
         window.captureAndAnalyze = captureAndAnalyze;
         window.resetRegistrationForm = resetRegistrationForm;
@@ -249,7 +256,6 @@
         // 1. CARREGAMENTO DA IA (FACE-API)
         async function initAI() {
             try {
-                // Certifique-se de que a biblioteca carregou
                 await new Promise(resolve => {
                     const check = setInterval(() => {
                         if (window.faceapi) {
@@ -266,13 +272,12 @@
                 
                 isAiReady = true;
                 
-                // Atualiza a Interface
                 document.getElementById('ai-status-container').innerHTML = `
                     <div class="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-1.5 rounded-full border border-green-200">
                         <i data-lucide="shield-check" class="w-4 h-4"></i> IA Ativa e Pronta
                     </div>
                 `;
-                lucide.createIcons(); // Recria ícones para os novos elementos
+                lucide.createIcons();
                 document.getElementById('btn-scan').disabled = false;
                 
                 updateFaceMatcher();
@@ -282,7 +287,7 @@
             }
         }
 
-        // 2. NAVEGAÇÃO E CONTROLE DE ABAS (SPA)
+        // 2. NAVEGAÇÃO E CONTROLE DE ABAS (SPA) E CÂMERA
         const tabTitles = {
             'camera': 'Monitoramento da Portaria',
             'register': 'Cadastro de Biometria Facial',
@@ -293,17 +298,14 @@
             activeTab = tabId;
             document.getElementById('page-title').innerText = tabTitles[tabId];
 
-            // Atualiza botões do menu
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.className = "nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors hover:bg-slate-800 text-slate-300";
             });
             document.getElementById(`btn-${tabId}`).className = "nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors bg-blue-600 text-white";
 
-            // Atualiza o conteúdo (esconde todos, mostra o ativo)
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             document.getElementById(`tab-${tabId}`).classList.add('active');
 
-            // Gerencia as Câmeras e o Loop de Monitoramento
             if (monitorInterval) {
                 clearInterval(monitorInterval);
                 monitorInterval = null;
@@ -313,26 +315,41 @@
                 currentStream.getTracks().forEach(track => track.stop());
             }
 
-            // Liga a câmera certa baseada na aba
+            // Ativa a Câmera
             if (tabId === 'camera' || tabId === 'register') {
                 try {
+                    // Validação de ambiente seguro (file:// restrição)
+                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                        throw new Error("LocalhostRequired");
+                    }
+
                     currentStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
                     
                     if (tabId === 'camera') {
                         const videoEl = document.getElementById('monitor-video');
                         videoEl.srcObject = currentStream;
+                        // Força a reprodução de forma assíncrona
+                        videoEl.play().catch(e => console.warn("Autoplay da câmera bloqueado pelo navegador", e));
+                        
                         if(isAiReady) startMonitoring();
                         
-                        // Mostra aviso se não tiver alunos
-                        document.getElementById('empty-db-warning').classList.toggle('hidden', students.length > 0);
+                        const emptyWarning = document.getElementById('empty-db-warning');
+                        if (emptyWarning) emptyWarning.classList.toggle('hidden', students.length > 0);
                     } 
                     else if (tabId === 'register') {
-                        document.getElementById('register-video').srcObject = currentStream;
+                        const registerVid = document.getElementById('register-video');
+                        registerVid.srcObject = currentStream;
+                        registerVid.play().catch(e => console.warn("Autoplay bloqueado", e));
                         resetRegistrationForm();
                     }
                 } catch (err) {
                     console.error("Erro na câmera:", err);
-                    showToast("Permita o acesso à câmera no navegador.", "error");
+                    
+                    if (err.message === "LocalhostRequired" || window.location.protocol === 'file:') {
+                        showToast("ERRO: O navegador bloqueia a câmera em arquivos locais (file://). Você precisa abrir o projeto via 'Live Server' no VS Code ou usar localhost.", "error");
+                    } else {
+                        showToast("Permita o acesso à câmera no topo do navegador e recarregue a página.", "error");
+                    }
                 }
             }
         }
@@ -353,29 +370,24 @@
             showToast("Analisando biometria... Fique parado.");
 
             try {
-                // Detecta o rosto usando face-api
                 const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
                                                .withFaceLandmarks()
                                                .withFaceDescriptor();
                 
                 if (detection) {
-                    // Tira um "print" do vídeo para salvar a foto
                     const canvas = document.createElement('canvas');
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
                     canvas.getContext('2d').drawImage(video, 0, 0);
                     tempPhoto = canvas.toDataURL('image/jpeg');
                     
-                    // Salva os números gerados pela IA (O RG Facial)
                     tempDescriptor = Array.from(detection.descriptor);
                     
-                    // Mostra o preview
                     video.classList.add('hidden');
                     const previewEl = document.getElementById('register-preview');
                     previewEl.src = tempPhoto;
                     previewEl.classList.remove('hidden');
 
-                    // Muda os botões
                     document.getElementById('capture-controls').innerHTML = `
                         <button type="button" onclick="resetRegistrationForm()" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
                             Refazer Escaneamento Facial
@@ -411,6 +423,12 @@
 
         async function saveStudent(e) {
             e.preventDefault();
+            
+            if (!db) {
+                showToast("Erro Crítico: Banco de dados não conectado. Verifique as credenciais do Firebase.", "error");
+                return;
+            }
+
             const name = document.getElementById('student-name').value;
             const phone = document.getElementById('parent-phone').value;
 
@@ -427,15 +445,12 @@
             };
 
             try {
-                // Salva no Banco de Dados Real
                 await addDoc(collection(db, "students"), newStudent);
                 
-                // Limpa formulário
                 document.getElementById('register-form').reset();
                 resetRegistrationForm();
                 showToast(`${name} cadastrado com sucesso!`);
                 
-                // Vai para a câmera testar
                 switchTab('camera');
             } catch (error) {
                 console.error("Erro ao salvar no Firebase:", error);
@@ -454,7 +469,6 @@
                 );
             });
             
-            // Cria o comparador de rostos (margem de distância 0.6)
             faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
         }
 
@@ -464,7 +478,6 @@
             
             if (students.length === 0 || !faceMatcher) return;
 
-            // Espera o vídeo começar a tocar de verdade
             if (video.readyState !== 4) {
                 video.onloadeddata = () => startMonitoringLoop(video, canvas);
             } else {
@@ -476,7 +489,6 @@
             const displaySize = { width: video.videoWidth || 640, height: video.videoHeight || 480 };
             faceapi.matchDimensions(canvas, displaySize);
 
-            // Roda a cada 500ms
             monitorInterval = setInterval(async () => {
                 if (activeTab !== 'camera' || video.paused || video.ended) return;
 
@@ -490,23 +502,20 @@
                 resizedDetections.forEach(detection => {
                     const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
                     
-                    // Desenha o quadrado no rosto
                     const isKnown = bestMatch.label !== 'unknown';
                     const box = detection.detection.box;
                     const student = isKnown ? students.find(s => s.id === bestMatch.label) : null;
                     
                     const drawBox = new faceapi.draw.DrawBox(box, { 
                         label: isKnown ? student.name : 'Desconhecido',
-                        boxColor: isKnown ? '#10b981' : '#ef4444' // Verde ou Vermelho
+                        boxColor: isKnown ? '#10b981' : '#ef4444' 
                     });
                     drawBox.draw(canvas);
 
-                    // Se reconheceu alguém, verifica envio de mensagem
                     if (isKnown) {
                         const now = Date.now();
                         const lastTime = lastDetectionTime[student.id] || 0;
                         
-                        // Cooldown de 15 segundos para não fazer spam no WhatsApp
                         if (now - lastTime > 15000) {
                             lastDetectionTime[student.id] = now;
                             registerLogAndNotify(student);
@@ -517,7 +526,9 @@
         }
 
         async function registerLogAndNotify(student) {
-            const isEntry = Math.random() > 0.5; // Simula Entrada/Saída
+            if (!db) return; // Proteção offline
+
+            const isEntry = Math.random() > 0.5;
             const type = isEntry ? 'Entrada' : 'Saída';
             const time = new Date().toLocaleTimeString('pt-BR');
             
@@ -530,10 +541,8 @@
             };
             
             try {
-                // Salva o evento no Firebase (a atualização da tabela será feita automaticamente pelo onSnapshot)
                 await addDoc(collection(db, "logs"), logItem);
                 
-                // Exibe o balão verde de "Enviada"
                 const message = `🔔 *Escola Guardian*\nSua filha(o) ${student.name} registrou *${type.toLowerCase()}* na escola às ${time}.`;
                 showToast(`Mensagem enviada para ${student.parentPhone}:\n"${message}"`, 'success');
             } catch (error) {
@@ -554,7 +563,6 @@
                 return;
             }
 
-            // Atualiza Tabela de Histórico (todos os logs)
             logs.forEach(log => {
                 const badgeClass = log.type === 'Entrada' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800';
                 tbody.innerHTML += `
@@ -570,7 +578,6 @@
                 `;
             });
 
-            // Atualiza Alertas ao Vivo na Portaria (apenas os 5 mais recentes)
             logs.slice(0, 5).forEach(log => {
                 const dotColor = log.type === 'Entrada' ? 'bg-green-500' : 'bg-orange-500';
                 alertsContainer.innerHTML += `
@@ -605,9 +612,8 @@
             `;
             
             container.insertAdjacentHTML('beforeend', toastHTML);
-            lucide.createIcons(); // Renderiza o ícone novo
+            lucide.createIcons(); 
             
-            // Remove o toast após 5 segundos
             setTimeout(() => {
                 const el = document.getElementById(toastId);
                 if (el) {
@@ -619,7 +625,7 @@
             }, 5000);
         }
 
-        // INICIAR APLICAÇÃO (Substituindo o window.onload por execução direta do modulo)
+        // INICIAR APLICAÇÃO 
         initAI();
         switchTab('camera'); 
 
