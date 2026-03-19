@@ -30,12 +30,27 @@
         .camera-slot { position: relative; }
         .ai-canvas { position: absolute; pointer-events: none; z-index: 10; }
         .mobile-grid-fix { min-height: 250px; }
+
+        .camera-maximized {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 250 !important;
+            border-radius: 0 !important;
+        }
+        .slot-selected {
+            box-shadow: 0 0 0 4px #3b82f6 inset !important;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #030712; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 4px; }
     </style>
 </head>
 <body class="bg-gray-950 text-gray-300 font-sans overflow-hidden h-screen flex flex-col">
 
     <!-- TOASTS -->
-    <div id="toast-container" class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+    <div id="toast-container" class="fixed bottom-4 right-4 z-[400] flex flex-col gap-2 pointer-events-none"></div>
 
     <!-- ECRÃ DE SESSÃO -->
     <div id="login-screen" class="fixed inset-0 z-[300] flex items-center justify-center bg-gray-950 p-6">
@@ -73,7 +88,7 @@
         <div id="tactical-alarm-panel" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/80 backdrop-blur-md pointer-events-auto p-4">
             <div class="alarm-flash border-4 border-red-500 rounded-2xl p-6 md:p-8 max-w-2xl w-full text-center flex flex-col items-center max-h-[90vh] overflow-y-auto">
                 <i data-lucide="siren" class="w-16 h-16 md:w-20 md:h-20 text-white mb-2 animate-bounce"></i>
-                <h2 class="text-3xl md:text-4xl font-black text-white uppercase tracking-widest mb-1 text-center">Ameaça Detectada</h2>
+                <h2 class="text-3xl md:text-4xl font-black text-white uppercase tracking-widest mb-1 text-center">Ameaça Detetada</h2>
                 <p id="alarm-cam-name" class="text-xl md:text-2xl text-red-200 font-mono mb-6 font-bold tracking-wider text-center"></p>
                 
                 <div class="flex flex-col md:flex-row gap-6 w-full mb-8 bg-black/50 p-4 rounded-xl border border-red-500/50">
@@ -341,10 +356,10 @@
                         </header>
                         
                         <!-- Container Responsivo para Tabela -->
-                        <div class="w-full overflow-x-auto">
+                        <div id="logs-table-wrapper" class="w-full overflow-x-auto overflow-y-auto max-h-[60vh] relative custom-scrollbar">
                             <table class="w-full text-left border-collapse min-w-[600px]">
-                                <thead>
-                                    <tr class="bg-gray-950 border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wider">
+                                <thead class="sticky top-0 bg-gray-950 z-10 shadow-md">
+                                    <tr class="border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wider">
                                         <th class="p-4 w-24">Evidência</th>
                                         <th class="p-4">Data/Hora</th>
                                         <th class="p-4">Identificação</th>
@@ -502,6 +517,10 @@
         let activeTab = 'live';
         let layout = Number(localStorage.getItem('vms_layout')) || 4;
         let faceMatcher = null;
+        
+        let selectedSlotIndex = null;
+        let draggedSlotIndex = null;
+        let maximizedSlotId = null;
         
         let persons = [];
         let allLogs = []; 
@@ -1180,9 +1199,9 @@
 
         function renderSidebarCameras() {
             const list = document.getElementById('camera-list');
-            list.innerHTML = cameras.map(cam => `
+            list.innerHTML = cameras.filter(c => c !== null).map(cam => `
                 <li class="flex items-center justify-between p-3 md:p-2 bg-gray-950 border border-gray-800 rounded-lg md:rounded">
-                    <div class="flex items-center gap-3 md:gap-2 truncate">
+                    <div class="flex items-center gap-3 md:gap-2 truncate cursor-pointer hover:text-blue-400 flex-1 transition-colors" onclick="handleSidebarCameraClick('${cam.id}')" title="Atribuir à grelha selecionada">
                         <i data-lucide="video" class="w-5 h-5 md:w-4 md:h-4 text-gray-500 shrink-0"></i>
                         <span class="text-sm truncate">${escapeHtml(cam.name)}</span>
                     </div>
@@ -1212,12 +1231,24 @@
                 const cam = cameras[i];
                 const slot = document.createElement('div');
                 const mobileFix = window.innerWidth < 640 && layout > 1 ? "mobile-grid-fix" : "";
-                slot.className = `camera-slot bg-gray-900 rounded-lg border border-gray-800 overflow-hidden flex items-center justify-center relative ${mobileFix}`;
+                slot.className = `camera-slot bg-gray-900 rounded-lg border border-gray-800 overflow-hidden flex items-center justify-center relative transition-all duration-200 ${mobileFix}`;
+                slot.id = cam ? `slot-${cam.id}` : `slot-empty-${i}`;
+                
+                // Eventos de interatividade e Drag & Drop
+                slot.draggable = true;
+                slot.setAttribute('ondragstart', `handleDragStart(event, ${i})`);
+                slot.setAttribute('ondragover', `handleDragOver(event)`);
+                slot.setAttribute('ondrop', `handleDrop(event, ${i})`);
+                slot.setAttribute('onclick', `selectSlot(${i})`);
+                if (selectedSlotIndex === i) slot.classList.add('slot-selected');
                 
                 if (cam) {
+                    slot.setAttribute('ondblclick', `toggleMaximize('${cam.id}')`);
+                    if (maximizedSlotId === cam.id) slot.classList.add('camera-maximized');
+
                     let mediaHtml = (cam.type === 'webcam' || cam.type === 'webrtc') 
-                        ? `<video id="media-${cam.id}" autoplay playsinline muted class="max-w-full max-h-full"></video>`
-                        : `<img id="media-${cam.id}" src="${cam.url}" crossorigin="anonymous" class="max-w-full max-h-full" onerror="this.src=''; this.alt='Sinal Perdido ou Bloqueado por CORS';">`;
+                        ? `<video id="media-${cam.id}" autoplay playsinline muted draggable="false" class="max-w-full max-h-full cursor-pointer"></video>`
+                        : `<img id="media-${cam.id}" src="${cam.url}" crossorigin="anonymous" draggable="false" class="max-w-full max-h-full cursor-pointer" onerror="this.src=''; this.alt='Sinal Perdido ou Bloqueado por CORS';">`;
 
                     const hasLine = !!getTripwire(cam.id);
                     const tripwireBtnBase = hasLine ? 'bg-red-600/80 hover:bg-red-600/90' : 'bg-black/60 hover:bg-black/70';
@@ -1257,12 +1288,86 @@
                         startCameraAI(cam);
                     }
                 } else {
-                    slot.innerHTML = `<div class="flex flex-col items-center opacity-30"><i data-lucide="video-off" class="w-8 h-8 mb-2"></i><span class="text-[10px] uppercase">Sem Sinal</span></div>`;
+                    slot.innerHTML = `<div class="flex flex-col items-center opacity-30 pointer-events-none"><i data-lucide="video-off" class="w-8 h-8 mb-2"></i><span class="text-[10px] uppercase">Slot Vazio ${i+1}</span></div>`;
                     grid.appendChild(slot);
                 }
             }
             lucide.createIcons();
         }
+
+        // ================= INTERATIVIDADE DA GRELHA =================
+        window.selectSlot = (index) => {
+            selectedSlotIndex = selectedSlotIndex === index ? null : index;
+            document.querySelectorAll('.camera-slot').forEach((slot, idx) => {
+                slot.classList.toggle('slot-selected', idx === selectedSlotIndex);
+            });
+        };
+
+        window.handleSidebarCameraClick = (camId) => {
+            if (selectedSlotIndex !== null) {
+                const camIndex = cameras.findIndex(c => c && c.id === camId);
+                if (camIndex !== -1) {
+                    const temp = cameras[selectedSlotIndex];
+                    cameras[selectedSlotIndex] = cameras[camIndex];
+                    cameras[camIndex] = temp;
+                    localStorage.setItem('vms_cameras', JSON.stringify(cameras));
+                    selectedSlotIndex = null;
+                    renderSidebarCameras();
+                    renderGrid();
+                    showToast("Câmara reatribuída com sucesso.", "success");
+                }
+            } else {
+                showToast("Selecione um espaço na grelha clicando nele primeiro.", "info");
+            }
+        };
+
+        window.handleDragStart = (e, index) => {
+            draggedSlotIndex = index;
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", index);
+        };
+
+        window.handleDragOver = (e) => {
+            e.preventDefault(); 
+            e.dataTransfer.dropEffect = "move";
+        };
+
+        window.handleDrop = (e, targetIndex) => {
+            e.preventDefault();
+            if (draggedSlotIndex !== null && draggedSlotIndex !== targetIndex) {
+                const temp = cameras[draggedSlotIndex];
+                cameras[draggedSlotIndex] = cameras[targetIndex];
+                cameras[targetIndex] = temp;
+                localStorage.setItem('vms_cameras', JSON.stringify(cameras));
+                selectedSlotIndex = null;
+                renderSidebarCameras();
+                renderGrid();
+            }
+            draggedSlotIndex = null;
+        };
+
+        window.toggleMaximize = (camId) => {
+            const slot = document.getElementById(`slot-${camId}`);
+            if (!slot) return;
+            
+            if (maximizedSlotId === camId) {
+                slot.classList.remove('camera-maximized');
+                maximizedSlotId = null;
+            } else {
+                if (maximizedSlotId) {
+                    const prev = document.getElementById(`slot-${maximizedSlotId}`);
+                    if (prev) prev.classList.remove('camera-maximized');
+                }
+                slot.classList.add('camera-maximized');
+                maximizedSlotId = camId;
+            }
+            
+            setTimeout(() => {
+                const media = document.getElementById(`media-${camId}`);
+                const canvas = document.getElementById(`canvas-${camId}`);
+                if(media && canvas && media.clientWidth) faceapi.matchDimensions(canvas, { width: media.clientWidth, height: media.clientHeight });
+            }, 300);
+        };
 
         function stopAllAILoops() {
             Object.values(aiLoops).forEach(clearInterval);
@@ -1510,6 +1615,9 @@
                     </tr>`;
             });
             lucide.createIcons();
+            
+            const tableWrapper = document.getElementById('logs-table-wrapper');
+            if (tableWrapper) tableWrapper.scrollTop = 0;
         }
 
         window.exportLogsCSV = () => {
