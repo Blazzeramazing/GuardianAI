@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#030712">
     <link rel="manifest" href="manifest.json">
-    <title>Defense VMS - IA & WebRTC</title>
+    <title>Defense VMS - Inteligência Artificial</title>
     
     <!-- Tailwind & Icons -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -24,12 +24,13 @@
         .tab-content { display: none; }
         .tab-content.active { display: flex; }
 
+        /* Animação do Alarme Tático */
         .alarm-flash { animation: pulseRed 0.8s infinite alternate; }
         @keyframes pulseRed { 0% { background-color: rgba(220, 38, 38, 0.95); box-shadow: inset 0 0 100px rgba(153, 27, 27, 1); } 100% { background-color: rgba(153, 27, 27, 0.95); box-shadow: inset 0 0 20px rgba(220, 38, 38, 1); } }
         
+        /* Bounding Box da IA sobre as câmeras */
         .camera-slot { position: relative; }
         .ai-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
-        .mobile-grid-fix { min-height: 250px; }
     </style>
 </head>
 <body class="bg-gray-950 text-gray-300 font-sans overflow-hidden h-screen flex flex-col">
@@ -37,435 +38,415 @@
     <!-- TOASTS -->
     <div id="toast-container" class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"></div>
 
-    <!-- TELA DE LOGIN -->
     <div id="login-screen" class="fixed inset-0 z-[300] flex items-center justify-center bg-gray-950 p-6">
         <div class="w-full max-w-sm bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden">
             <div class="p-6 border-b border-gray-800 bg-black/50">
                 <div class="flex items-center gap-2 mb-2">
-                    <i data-lucide="shield" class="w-6 h-6 text-blue-500"></i>
-                    <div class="text-xl font-bold text-white">Acesso Operador</div>
+                    <i data-lucide="shield" class="w-5 h-5 text-blue-500"></i>
+                    <div class="text-lg font-bold text-white">Acesso Operador</div>
                 </div>
                 <div class="text-xs text-gray-400 font-mono">DefenseAI VMS • Autenticação Obrigatória</div>
             </div>
-            <form id="login-form" onsubmit="login(event)" class="p-6 space-y-5">
+            <form id="login-form" onsubmit="login(event)" class="p-6 space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-400 mb-1">E-mail Corporativo</label>
-                    <input id="login-email" type="email" autocomplete="username" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none transition-colors">
+                    <label class="block text-sm font-medium text-gray-400 mb-1">E-mail</label>
+                    <input id="login-email" type="email" autocomplete="username" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-400 mb-1">Senha</label>
-                    <input id="login-password" type="password" autocomplete="current-password" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none transition-colors">
+                    <input id="login-password" type="password" autocomplete="current-password" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none">
                 </div>
-                <button id="login-submit" type="submit" class="w-full h-12 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors shadow-lg active:scale-95">
-                    <i data-lucide="log-in" class="w-5 h-5"></i> Entrar no Sistema
+                <button id="login-submit" type="submit" class="w-full h-12 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium flex items-center justify-center gap-2">
+                    <i data-lucide="log-in" class="w-4 h-4"></i> Entrar
                 </button>
             </form>
         </div>
     </div>
 
-    <!-- APP SHELL (Oculto até login) -->
-    <div id="app-shell" class="hidden flex-1 flex flex-col overflow-hidden w-full h-full">
-        
-        <!-- OVERLAY DO MENU MOBILE -->
-        <div id="sidebar-overlay" onclick="closeSidebarDrawer()" class="fixed inset-0 bg-black/70 z-40 hidden md:hidden backdrop-blur-sm transition-opacity"></div>
-
-        <!-- PAINEL TÁTICO DE ALARME -->
-        <div id="tactical-alarm-panel" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/80 backdrop-blur-md pointer-events-auto p-4">
-            <div class="alarm-flash border-4 border-red-500 rounded-2xl p-6 md:p-8 max-w-2xl w-full text-center flex flex-col items-center max-h-[90vh] overflow-y-auto">
-                <i data-lucide="siren" class="w-16 h-16 md:w-20 md:h-20 text-white mb-2 animate-bounce"></i>
-                <h2 class="text-3xl md:text-4xl font-black text-white uppercase tracking-widest mb-1 text-center">Ameaça Detectada</h2>
-                <p id="alarm-cam-name" class="text-xl md:text-2xl text-red-200 font-mono mb-6 font-bold tracking-wider text-center"></p>
-                
-                <div class="flex flex-col md:flex-row gap-6 w-full mb-8 bg-black/50 p-4 rounded-xl border border-red-500/50">
-                    <div class="w-full md:w-1/3 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-red-500/30 pb-4 md:pb-0">
-                        <img id="alarm-person-photo" src="" class="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover border-2 border-red-500 mb-2 bg-black">
-                        <p id="alarm-person-name" class="text-white font-bold text-xl uppercase text-center"></p>
-                        <p class="text-red-400 text-xs md:text-sm font-bold tracking-widest">ALVO CRÍTICO</p>
-                    </div>
-                    <div class="w-full md:w-2/3 flex flex-col items-center justify-center relative min-h-[150px]">
-                        <span class="absolute top-2 left-2 bg-red-600 text-white text-[10px] px-2 py-0.5 rounded animate-pulse z-10 shadow">SNAPSHOT</span>
-                        <img id="alarm-snapshot" src="" class="max-h-40 md:max-h-48 rounded object-contain border border-gray-700 bg-black">
-                    </div>
-                </div>
-                
-                <button onclick="acknowledgeAlarm()" class="bg-white text-red-700 hover:bg-gray-200 font-bold py-4 px-6 md:px-10 rounded-lg text-lg md:text-xl uppercase tracking-widest transition-colors shadow-2xl active:scale-95 w-full">
-                    Reconhecer Ocorrência
-                </button>
-            </div>
-        </div>
-
-        <!-- CABEÇALHO DESKTOP -->
-        <div class="hidden md:flex h-8 bg-black border-b border-gray-800 items-center justify-between px-4 text-xs text-gray-500 font-mono z-20 shrink-0">
-            <div class="flex items-center gap-4">
-                <span class="flex items-center gap-1"><div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> VMS Online</span>
-                <span id="ai-status-desktop" class="text-amber-500">IA Carregando...</span>
-            </div>
-            <div class="vms-clock font-bold text-gray-300">--:--:--</div>
-        </div>
-
-        <!-- CABEÇALHO MOBILE -->
-        <div class="md:hidden flex h-14 bg-gray-900 border-b border-gray-800 items-center justify-between px-4 z-20 shrink-0 shadow-md">
-            <div class="flex items-center gap-3">
-                <button onclick="openSidebarDrawer()" class="p-2 text-gray-400 hover:text-white rounded-lg bg-black/20"><i data-lucide="menu" class="w-6 h-6"></i></button>
-                <div class="flex items-center gap-1">
-                    <i data-lucide="crosshair" class="w-5 h-5 text-red-500"></i>
-                    <h1 class="text-lg font-bold text-white tracking-wide">Defense<span class="text-red-500">AI</span></h1>
-                </div>
-            </div>
-            <div class="flex items-center gap-3">
-                <span id="ai-status-mobile" class="text-amber-500"><i data-lucide="brain" class="w-5 h-5 animate-pulse"></i></span>
-            </div>
-        </div>
-
-        <div class="flex flex-1 relative overflow-hidden">
+    <div id="app-shell" class="hidden flex-1 flex flex-col overflow-hidden">
+    <!-- PAINEL TÁTICO DE ALARME (TELA CHEIA) -->
+    <div id="tactical-alarm-panel" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/80 backdrop-blur-md pointer-events-auto">
+        <div class="alarm-flash border-4 border-red-500 rounded-2xl p-4 md:p-8 max-w-2xl w-full text-center flex flex-col items-center">
+            <i data-lucide="siren" class="w-14 h-14 md:w-20 md:h-20 text-white mb-2 animate-bounce"></i>
+            <h2 class="text-2xl md:text-4xl font-black text-white uppercase tracking-widest mb-1">Ameaça Detectada</h2>
+            <p id="alarm-cam-name" class="text-lg md:text-2xl text-red-200 font-mono mb-4 md:mb-6 font-bold tracking-wider"></p>
             
-            <!-- BARRA LATERAL -->
-            <aside id="sidebar" class="w-72 bg-gray-900 border-r border-gray-800 flex flex-col shadow-xl shrink-0 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 ease-in-out z-50">
-                <div class="hidden md:flex p-4 border-b border-gray-800 items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="crosshair" class="w-6 h-6 text-red-500"></i>
-                        <h1 class="text-xl font-bold text-white tracking-wide">Defense<span class="text-red-500">AI</span></h1>
-                    </div>
+            <div class="flex flex-col md:flex-row gap-4 md:gap-6 w-full mb-6 md:mb-8 bg-black/50 p-4 rounded-xl border border-red-500/50">
+                <div class="w-full md:w-1/3 flex flex-col items-center justify-center md:border-r border-red-500/30 md:pr-4">
+                    <img id="alarm-person-photo" src="" class="w-24 h-24 rounded-full object-cover border-2 border-red-500 mb-2">
+                    <p id="alarm-person-name" class="text-white font-bold text-xl uppercase"></p>
+                    <p class="text-red-400 text-sm font-bold tracking-widest">ALVO CRÍTICO</p>
                 </div>
-
-                <div class="md:hidden flex p-4 border-b border-gray-800 items-center justify-between bg-black/20">
-                    <span class="text-sm font-bold text-gray-400 uppercase tracking-widest">Menu Principal</span>
-                    <button onclick="closeSidebarDrawer()" class="p-2 text-gray-400 hover:text-white rounded"><i data-lucide="x" class="w-5 h-5"></i></button>
+                <div class="w-full md:w-2/3 flex flex-col items-center justify-center relative">
+                    <span class="absolute top-2 left-2 bg-red-600 text-white text-[10px] px-2 py-0.5 rounded animate-pulse">SNAPSHOT CÂMERA</span>
+                    <img id="alarm-snapshot" src="" class="max-h-64 md:max-h-48 w-full rounded object-contain border border-gray-700">
                 </div>
-
-                <div class="p-2 border-b border-gray-800 flex flex-col gap-1 bg-gray-950">
-                    <button onclick="switchTab('live')" id="nav-live" class="nav-btn py-3 md:py-2.5 px-4 bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3">
-                        <i data-lucide="layout-grid" class="w-5 h-5 md:w-4 md:h-4"></i> Monitoramento
-                    </button>
-                    <button onclick="switchTab('db')" id="nav-db" class="nav-btn py-3 md:py-2.5 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3">
-                        <i data-lucide="users" class="w-5 h-5 md:w-4 md:h-4"></i> Banco de Faces
-                    </button>
-                    <button onclick="switchTab('logs')" id="nav-logs" class="nav-btn py-3 md:py-2.5 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3">
-                        <i data-lucide="history" class="w-5 h-5 md:w-4 md:h-4"></i> Relatórios
-                    </button>
-                    <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn py-3 md:py-2.5 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3">
-                        <i data-lucide="settings" class="w-5 h-5 md:w-4 md:h-4"></i> Configurações
-                    </button>
-                </div>
-
-                <div class="p-4 flex-1 overflow-y-auto relative hidden flex-col" id="sidebar-cameras">
-                    <div class="flex items-center justify-between mb-4 sticky top-0 bg-gray-900 z-10 pb-2">
-                        <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500">Dispositivos</h2>
-                        <button onclick="openAddCameraModal()" class="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow transition-colors" title="Adicionar Câmera">
-                            <i data-lucide="plus" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                    <ul id="camera-list" class="space-y-2 pb-6"></ul>
-                </div>
-
-                <div class="p-2 border-t border-gray-800 bg-gray-950 mt-auto">
-                    <button onclick="logout()" class="w-full py-3 md:py-2.5 px-4 rounded-lg text-sm font-medium transition-colors flex items-center gap-3 text-red-400 hover:bg-red-900/20">
-                        <i data-lucide="log-out" class="w-5 h-5 md:w-4 md:h-4"></i> Sair do Sistema
-                    </button>
-                </div>
-            </aside>
-
-            <!-- ÁREA PRINCIPAL -->
-            <main class="flex-1 flex flex-col z-0 relative bg-black overflow-hidden w-full">
-                
-                <!-- VISTA 1: MONITORAMENTO -->
-                <div id="tab-live" class="tab-content active flex-col h-full w-full">
-                    <header class="h-14 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4 md:px-6 shrink-0 flex-wrap">
-                        <h2 class="text-base md:text-lg font-medium text-white flex items-center gap-2 truncate">
-                            <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0"></div> <span class="hidden sm:inline">Monitoramento Tático</span><span class="sm:hidden">Painel Ao Vivo</span>
-                        </h2>
-                        <div class="flex items-center gap-1 bg-gray-950 p-1 rounded-lg border border-gray-800 text-xs font-mono">
-                            <button onclick="setLayout(1)" id="btn-layout-1" class="px-3 md:px-2 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors">1x1</button>
-                            <button onclick="setLayout(4)" id="btn-layout-4" class="px-3 md:px-2 py-1.5 rounded-md bg-gray-800 text-blue-400 shadow transition-colors">2x2</button>
-                            <button onclick="setLayout(9)" id="btn-layout-9" class="px-3 md:px-2 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors hidden sm:block">3x3</button>
-                        </div>
-                    </header>
-                    <div class="flex-1 p-1 md:p-2 overflow-y-auto md:overflow-hidden relative bg-black">
-                        <div id="video-grid" class="w-full h-auto md:h-full grid gap-1 grid-cols-2 grid-rows-2 min-h-[50vh]"></div>
-                    </div>
-                </div>
-
-                <!-- VISTA 2: BANCO DE FACES (CADASTRO) -->
-                <div id="tab-db" class="tab-content hidden flex-col h-full w-full bg-gray-950 overflow-y-auto p-4 md:p-6">
-                    <div class="max-w-7xl mx-auto w-full grid grid-cols-1 xl:grid-cols-2 gap-6 pb-10">
-                        <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden shadow-2xl h-fit">
-                            <div class="p-4 md:p-6 border-b border-gray-800 bg-black/50">
-                                <h2 class="text-lg md:text-xl font-bold text-white flex items-center gap-2">
-                                    <i data-lucide="scan-face" class="text-blue-500"></i> Cadastro de Alvos
-                                </h2>
-                                <p class="text-xs md:text-sm text-gray-400 mt-1">Extraia a biometria para a IA buscar nas câmeras.</p>
-                            </div>
-                            <div class="flex flex-col p-4 md:p-6 gap-6">
-                                <div class="w-full flex flex-col items-center">
-                                    <div class="w-48 h-48 md:w-64 md:h-64 bg-black rounded-full overflow-hidden relative border-4 border-gray-700 shadow-lg flex items-center justify-center mb-4">
-                                        <video id="register-video" autoplay playsinline muted class="w-full h-full object-cover transform -scale-x-100"></video>
-                                        <img id="register-preview" class="w-full h-full object-cover hidden">
-                                        <div id="scan-animation" class="absolute inset-0 bg-blue-500/20 hidden">
-                                            <div class="w-full h-1 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,1)] animate-[scan_1.5s_infinite]"></div>
-                                        </div>
-                                    </div>
-                                    <button id="btn-scan" onclick="captureFaceForDB()" disabled class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-full font-medium transition-colors shadow flex items-center gap-2 disabled:bg-gray-700 active:scale-95">
-                                        <i data-lucide="camera" class="w-5 h-5"></i> Extrair Biometria
-                                    </button>
-                                </div>
-                                <form id="db-form" onsubmit="savePersonToDB(event)" class="w-full space-y-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-400 mb-1">Nome de Identificação</label>
-                                        <input type="text" id="person-name" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 md:py-2.5 text-white focus:border-blue-500 outline-none transition-colors">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-400 mb-1">Grau de Atenção</label>
-                                        <select id="person-level" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 md:py-2.5 text-white focus:border-blue-500 outline-none appearance-none transition-colors">
-                                            <option value="normal">🟢 Normal (Apenas Registo)</option>
-                                            <option value="suspect">🟡 Suspeito (Aviso)</option>
-                                            <option value="danger">🔴 Ameaça Crítica (Alarme)</option>
-                                        </select>
-                                    </div>
-                                    <div class="pt-2">
-                                        <button type="submit" class="w-full bg-green-600 hover:bg-green-500 text-white font-medium py-3.5 rounded-lg transition-colors shadow flex justify-center items-center gap-2 active:scale-95">
-                                            <i data-lucide="save" class="w-5 h-5"></i> Salvar no Firebase
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-
-                        <!-- Grid de Banco de Faces -->
-                        <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden shadow-2xl flex flex-col h-[600px] md:h-auto md:min-h-[520px]">
-                            <div class="p-4 md:p-6 border-b border-gray-800 bg-black/50 flex flex-col gap-4">
-                                <div class="flex items-center justify-between gap-3">
-                                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                                        <i data-lucide="users" class="text-blue-500"></i> Banco de Dados
-                                    </h3>
-                                    <select id="faces-page-size" class="bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
-                                        <option value="6">Exibir 6</option>
-                                        <option value="12" selected>Exibir 12</option>
-                                        <option value="24">Exibir 24</option>
-                                    </select>
-                                </div>
-                                <div class="flex flex-col sm:flex-row gap-3">
-                                    <div class="flex-1 relative">
-                                        <i data-lucide="search" class="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
-                                        <input id="faces-search" type="text" placeholder="Buscar..." class="w-full bg-gray-950 border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:border-blue-500 outline-none text-sm transition-colors">
-                                    </div>
-                                    <select id="faces-level-filter" class="w-full sm:w-auto bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm appearance-none outline-none transition-colors">
-                                        <option value="all" selected>Grau: Todos</option>
-                                        <option value="normal">🟢 Normal</option>
-                                        <option value="suspect">🟡 Suspeito</option>
-                                        <option value="danger">🔴 Ameaça</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="p-4 md:p-6 flex-1 overflow-y-auto bg-gray-950">
-                                <div id="faces-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
-                            </div>
-
-                            <div class="p-4 border-t border-gray-800 bg-black/50 flex items-center justify-between gap-3 flex-wrap">
-                                <div id="faces-page-indicator" class="text-xs text-gray-400 font-mono">1 de 1</div>
-                                <div class="flex items-center gap-1.5">
-                                    <button id="faces-first" class="p-2 md:px-3 md:py-2 rounded-lg bg-gray-900 border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"><i data-lucide="chevrons-left" class="w-4 h-4 md:hidden"></i><span class="hidden md:inline text-xs">Primeira</span></button>
-                                    <button id="faces-prev" class="p-2 md:px-3 md:py-2 rounded-lg bg-gray-900 border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"><i data-lucide="chevron-left" class="w-4 h-4 md:hidden"></i><span class="hidden md:inline text-xs">Anterior</span></button>
-                                    <button id="faces-next" class="p-2 md:px-3 md:py-2 rounded-lg bg-gray-900 border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"><i data-lucide="chevron-right" class="w-4 h-4 md:hidden"></i><span class="hidden md:inline text-xs">Próxima</span></button>
-                                    <button id="faces-last" class="p-2 md:px-3 md:py-2 rounded-lg bg-gray-900 border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"><i data-lucide="chevrons-right" class="w-4 h-4 md:hidden"></i><span class="hidden md:inline text-xs">Última</span></button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- VISTA 3: LOGS -->
-                <div id="tab-logs" class="tab-content hidden flex-col h-full w-full bg-gray-950 p-4 md:p-6 overflow-y-auto">
-                    <div class="max-w-7xl mx-auto w-full bg-gray-900 rounded-xl border border-gray-800 shadow-2xl overflow-hidden pb-8">
-                        <header class="p-4 md:p-6 border-b border-gray-800 bg-black/50 flex flex-col gap-4">
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                <div>
-                                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                                        <i data-lucide="clipboard-list" class="text-blue-500"></i> Relatório
-                                    </h2>
-                                    <p class="text-xs md:text-sm text-gray-400 mt-1">Eventos detectados pela Inteligência Artificial.</p>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <button onclick="exportLogsCSV()" class="flex-1 sm:flex-none bg-green-700 hover:bg-green-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors shadow">
-                                        <i data-lucide="download" class="w-4 h-4"></i> Exportar CSV
-                                    </button>
-                                    <select id="logs-page-size" class="bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm outline-none transition-colors">
-                                        <option value="10">Exibir 10</option>
-                                        <option value="25" selected>Exibir 25</option>
-                                        <option value="50">Exibir 50</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
-                                <div class="sm:col-span-2 lg:col-span-4 relative">
-                                    <i data-lucide="search" class="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
-                                    <input id="logs-search" type="text" placeholder="Buscar (página atual)..." class="w-full bg-gray-950 border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:border-blue-500 outline-none text-sm transition-colors">
-                                </div>
-                                <div class="lg:col-span-3">
-                                    <select id="logs-camera-filter" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm appearance-none outline-none transition-colors">
-                                        <option value="all" selected>Câmera: Todas</option>
-                                    </select>
-                                </div>
-                                <div class="lg:col-span-3">
-                                    <select id="logs-level-filter" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm appearance-none outline-none transition-colors">
-                                        <option value="all" selected>Grau: Todos</option>
-                                        <option value="normal">🟢 Normal</option>
-                                        <option value="suspect">🟡 Suspeito</option>
-                                        <option value="danger">🔴 Ameaça Crítica</option>
-                                    </select>
-                                </div>
-                                <div class="lg:col-span-2">
-                                    <select id="logs-period-filter" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm appearance-none outline-none transition-colors">
-                                        <option value="today">Hoje</option>
-                                        <option value="7d" selected>Últimos 7 dias</option>
-                                        <option value="month">Mês atual</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </header>
-                        
-                        <div class="w-full overflow-x-auto">
-                            <table class="w-full text-left border-collapse min-w-[600px]">
-                                <thead>
-                                    <tr class="bg-gray-950 border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wider">
-                                        <th class="p-4 w-24">Evidência</th>
-                                        <th class="p-4">Data/Hora</th>
-                                        <th class="p-4">Identificação</th>
-                                        <th class="p-4">Câmera</th>
-                                        <th class="p-4">Alerta</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="logs-table-body" class="text-sm text-gray-300 divide-y divide-gray-800/50">
-                                    <!-- Injetado via JS -->
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <div class="p-4 border-t border-gray-800 bg-black/50 flex items-center justify-between gap-3 flex-wrap">
-                            <div id="logs-page-indicator" class="text-xs text-gray-400 font-mono">Página 1 de 1</div>
-                            <div class="flex items-center gap-1.5">
-                                <button id="logs-first" class="p-2 md:px-3 md:py-2 rounded-lg bg-gray-900 border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"><i data-lucide="chevrons-left" class="w-4 h-4 md:hidden"></i><span class="hidden md:inline text-xs">Primeira</span></button>
-                                <button id="logs-prev" class="p-2 md:px-3 md:py-2 rounded-lg bg-gray-900 border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"><i data-lucide="chevron-left" class="w-4 h-4 md:hidden"></i><span class="hidden md:inline text-xs">Anterior</span></button>
-                                <button id="logs-next" class="p-2 md:px-3 md:py-2 rounded-lg bg-gray-900 border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"><i data-lucide="chevron-right" class="w-4 h-4 md:hidden"></i><span class="hidden md:inline text-xs">Próxima</span></button>
-                                <button id="logs-last" class="p-2 md:px-3 md:py-2 rounded-lg bg-gray-900 border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"><i data-lucide="chevrons-right" class="w-4 h-4 md:hidden"></i><span class="hidden md:inline text-xs">Última</span></button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- VISTA 4: CONFIGURAÇÕES -->
-                <div id="tab-settings" class="tab-content hidden flex-col h-full w-full bg-gray-950 p-4 md:p-6 overflow-y-auto">
-                    <div class="max-w-3xl mx-auto w-full bg-gray-900 rounded-xl border border-gray-800 shadow-2xl overflow-hidden">
-                        <div class="p-4 md:p-6 border-b border-gray-800 bg-black/50">
-                            <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                                <i data-lucide="settings" class="text-blue-500"></i> Configurações do Sistema
-                            </h2>
-                            <p class="text-sm text-gray-400 mt-1">Parâmetros locais por dispositivo do operador.</p>
-                        </div>
-
-                        <div class="p-4 md:p-6 space-y-6">
-                            <div class="bg-gray-950 border border-gray-800 rounded-xl p-5">
-                                <div class="flex items-center justify-between gap-4 mb-3">
-                                    <div class="min-w-0">
-                                        <div class="text-sm font-semibold text-white">Tolerância da IA (Reconhecimento)</div>
-                                        <div class="text-xs text-gray-400">Ajusta a flexibilidade do reconhecimento (0.1 a 0.9). Valores maiores reconhecem mais fácil, mas podem gerar falsos positivos.</div>
-                                    </div>
-                                    <div id="ai-confidence-value" class="text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-900/40 px-2 py-1 rounded">0.60</div>
-                                </div>
-                                <input id="ai-confidence" type="range" min="0.1" max="0.9" step="0.05" class="w-full accent-blue-500">
-                            </div>
-
-                            <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 flex items-center justify-between gap-4 flex-wrap">
-                                <div class="min-w-0">
-                                    <div class="text-sm font-semibold text-white">Sirene (Som)</div>
-                                    <div class="text-xs text-gray-400">Desativa alertas sonoros globalmente.</div>
-                                </div>
-                                <button id="mute-toggle" onclick="toggleMute()" class="h-11 px-4 rounded-lg border border-gray-700 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium flex items-center gap-2 transition-colors">
-                                    <i data-lucide="volume-2" class="w-4 h-4"></i> Som Ativo
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-            </main>
+            </div>
+            
+            <button onclick="acknowledgeAlarm()" class="bg-white text-red-700 hover:bg-gray-200 font-bold h-12 md:h-14 px-10 rounded-lg text-base md:text-xl uppercase tracking-widest transition-colors shadow-2xl active:scale-95 w-full">
+                Reconhecer Ocorrência
+            </button>
         </div>
     </div>
 
-    <!-- MODAL DE ADICIONAR CÂMERA -->
-    <div id="add-cam-modal" class="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <!-- CABEÇALHO GLOBAL -->
+    <div class="h-8 bg-black border-b border-gray-800 flex items-center justify-between px-4 text-xs text-gray-500 font-mono z-20 shrink-0">
+        <div class="flex items-center gap-3">
+            <button id="mobile-menu-btn" onclick="openSidebarDrawer()" class="md:hidden h-11 w-11 -my-2 -ml-2 flex items-center justify-center rounded hover:bg-gray-900 text-gray-200" aria-label="Abrir menu">
+                <i data-lucide="menu" class="w-5 h-5"></i>
+            </button>
+            <span class="flex items-center gap-1"><div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> VMS Online</span>
+            <span id="ai-status" class="text-amber-500">IA Carregando...</span>
+        </div>
+        <div id="vms-clock" class="font-bold text-gray-300">--:--:--</div>
+    </div>
+
+    <div class="flex flex-1 relative overflow-hidden">
+        <div id="sidebar-overlay" onclick="closeSidebarDrawer()" class="fixed inset-0 bg-black/70 z-40 hidden md:hidden"></div>
+        <!-- BARRA LATERAL -->
+        <aside id="sidebar" class="fixed inset-y-0 left-0 w-72 bg-gray-900 border-r border-gray-800 flex flex-col z-50 shadow-xl shrink-0 transform -translate-x-full md:translate-x-0 md:static md:inset-auto transition-transform duration-200 ease-out">
+            <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="crosshair" class="w-6 h-6 text-red-500"></i>
+                    <h1 class="text-xl font-bold text-white tracking-wide">Defense<span class="text-red-500">AI</span></h1>
+                </div>
+                <button onclick="closeSidebarDrawer()" class="md:hidden h-11 w-11 flex items-center justify-center rounded hover:bg-gray-800 text-gray-200" aria-label="Fechar menu">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Abas de Navegação -->
+            <div class="p-2 border-b border-gray-800 flex flex-col gap-1 bg-gray-950">
+                <button onclick="switchTab('live')" id="nav-live" class="nav-btn h-11 px-4 bg-blue-600 text-white rounded text-sm font-medium transition-colors flex items-center gap-3">
+                    <i data-lucide="layout-grid" class="w-4 h-4"></i> Monitoramento (Ao Vivo)
+                </button>
+                <button onclick="switchTab('db')" id="nav-db" class="nav-btn h-11 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded text-sm font-medium transition-colors flex items-center gap-3">
+                    <i data-lucide="users" class="w-4 h-4"></i> Banco de Faces (Alvos)
+                </button>
+                <button onclick="switchTab('logs')" id="nav-logs" class="nav-btn h-11 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded text-sm font-medium transition-colors flex items-center gap-3">
+                    <i data-lucide="history" class="w-4 h-4"></i> Histórico de Eventos
+                </button>
+                <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn h-11 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded text-sm font-medium transition-colors flex items-center gap-3">
+                    <i data-lucide="settings" class="w-4 h-4"></i> Configurações
+                </button>
+            </div>
+
+            <!-- Lista de Câmeras (Apenas na aba Ao Vivo) -->
+            <div class="p-4 flex-1 overflow-y-auto relative hidden flex-col" id="sidebar-cameras">
+                <div class="flex items-center justify-between mb-4 sticky top-0 bg-gray-900 z-10 pb-2">
+                    <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500">Dispositivos</h2>
+                    <button onclick="openAddCameraModal()" class="h-11 w-11 flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded shadow" title="Adicionar Câmera">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <ul id="camera-list" class="space-y-2"></ul>
+            </div>
+
+            <div class="p-2 border-t border-gray-800 bg-gray-950 mt-auto">
+                <button onclick="logout()" class="w-full h-11 px-4 rounded text-sm font-medium transition-colors flex items-center gap-3 text-gray-300 hover:bg-gray-800 hover:text-white">
+                    <i data-lucide="log-out" class="w-4 h-4"></i> Sair
+                </button>
+            </div>
+        </aside>
+
+        <!-- ÁREA PRINCIPAL -->
+        <main class="flex-1 flex flex-col z-0 relative bg-black overflow-hidden">
+            
+            <!-- VISTA 1: MONITORAMENTO AO VIVO -->
+            <div id="tab-live" class="tab-content active flex-col h-full w-full">
+                <header class="h-14 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-6 shrink-0">
+                    <h2 class="text-lg font-medium text-white flex items-center gap-2">
+                        <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div> Monitoramento Tático
+                    </h2>
+                    <div class="flex items-center gap-1 bg-gray-950 p-1 rounded border border-gray-800 text-xs font-mono">
+                        <button id="layout-1" onclick="setLayout(1)" class="h-11 px-4 rounded text-gray-400 hover:text-white">1x1</button>
+                        <button id="layout-4" onclick="setLayout(4)" class="h-11 px-4 rounded text-gray-400 hover:text-white">2x2</button>
+                        <button id="layout-9" onclick="setLayout(9)" class="h-11 px-4 rounded text-gray-400 hover:text-white">3x3</button>
+                    </div>
+                </header>
+                <div class="flex-1 p-2 overflow-y-auto md:overflow-hidden relative bg-black">
+                    <div id="video-grid" class="w-full h-auto md:h-full grid gap-1 grid-cols-2 grid-rows-2"></div>
+                </div>
+            </div>
+
+            <!-- VISTA 2: BANCO DE FACES (CADASTRO) -->
+            <div id="tab-db" class="tab-content hidden flex-col h-full w-full bg-gray-950 overflow-y-auto p-6">
+                <div class="max-w-7xl mx-auto w-full grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden shadow-2xl">
+                        <div class="p-6 border-b border-gray-800 bg-black/50">
+                            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                                <i data-lucide="scan-face" class="text-blue-500"></i> Cadastro de Alvos e Pessoal
+                            </h2>
+                            <p class="text-sm text-gray-400 mt-1">A IA buscará estes rostos em todas as câmeras conectadas.</p>
+                        </div>
+                        
+                        <div class="flex flex-col md:flex-row p-6 gap-8">
+                            <div class="w-full md:w-1/2 flex flex-col items-center">
+                                <div class="w-64 h-64 bg-black rounded-full overflow-hidden relative border-4 border-gray-700 shadow-lg flex items-center justify-center mb-4">
+                                    <video id="register-video" autoplay playsinline muted class="w-full h-full object-cover transform -scale-x-100"></video>
+                                    <img id="register-preview" class="w-full h-full object-cover hidden">
+                                    <div id="scan-animation" class="absolute inset-0 bg-blue-500/20 hidden">
+                                        <div class="w-full h-1 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,1)] animate-[scan_1.5s_infinite]"></div>
+                                    </div>
+                                </div>
+                                <button id="btn-scan" onclick="captureFaceForDB()" disabled class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-full font-medium transition-colors shadow flex items-center gap-2 disabled:bg-gray-700">
+                                    <i data-lucide="camera" class="w-5 h-5"></i> Extrair Biometria
+                                </button>
+                            </div>
+
+                            <form id="db-form" onsubmit="savePersonToDB(event)" class="w-full md:w-1/2 space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-1">Nome de Identificação</label>
+                                    <input type="text" id="person-name" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-blue-500 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-1">Grau de Atenção (Ameaça)</label>
+                                    <select id="person-level" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-blue-500 outline-none">
+                                        <option value="normal">🟢 Normal (Apenas Registo)</option>
+                                        <option value="suspect">🟡 Suspeito (Aviso Silencioso)</option>
+                                        <option value="danger">🔴 Ameaça Crítica (Dispara Alarme Sonoro/Tático)</option>
+                                    </select>
+                                </div>
+                                <div class="pt-4">
+                                    <button type="submit" class="w-full bg-green-600 hover:bg-green-500 text-white font-medium py-3 rounded-lg transition-colors shadow flex justify-center items-center gap-2">
+                                        <i data-lucide="save" class="w-5 h-5"></i> Salvar no Firebase
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden shadow-2xl flex flex-col min-h-[520px]">
+                        <div class="p-6 border-b border-gray-800 bg-black/50 flex flex-col gap-4">
+                            <div class="flex items-center justify-between gap-3">
+                                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                    <i data-lucide="users" class="text-blue-500"></i> Banco de Faces
+                                </h3>
+                                <div class="flex items-center gap-2">
+                                    <select id="faces-page-size" class="bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm">
+                                        <option value="10">Exibir 10</option>
+                                        <option value="25" selected>Exibir 25</option>
+                                        <option value="50">Exibir 50</option>
+                                        <option value="100">Exibir 100</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="flex flex-col md:flex-row gap-3">
+                                <div class="flex-1 relative">
+                                    <i data-lucide="search" class="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                                    <input id="faces-search" type="text" placeholder="Buscar por nome..." class="w-full bg-gray-950 border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:border-blue-500 outline-none text-sm">
+                                </div>
+                                <select id="faces-level-filter" class="bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm">
+                                    <option value="all" selected>Grau: Todos</option>
+                                    <option value="normal">🟢 Normal</option>
+                                    <option value="suspect">🟡 Suspeito</option>
+                                    <option value="danger">🔴 Ameaça Crítica</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="p-6 flex-1 overflow-y-auto">
+                            <div id="faces-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                        </div>
+
+                        <div class="px-6 py-4 border-t border-gray-800 bg-gray-950 flex items-center justify-between gap-3 flex-wrap">
+                            <div id="faces-page-indicator" class="text-xs text-gray-400 font-mono">Página 1 de 1</div>
+                            <div class="flex items-center gap-2">
+                            <button id="faces-first" class="h-11 px-4 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800">Primeira</button>
+                            <button id="faces-prev" class="h-11 px-4 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800">Anterior</button>
+                            <button id="faces-next" class="h-11 px-4 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800">Próxima</button>
+                            <button id="faces-last" class="h-11 px-4 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800">Última</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISTA 3: HISTÓRICO DE OCORRÊNCIAS (LOGS) -->
+            <div id="tab-logs" class="tab-content hidden flex-col h-full w-full bg-gray-950 p-6 overflow-y-auto">
+                <div class="max-w-6xl mx-auto w-full bg-gray-900 rounded-xl border border-gray-800 shadow-2xl overflow-hidden">
+                    <header class="p-6 border-b border-gray-800 bg-black/50 flex flex-col gap-4">
+                        <div class="flex items-center justify-between gap-3 flex-wrap">
+                            <div>
+                                <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                                    <i data-lucide="clipboard-list" class="text-blue-500"></i> Relatório de Reconhecimentos
+                                </h2>
+                                <p class="text-sm text-gray-400 mt-1">Registros salvos em nuvem com captura de imagem.</p>
+                            </div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <button onclick="exportLogsCsv()" class="h-11 px-4 bg-gray-950 hover:bg-gray-800 text-white rounded-lg border border-gray-700 text-sm font-medium flex items-center gap-2">
+                                    <i data-lucide="download" class="w-4 h-4"></i> Exportar CSV
+                                </button>
+                                <select id="logs-page-size" class="bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm">
+                                    <option value="10">Exibir 10</option>
+                                    <option value="25" selected>Exibir 25</option>
+                                    <option value="50">Exibir 50</option>
+                                    <option value="100">Exibir 100</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-12 gap-3">
+                            <div class="lg:col-span-4 relative">
+                                <i data-lucide="search" class="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                                <input id="logs-search" type="text" placeholder="Buscar por nome (página atual)..." class="w-full bg-gray-950 border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:border-blue-500 outline-none text-sm">
+                            </div>
+                            <div class="lg:col-span-3">
+                                <select id="logs-camera-filter" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm">
+                                    <option value="all" selected>Câmera: Todas</option>
+                                </select>
+                            </div>
+                            <div class="lg:col-span-3">
+                                <select id="logs-level-filter" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm">
+                                    <option value="all" selected>Grau: Todos</option>
+                                    <option value="normal">🟢 Normal</option>
+                                    <option value="suspect">🟡 Suspeito</option>
+                                    <option value="danger">🔴 Ameaça Crítica</option>
+                                </select>
+                            </div>
+                            <div class="lg:col-span-2">
+                                <select id="logs-period-filter" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm">
+                                    <option value="today">Hoje</option>
+                                    <option value="7d" selected>Últimos 7 dias</option>
+                                    <option value="month">Mês atual</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3 flex-wrap">
+                            <div id="logs-page-indicator" class="text-xs text-gray-400 font-mono">Página 1 de 1</div>
+                            <div class="flex items-center gap-2">
+                                <button id="logs-first" class="h-11 px-4 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800">Primeira</button>
+                                <button id="logs-prev" class="h-11 px-4 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800">Anterior</button>
+                                <button id="logs-next" class="h-11 px-4 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800">Próxima</button>
+                                <button id="logs-last" class="h-11 px-4 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800">Última</button>
+                            </div>
+                        </div>
+                    </header>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left min-w-[820px]">
+                            <thead>
+                                <tr class="bg-gray-950 border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wider">
+                                    <th class="p-4 w-20">Snapshot</th>
+                                    <th class="p-4">Data/Hora</th>
+                                    <th class="p-4">Identificação</th>
+                                    <th class="p-4">Câmera</th>
+                                    <th class="p-4">Nível</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logs-table-body" class="text-sm text-gray-300 divide-y divide-gray-800/50">
+                                <!-- Injetado via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-settings" class="tab-content hidden flex-col h-full w-full bg-gray-950 p-6 overflow-y-auto">
+                <div class="max-w-3xl mx-auto w-full bg-gray-900 rounded-xl border border-gray-800 shadow-2xl overflow-hidden">
+                    <div class="p-6 border-b border-gray-800 bg-black/50">
+                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                            <i data-lucide="settings" class="text-blue-500"></i> Configurações do Sistema
+                        </h2>
+                        <p class="text-sm text-gray-400 mt-1">Parâmetros locais por dispositivo do operador.</p>
+                    </div>
+
+                    <div class="p-6 space-y-6">
+                        <div class="bg-gray-950 border border-gray-800 rounded-xl p-5">
+                            <div class="flex items-center justify-between gap-4 mb-3">
+                                <div class="min-w-0">
+                                    <div class="text-sm font-semibold text-white">Confiança da IA</div>
+                                    <div class="text-xs text-gray-400">Ajusta a margem do FaceMatcher (0.1 a 0.9).</div>
+                                </div>
+                                <div id="ai-confidence-value" class="text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-900/40 px-2 py-1 rounded">0.55</div>
+                            </div>
+                            <input id="ai-confidence" type="range" min="0.1" max="0.9" step="0.05" class="w-full accent-blue-500">
+                        </div>
+
+                        <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 flex items-center justify-between gap-4 flex-wrap">
+                            <div class="min-w-0">
+                                <div class="text-sm font-semibold text-white">Sirene (Som)</div>
+                                <div class="text-xs text-gray-400">Desativa alertas sonoros; mantém alarmes visuais.</div>
+                            </div>
+                            <button id="mute-toggle" onclick="toggleMute()" class="h-11 px-4 rounded-lg border border-gray-700 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium flex items-center gap-2">
+                                <i data-lucide="volume-2" class="w-4 h-4"></i> Som Ativo
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- MODAL DE ADICIONAR CÂMERA MANUALMENTE -->
+    <div id="add-cam-modal" class="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
         <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-800 flex justify-between items-center bg-black/50">
+            <div class="px-6 py-4 border-b border-gray-800 flex justify-between items-center">
                 <h3 class="text-lg font-bold text-white">Adicionar Câmera IP</h3>
-                <button onclick="closeAddCameraModal()" class="p-1 text-gray-400 hover:text-white rounded transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+                <button onclick="closeAddCameraModal()" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-4 bg-blue-900/20 border-b border-blue-900/50 text-xs text-blue-200">
+                <strong>Atenção (CORS):</strong> Para a IA extrair pixels e reconhecer rostos, a câmera deve estar na mesma rede local ou permitir conexões CORS. Caso contrário, a tela ficará preta.
             </div>
             <form onsubmit="saveCamera(event)" class="p-6 space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-400 mb-1">Nome (Ex: Portão Principal)</label>
-                    <input type="text" id="new-cam-name" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white outline-none focus:border-blue-500 transition-colors" required>
+                    <input type="text" id="new-cam-name" class="w-full bg-gray-950 border border-gray-700 rounded px-4 py-2 text-white" required>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-400 mb-1">Tipo de Conexão</label>
-                    <select id="new-cam-type" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white outline-none focus:border-blue-500 appearance-none transition-colors" onchange="updateCamHint()">
-                        <option value="webrtc">Servidor MediaMTX (WebRTC)</option>
-                        <option value="webcam">Webcam USB (Testes)</option>
-                        <option value="mjpeg">Câmera Genérica (MJPEG)</option>
-                    </select>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">URL do Fluxo MJPEG</label>
+                    <input type="url" id="new-cam-url" placeholder="http://192.168.1.10/video.cgi" class="w-full bg-gray-950 border border-gray-700 rounded px-4 py-2 text-white" required>
                 </div>
-                <div id="url-container">
-                    <label class="block text-sm font-medium text-gray-400 mb-1">URL (WHEP / MJPEG)</label>
-                    <input type="text" id="new-cam-url" placeholder="http://localhost:8889/camera_01/whep" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white outline-none focus:border-blue-500 transition-colors">
-                    <p id="cam-hint" class="text-xs text-blue-400 mt-2">Para MediaMTX, não esqueça do "/whep" no final da URL.</p>
-                </div>
-                <button type="submit" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium mt-2 shadow transition-colors active:scale-95">Salvar Câmera</button>
+                <button type="submit" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded font-medium mt-2">Salvar Câmera</button>
             </form>
         </div>
     </div>
 
-    <!-- MODAL EDITAR ALVO -->
-    <div id="edit-person-modal" class="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div id="edit-person-modal" class="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
         <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-800 flex justify-between items-center bg-black/50">
+            <div class="px-6 py-4 border-b border-gray-800 flex justify-between items-center">
                 <h3 class="text-lg font-bold text-white">Editar Alvo</h3>
-                <button onclick="closeEditPersonModal()" class="p-1 text-gray-400 hover:text-white rounded transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+                <button onclick="closeEditPersonModal()" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
             <form id="edit-person-form" onsubmit="savePersonEdits(event)" class="p-6 space-y-4">
                 <div class="flex items-center gap-4">
-                    <img id="edit-person-photo" src="" class="w-16 h-16 rounded-full object-cover border border-gray-700 bg-black shrink-0">
+                    <img id="edit-person-photo" src="" class="w-16 h-16 rounded-full object-cover border border-gray-700 bg-black">
                     <div class="flex-1">
                         <label class="block text-sm font-medium text-gray-400 mb-1">Nome</label>
-                        <input type="text" id="edit-person-name" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none transition-colors">
+                        <input type="text" id="edit-person-name" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-blue-500 outline-none">
                     </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-400 mb-1">Grau de Atenção</label>
-                    <select id="edit-person-level" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none appearance-none transition-colors">
+                    <select id="edit-person-level" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-blue-500 outline-none">
                         <option value="normal">🟢 Normal</option>
                         <option value="suspect">🟡 Suspeito</option>
                         <option value="danger">🔴 Ameaça Crítica</option>
                     </select>
                 </div>
-                <div class="pt-2 flex flex-col sm:flex-row gap-3">
-                    <button type="button" onclick="closeEditPersonModal()" class="w-full sm:flex-1 py-3 bg-gray-950 hover:bg-gray-800 text-white rounded-lg font-medium border border-gray-700 transition-colors">Cancelar</button>
-                    <button type="submit" class="w-full sm:flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium shadow transition-colors active:scale-95">Salvar Alterações</button>
+                <div class="pt-2 flex gap-3">
+                    <button type="button" onclick="closeEditPersonModal()" class="flex-1 py-2.5 bg-gray-950 hover:bg-gray-800 text-white rounded font-medium border border-gray-700">Cancelar</button>
+                    <button type="submit" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded font-medium">Salvar</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- JAVASCRIPT PRINCIPAL -->
+    </div>
+
+    <!-- LÓGICA DO SISTEMA -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc, getDocs, query, where, orderBy, limit, startAfter, endBefore, limitToLast, getCountFromServer } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // ================= ESTADO GLOBAL =================
+        lucide.createIcons();
+
         let db = null;
         let auth = null;
         let currentUser = null;
         let hasBootedApp = false;
-        
         let isAiReady = false;
         let activeTab = 'live';
         let layout = Number(localStorage.getItem('vms_layout')) || 4;
@@ -476,32 +457,46 @@
             { id: 'cam-webcam', name: 'Webcam Local (Testes IA)', type: 'webcam', url: 'local' }
         ];
 
-        let aiLoops = {}; 
-        const webrtcConnections = {}; 
-        const lastDetectionTime = {}; 
+        let aiLoops = {}; // Guarda os IDs dos intervalos de cada câmera
+        const webrtcConnections = {}; // RTCPeerConnections ativas por cameraId
+        const lastDetectionTime = {}; // Cooldown para não dar spam de alarmes
 
         let audioCtx = null;
         let alarmOscillator = null;
         let alarmSirenIntervalId = null;
-        
         let isVisibilityPaused = document.hidden;
         let isMuted = localStorage.getItem('vms_mute') === '1';
 
-        // TRIPEWIRE STATE
         let tripwires = {};
         const tripwireDrawState = {};
         const tripwireDraft = {};
         const lastTripwireSide = {};
 
-        const facesState = { search: '', level: 'all', pageSize: 12, page: 1, loading: false };
-        const logsState = { search: '', camera: 'all', level: 'all', period: '7d', pageSize: 25, page: 1, totalPages: 1, totalCount: 0, loading: false, firstDoc: null, lastDoc: null, items: [] };
+        const facesState = {
+            search: '',
+            level: 'all',
+            pageSize: 25,
+            page: 1,
+            loading: false
+        };
+
+        const logsState = {
+            search: '',
+            camera: 'all',
+            level: 'all',
+            period: '7d',
+            pageSize: 25,
+            page: 1,
+            totalPages: 1,
+            totalCount: 0,
+            loading: false,
+            firstDoc: null,
+            lastDoc: null,
+            items: []
+        };
 
         let currentEditPersonId = null;
 
-        // INICIALIZA LUCIDE ICONS
-        lucide.createIcons();
-
-        // ================= FIREBASE & AUTH =================
         const firebaseConfig = {
             apiKey: "AIzaSyC7J_J7JCagM65E5qkl1z-Kn2V360ldmdg",
             authDomain: "minhas-credenciais-firebase.firebaseapp.com",
@@ -525,8 +520,8 @@
 
             onAuthStateChanged(auth, (user) => {
                 currentUser = user || null;
-                setAppVisibility(!!currentUser);
                 if (currentUser) {
+                    setAppVisibility(true);
                     if (!hasBootedApp) {
                         hasBootedApp = true;
                         bootApp();
@@ -534,6 +529,7 @@
                         resumeAILoopsIfNeeded();
                     }
                 } else {
+                    setAppVisibility(false);
                     stopAllAILoops();
                     stopAllWebRTCConnections();
                     if (typeof window.acknowledgeAlarm === 'function') window.acknowledgeAlarm();
@@ -541,7 +537,7 @@
             });
         } catch (error) {
             console.error("Firebase Offline:", error);
-            showToast("Erro: Credenciais do Firebase inválidas.", "error");
+            showToast("Erro: Credenciais do Firebase inválidas. Funcionalidades de nuvem desativadas.", "error");
         }
 
         function setAppVisibility(isLoggedIn) {
@@ -570,13 +566,17 @@
 
         window.logout = async () => {
             if (!auth) return;
-            try { await signOut(auth); } catch (err) { showToast("Erro ao sair.", "error"); }
+            try {
+                await signOut(auth);
+            } catch (err) {
+                showToast("Erro ao sair.", "error");
+            }
         };
 
-        // ================= IA & CONFIGURAÇÕES =================
         function getAiConfidence() {
             const v = Number(localStorage.getItem('vms_ai_confidence'));
-            return Number.isFinite(v) && v > 0 ? Math.min(0.9, Math.max(0.1, v)) : 0.60;
+            const n = Number.isFinite(v) ? v : 0.55;
+            return Math.min(0.9, Math.max(0.1, n));
         }
 
         async function initAI() {
@@ -587,138 +587,369 @@
                 await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
                 
                 isAiReady = true;
-                const statusElems = [document.getElementById('ai-status-desktop'), document.getElementById('ai-status-mobile')];
-                statusElems.forEach(el => {
-                    if(el) {
-                        el.innerHTML = '<i data-lucide="brain" class="w-4 h-4 inline mr-1"></i> IA Pronta';
-                        el.classList.replace('text-amber-500', 'text-green-500');
-                    }
-                });
-                lucide.createIcons();
-                if(document.getElementById('btn-scan')) document.getElementById('btn-scan').disabled = false;
+                document.getElementById('ai-status').innerText = "IA Pronta";
+                document.getElementById('ai-status').classList.replace('text-amber-500', 'text-green-500');
+                document.getElementById('btn-scan').disabled = false;
                 
                 updateFaceMatcher();
-                if(!document.hidden && activeTab === 'live') renderGrid(); 
+                renderGrid(); // Inicia o monitoramento se já estiver na aba Ao Vivo
             } catch (err) {
                 console.error("Erro na IA:", err);
+                document.getElementById('ai-status').innerText = "Erro na IA";
+                document.getElementById('ai-status').classList.replace('text-amber-500', 'text-red-500');
             }
         }
 
         function updateFaceMatcher() {
-            if (!isAiReady || persons.length === 0) { faceMatcher = null; return; }
-            const labeledDescriptors = persons.map(p => new faceapi.LabeledFaceDescriptors(p.id, [new Float32Array(p.descriptor)]));
+            if (!isAiReady || persons.length === 0) {
+                faceMatcher = null;
+                return;
+            }
+            const labeledDescriptors = persons.map(p => {
+                return new faceapi.LabeledFaceDescriptors(p.id, [new Float32Array(p.descriptor)]);
+            });
             faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, getAiConfidence());
         }
 
-        // ================= NAVEGAÇÃO =================
         window.switchTab = async (tab) => {
             activeTab = tab;
-            closeSidebarDrawer();
             
             document.querySelectorAll('.nav-btn').forEach(btn => {
-                btn.className = "nav-btn py-3 md:py-2.5 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3";
+                btn.className = "nav-btn h-11 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded text-sm font-medium transition-colors flex items-center gap-3";
             });
-            document.getElementById(`nav-${tab}`).className = "nav-btn py-3 md:py-2.5 px-4 bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3";
+            document.getElementById(`nav-${tab}`).className = "nav-btn h-11 px-4 bg-blue-600 text-white rounded text-sm font-medium transition-colors flex items-center gap-3";
 
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             document.getElementById(`tab-${tab}`).classList.add('active');
 
             const sidebarCams = document.getElementById('sidebar-cameras');
             if (tab === 'live') {
-                sidebarCams.classList.remove('hidden'); sidebarCams.classList.add('flex');
-                renderSidebarCameras(); renderGrid();
+                sidebarCams.classList.remove('hidden');
+                sidebarCams.classList.add('flex');
+                renderSidebarCameras();
+                renderGrid();
             } else {
-                sidebarCams.classList.add('hidden'); sidebarCams.classList.remove('flex');
-                stopAllAILoops(); stopAllWebRTCConnections();
+                sidebarCams.classList.add('hidden');
+                sidebarCams.classList.remove('flex');
+                stopAllAILoops();
+                stopAllWebRTCConnections();
             }
 
             if (tab === 'db') {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                    const videoEl = document.getElementById('register-video');
-                    videoEl.srcObject = stream;
-                    videoEl.play().catch(e => console.warn("Autoplay da câmera do DB bloqueado", e));
-                    window.currentRegisterStream = stream; 
-                } catch(e) {
-                    console.warn("Permissão de câmera negada na aba DB", e);
-                }
-                hydrateFacesControls(); renderFaces();
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const video = document.getElementById('register-video');
+                video.srcObject = stream;
+                video.play();
+                window.currentRegisterStream = stream; // guardar para desligar depois
+                hydrateFacesControls();
+                renderFaces();
             } else if (window.currentRegisterStream) {
                 window.currentRegisterStream.getTracks().forEach(t => t.stop());
                 window.currentRegisterStream = null;
             }
 
-            if (tab === 'logs') { hydrateLogsControls(); await refreshLogs({ mode: 'first' }); }
-            if (tab === 'settings') hydrateSettingsControls();
+            if (tab === 'logs') {
+                hydrateLogsControls();
+                await refreshLogs({ mode: 'first' });
+            }
+            if (tab === 'settings') {
+                hydrateSettingsControls();
+            }
+
+            closeSidebarDrawer();
         };
 
-        window.openSidebarDrawer = () => {
-            const sidebar = document.getElementById('sidebar');
-            const overlay = document.getElementById('sidebar-overlay');
-            if (!sidebar || !overlay) return;
-            sidebar.classList.remove('-translate-x-full');
-            overlay.classList.remove('hidden');
-            document.body.classList.add('overflow-hidden');
+        let tempDescriptor = null;
+        let tempPhoto = null;
+
+        window.captureFaceForDB = async () => {
+            if (!isAiReady) return;
+            const video = document.getElementById('register-video');
+            const scanAnim = document.getElementById('scan-animation');
+            
+            scanAnim.classList.remove('hidden');
+            showToast("Analisando pontos faciais...");
+
+            try {
+                const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+                if (detection) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+                    canvas.getContext('2d').drawImage(video, 0, 0);
+                    tempPhoto = canvas.toDataURL('image/jpeg');
+                    tempDescriptor = Array.from(detection.descriptor);
+                    
+                    video.classList.add('hidden');
+                    const preview = document.getElementById('register-preview');
+                    preview.src = tempPhoto;
+                    preview.classList.remove('hidden');
+                    showToast("Face mapeada com sucesso!", "success");
+                } else {
+                    showToast("Nenhum rosto claro detectado.", "error");
+                }
+            } catch (err) {
+                showToast("Erro ao analisar imagem.", "error");
+            } finally {
+                scanAnim.classList.add('hidden');
+            }
         };
 
-        window.closeSidebarDrawer = () => {
-            const sidebar = document.getElementById('sidebar');
-            const overlay = document.getElementById('sidebar-overlay');
-            if (!sidebar || !overlay) return;
-            sidebar.classList.add('-translate-x-full');
-            overlay.classList.add('hidden');
-            document.body.classList.remove('overflow-hidden');
+        window.savePersonToDB = async (e) => {
+            e.preventDefault();
+            if (!db) return showToast("Banco Offline", "error");
+            if (!tempDescriptor || !tempPhoto) return showToast("Extraia a biometria primeiro!", "error");
+
+            const person = {
+                name: document.getElementById('person-name').value,
+                level: document.getElementById('person-level').value,
+                photo: tempPhoto,
+                descriptor: tempDescriptor
+            };
+
+            try {
+                await addDoc(collection(db, "students"), person); // Usa 'students' para manter a regra do Firebase que criamos
+                showToast("Alvo salvo na base de dados!", "success");
+                
+                document.getElementById('db-form').reset();
+                tempDescriptor = null; tempPhoto = null;
+                document.getElementById('register-preview').classList.add('hidden');
+                document.getElementById('register-video').classList.remove('hidden');
+            } catch (err) {
+                showToast("Erro ao salvar no Firebase.", "error");
+            }
         };
 
-        // ================= TRIPWIRE (LINHA VIRTUAL) =================
+        window.setLayout = (num) => {
+            layout = num;
+            if (![1, 4, 9].includes(layout)) layout = 4;
+            localStorage.setItem('vms_layout', String(layout));
+            updateLayoutButtons();
+            renderGrid();
+        };
+        
+        function renderSidebarCameras() {
+            const list = document.getElementById('camera-list');
+            list.innerHTML = '';
+            cameras.forEach(cam => {
+                list.innerHTML += `
+                    <li class="flex items-center justify-between p-2 bg-gray-950 border border-gray-800 rounded">
+                        <div class="flex items-center gap-2 truncate">
+                            <i data-lucide="video" class="w-4 h-4 text-gray-500 shrink-0"></i>
+                            <span class="text-sm truncate">${cam.name}</span>
+                        </div>
+                        <button onclick="removeCamera('${cam.id}')" class="h-11 w-11 flex items-center justify-center rounded text-gray-600 hover:text-red-500 hover:bg-gray-900"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </li>
+                `;
+            });
+            lucide.createIcons();
+        }
+
+        window.openAddCameraModal = () => document.getElementById('add-cam-modal').classList.remove('hidden');
+        window.closeAddCameraModal = () => document.getElementById('add-cam-modal').classList.add('hidden');
+        
+        window.saveCamera = (e) => {
+            e.preventDefault();
+            const name = document.getElementById('new-cam-name').value;
+            const url = document.getElementById('new-cam-url').value;
+            cameras.push({ id: `cam-${Date.now()}`, name, type: 'mjpeg', url });
+            localStorage.setItem('vms_cameras', JSON.stringify(cameras));
+            closeAddCameraModal();
+            renderSidebarCameras();
+            renderGrid();
+        };
+
+        window.removeCamera = (id) => {
+            if(id === 'cam-webcam') return showToast("Não pode remover a webcam de testes.", "error");
+            cameras = cameras.filter(c => c.id !== id);
+            localStorage.setItem('vms_cameras', JSON.stringify(cameras));
+            renderSidebarCameras();
+            renderGrid();
+            hydrateLogsControls();
+        };
+
+        function renderWebRTCFailure(videoEl) {
+            const slot = videoEl?.closest?.('.camera-slot');
+            if (!slot) return;
+            const old = slot.querySelector(`#${videoEl.id}`);
+            if (old) old.remove();
+            const overlay = document.createElement('div');
+            overlay.className = 'absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-gray-200 z-30 gap-2';
+            overlay.innerHTML = `
+                <i data-lucide="wifi-off" class="w-8 h-8 text-red-400"></i>
+                <div class="text-sm font-bold">Falha de Conexão WebRTC</div>
+                <div class="text-xs text-gray-400 font-mono">Verifique WHEP / MediaMTX</div>
+            `;
+            slot.appendChild(overlay);
+            lucide.createIcons();
+        }
+
+        function stopAllWebRTCConnections() {
+            Object.entries(webrtcConnections).forEach(([cameraId, pc]) => {
+                try {
+                    pc.ontrack = null;
+                    pc.oniceconnectionstatechange = null;
+                    pc.onconnectionstatechange = null;
+                    pc.onicecandidate = null;
+                } catch {}
+                try { pc.close(); } catch {}
+                delete webrtcConnections[cameraId];
+            });
+        }
+
+        async function waitForIceGatheringComplete(pc, timeoutMs = 2000) {
+            if (pc.iceGatheringState === 'complete') return;
+            await new Promise((resolve) => {
+                let done = false;
+                const finish = () => {
+                    if (done) return;
+                    done = true;
+                    pc.removeEventListener('icegatheringstatechange', onChange);
+                    resolve();
+                };
+                const onChange = () => {
+                    if (pc.iceGatheringState === 'complete') finish();
+                };
+                pc.addEventListener('icegatheringstatechange', onChange);
+                setTimeout(finish, timeoutMs);
+            });
+        }
+
+        async function startMediaMTXWebRTC(whepUrl, videoEl, cameraId) {
+            if (!whepUrl || !videoEl || !cameraId) return;
+            if (!whepUrl.endsWith('/whep')) throw new Error('whep_url_invalid');
+
+            if (webrtcConnections[cameraId]) {
+                try { webrtcConnections[cameraId].close(); } catch {}
+                delete webrtcConnections[cameraId];
+            }
+
+            const pc = new RTCPeerConnection();
+            webrtcConnections[cameraId] = pc;
+
+            pc.addTransceiver('video', { direction: 'recvonly' });
+            pc.ontrack = (ev) => {
+                const [stream] = ev.streams;
+                if (!stream) return;
+                if (videoEl.srcObject !== stream) videoEl.srcObject = stream;
+                const p = videoEl.play?.();
+                if (p && typeof p.catch === 'function') p.catch(() => {});
+            };
+
+            pc.oniceconnectionstatechange = () => {
+                if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+                    renderWebRTCFailure(videoEl);
+                }
+            };
+
+            try {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                await waitForIceGatheringComplete(pc);
+
+                const offerSdp = pc.localDescription?.sdp;
+                if (!offerSdp) throw new Error('missing_local_sdp');
+
+                const res = await fetch(whepUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/sdp',
+                        'Accept': 'application/sdp'
+                    },
+                    body: offerSdp
+                });
+                if (!res.ok) throw new Error(`whep_http_${res.status}`);
+                const answerSdp = await res.text();
+                await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+
+                await new Promise((resolve, reject) => {
+                    if (videoEl.readyState >= 2) return resolve();
+                    const t = setTimeout(() => resolve(), 2500);
+                    const onReady = () => {
+                        clearTimeout(t);
+                        videoEl.removeEventListener('loadedmetadata', onReady);
+                        resolve();
+                    };
+                    videoEl.addEventListener('loadedmetadata', onReady, { once: true });
+                });
+
+                return true;
+            } catch (e) {
+                renderWebRTCFailure(videoEl);
+                try { pc.close(); } catch {}
+                delete webrtcConnections[cameraId];
+                return false;
+            }
+        }
+
         function loadTripwires() {
             try {
                 const raw = localStorage.getItem('vms_tripwires');
                 tripwires = raw ? JSON.parse(raw) : {};
-            } catch { tripwires = {}; }
+            } catch {
+                tripwires = {};
+            }
         }
 
         function saveTripwires() {
-            try { localStorage.setItem('vms_tripwires', JSON.stringify(tripwires)); } catch {}
+            try {
+                localStorage.setItem('vms_tripwires', JSON.stringify(tripwires));
+            } catch {}
         }
 
         function getTripwire(cameraId) {
             const v = tripwires?.[cameraId];
-            if (!v || ![v.x1, v.y1, v.x2, v.y2].every(n => typeof n === 'number' && Number.isFinite(n))) return null;
+            if (!v) return null;
+            if (![v.x1, v.y1, v.x2, v.y2].every(n => typeof n === 'number' && Number.isFinite(n))) return null;
             return v;
         }
 
         function setTripwire(cameraId, value) {
-            tripwires[cameraId] = value; saveTripwires();
+            tripwires[cameraId] = value;
+            saveTripwires();
         }
 
-        function clamp01(n) { return Math.min(1, Math.max(0, n)); }
+        function clamp01(n) {
+            return Math.min(1, Math.max(0, n));
+        }
 
         function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
-            const vx = x2 - x1, vy = y2 - y1, wx = px - x1, wy = py - y1;
+            const vx = x2 - x1;
+            const vy = y2 - y1;
+            const wx = px - x1;
+            const wy = py - y1;
             const c1 = vx * wx + vy * wy;
             if (c1 <= 0) return Math.hypot(px - x1, py - y1);
             const c2 = vx * vx + vy * vy;
             if (c2 <= c1) return Math.hypot(px - x2, py - y2);
             const b = c1 / c2;
-            return Math.hypot(px - (x1 + b * vx), py - (y1 + b * vy));
+            const bx = x1 + b * vx;
+            const by = y1 + b * vy;
+            return Math.hypot(px - bx, py - by);
         }
 
         function sideOfLine(px, py, x1, y1, x2, y2) {
             const v = (x2 - x1) * (py - y1) - (y2 - y1) * (px - x1);
-            return v === 0 ? 0 : (v > 0 ? 1 : -1);
+            if (v === 0) return 0;
+            return v > 0 ? 1 : -1;
         }
 
         function drawTripwireOnCanvas(cameraId, canvas, { includeDraft = true } = {}) {
             const ctx = canvas.getContext('2d');
-            const toDraw = (includeDraft ? tripwireDraft[cameraId] : null) || getTripwire(cameraId);
+            const line = getTripwire(cameraId);
+            const draft = includeDraft ? tripwireDraft[cameraId] : null;
+            const toDraw = draft || line;
             if (!toDraw) return;
-            const x1 = (toDraw.x1 ?? 0) * canvas.width, y1 = (toDraw.y1 ?? 0) * canvas.height;
-            const x2 = (toDraw.x2 ?? 0) * canvas.width, y2 = (toDraw.y2 ?? 0) * canvas.height;
+            const x1 = (toDraw.x1 ?? 0) * canvas.width;
+            const y1 = (toDraw.y1 ?? 0) * canvas.height;
+            const x2 = (toDraw.x2 ?? 0) * canvas.width;
+            const y2 = (toDraw.y2 ?? 0) * canvas.height;
             ctx.save();
             ctx.lineWidth = 3;
-            ctx.strokeStyle = '#ef4444'; // Vermelho
-            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+            ctx.strokeStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
             ctx.restore();
         }
 
@@ -727,13 +958,19 @@
             if (!btn) return;
             const hasLine = !!getTripwire(cameraId);
             const isDrawing = !!tripwireDrawState[cameraId];
-            btn.className = `h-8 w-8 md:h-9 md:w-9 rounded text-white flex items-center justify-center backdrop-blur-sm transition-colors ${isDrawing ? 'bg-red-700 animate-pulse' : (hasLine ? 'bg-red-600/80 hover:bg-red-600/90' : 'bg-black/60 hover:bg-black/70')}`;
+            btn.classList.toggle('bg-red-600/80', hasLine && !isDrawing);
+            btn.classList.toggle('hover:bg-red-600/90', hasLine && !isDrawing);
+            btn.classList.toggle('bg-black/60', !hasLine && !isDrawing);
+            btn.classList.toggle('hover:bg-black/70', !hasLine && !isDrawing);
+            btn.classList.toggle('bg-red-700', isDrawing);
+            btn.classList.toggle('animate-pulse', isDrawing);
         }
 
         function setTripwireDrawing(cameraId, enabled) {
             Object.keys(tripwireDrawState).forEach(id => tripwireDrawState[id] = false);
             tripwireDrawState[cameraId] = !!enabled;
             cameras.forEach(c => {
+                if (!c) return;
                 updateTripwireButtonState(c.id);
                 const canvas = document.getElementById(`canvas-${c.id}`);
                 if (!canvas) return;
@@ -756,7 +993,9 @@
 
             const getRelPoint = (ev) => {
                 const rect = canvas.getBoundingClientRect();
-                return { x: clamp01((ev.clientX - rect.left) / rect.width), y: clamp01((ev.clientY - rect.top) / rect.height) };
+                const x = (ev.clientX - rect.left) / rect.width;
+                const y = (ev.clientY - rect.top) / rect.height;
+                return { x: clamp01(x), y: clamp01(y) };
             };
 
             const syncSize = () => {
@@ -769,7 +1008,9 @@
 
             canvas.addEventListener('pointerdown', (ev) => {
                 if (!tripwireDrawState[cameraId]) return;
-                syncSize(); drawing = true; canvas.setPointerCapture(ev.pointerId);
+                syncSize();
+                drawing = true;
+                canvas.setPointerCapture(ev.pointerId);
                 const p = getRelPoint(ev);
                 tripwireDraft[cameraId] = { x1: p.x, y1: p.y, x2: p.x, y2: p.y };
                 updateTripwireButtonState(cameraId);
@@ -777,11 +1018,12 @@
 
             canvas.addEventListener('pointermove', (ev) => {
                 if (!drawing || !tripwireDrawState[cameraId]) return;
+                const p = getRelPoint(ev);
                 const d = tripwireDraft[cameraId];
                 if (!d) return;
-                const p = getRelPoint(ev);
                 d.x2 = p.x; d.y2 = p.y;
-                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
                 drawTripwireOnCanvas(cameraId, canvas);
             });
 
@@ -789,7 +1031,9 @@
                 if (!drawing) return;
                 drawing = false;
                 const d = tripwireDraft[cameraId];
-                if (d) setTripwire(cameraId, { x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2 });
+                if (d) {
+                    setTripwire(cameraId, { x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2 });
+                }
                 delete tripwireDraft[cameraId];
                 setTripwireDrawing(cameraId, false);
                 showToast("Linha virtual salva para esta câmera.", "success");
@@ -800,165 +1044,18 @@
             canvas.addEventListener('pointercancel', finish);
         }
 
-        function shouldTriggerTripwire(cameraId, personId, box, canvas) {
-            const line = getTripwire(cameraId);
-            if (!line) return true; // Se não tem linha, dispara em qualquer lugar
-            const x1 = line.x1 * canvas.width, y1 = line.y1 * canvas.height;
-            const x2 = line.x2 * canvas.width, y2 = line.y2 * canvas.height;
-            const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
-            const dist = pointToSegmentDistance(cx, cy, x1, y1, x2, y2);
-            const threshold = Math.max(10, Math.min(canvas.width, canvas.height) * 0.05); // 5% tolerância
-            const side = sideOfLine(cx, cy, x1, y1, x2, y2);
-
-            lastTripwireSide[cameraId] = lastTripwireSide[cameraId] || {};
-            const prev = lastTripwireSide[cameraId][personId];
-            lastTripwireSide[cameraId][personId] = side;
-
-            const crossed = prev != null && prev !== 0 && side !== 0 && prev !== side && dist <= threshold * 3;
-            return dist <= threshold || crossed;
-        }
-
-
-        // ================= WEBRTC & CÂMERAS =================
-        function renderWebRTCFailure(videoEl) {
-            const slot = videoEl?.closest?.('.camera-slot');
-            if (!slot) return;
-            const overlay = document.createElement('div');
-            overlay.className = 'absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-gray-200 z-30 gap-2';
-            overlay.innerHTML = `<i data-lucide="wifi-off" class="w-8 h-8 text-red-400"></i><div class="text-sm font-bold">Falha WebRTC</div>`;
-            slot.appendChild(overlay); lucide.createIcons();
-        }
-
-        function stopAllWebRTCConnections() {
-            Object.entries(webrtcConnections).forEach(([cameraId, pc]) => {
-                try { pc.ontrack = null; pc.close(); } catch {}
-                delete webrtcConnections[cameraId];
-            });
-        }
-
-        async function waitForIceGatheringComplete(pc, timeoutMs = 2000) {
-            if (pc.iceGatheringState === 'complete') return;
-            await new Promise((resolve) => {
-                let done = false;
-                const finish = () => { if (done) return; done = true; resolve(); };
-                pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') finish(); });
-                setTimeout(finish, timeoutMs);
-            });
-        }
-
-        async function startMediaMTXWebRTC(whepUrl, videoEl, cameraId) {
-            if (!whepUrl || !videoEl || !cameraId) return;
-            if (webrtcConnections[cameraId]) {
-                try { webrtcConnections[cameraId].close(); } catch {}
-                delete webrtcConnections[cameraId];
-            }
-
-            const pc = new RTCPeerConnection();
-            webrtcConnections[cameraId] = pc;
-            pc.addTransceiver('video', { direction: 'recvonly' });
-
-            pc.ontrack = (ev) => {
-                const [stream] = ev.streams;
-                if (!stream) return;
-                if (videoEl.srcObject !== stream) videoEl.srcObject = stream;
-                videoEl.play().catch(() => {});
-            };
-
-            pc.oniceconnectionstatechange = () => {
-                if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') renderWebRTCFailure(videoEl);
-            };
-
-            try {
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-                await waitForIceGatheringComplete(pc);
-
-                const res = await fetch(whepUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/sdp', 'Accept': 'application/sdp' },
-                    body: pc.localDescription.sdp
-                });
-                
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const answerSdp = await res.text();
-                await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
-                return true;
-            } catch (e) {
-                renderWebRTCFailure(videoEl);
-                try { pc.close(); } catch {}
-                delete webrtcConnections[cameraId];
-                return false;
-            }
-        }
-
-        window.updateCamHint = () => {
-            const type = document.getElementById('new-cam-type').value;
-            const container = document.getElementById('url-container');
-            const hint = document.getElementById('cam-hint');
-            if(type === 'webcam') container.classList.add('hidden');
-            else {
-                container.classList.remove('hidden');
-                hint.innerText = type === 'webrtc' ? 'Use o final "/whep". Ex: http://localhost:8889/cam/whep' : 'Insira a URL direta MJPEG.';
-            }
-        };
-
-        window.openAddCameraModal = () => document.getElementById('add-cam-modal').classList.remove('hidden');
-        window.closeAddCameraModal = () => document.getElementById('add-cam-modal').classList.add('hidden');
-        
-        window.saveCamera = (e) => {
-            e.preventDefault();
-            const name = document.getElementById('new-cam-name').value;
-            const type = document.getElementById('new-cam-type').value;
-            const url = document.getElementById('new-cam-url').value;
-            cameras.push({ id: `cam-${Date.now()}`, name, type, url: type==='webcam' ? 'local' : url });
-            localStorage.setItem('vms_cameras', JSON.stringify(cameras));
-            closeAddCameraModal(); renderSidebarCameras(); renderGrid();
-        };
-
-        window.removeCamera = (id) => {
-            cameras = cameras.filter(c => c.id !== id);
-            localStorage.setItem('vms_cameras', JSON.stringify(cameras));
-            renderSidebarCameras(); renderGrid();
-        };
-
-        window.setLayout = (num) => { 
-            layout = num; localStorage.setItem('vms_layout', num); 
-            updateLayoutButtons(); renderGrid(); 
-        };
-
-        function updateLayoutButtons() {
-            [1, 4, 9].forEach(n => {
-                const btn = document.getElementById(`btn-layout-${n}`);
-                if(btn) btn.className = layout === n ? "px-3 md:px-2 py-1.5 rounded-md bg-gray-800 text-blue-400 shadow transition-colors" : `px-3 md:px-2 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors ${n === 9 ? 'hidden sm:block' : ''}`;
-            });
-        }
-
-        function renderSidebarCameras() {
-            const list = document.getElementById('camera-list');
-            list.innerHTML = cameras.map(cam => `
-                <li class="flex items-center justify-between p-3 md:p-2 bg-gray-950 border border-gray-800 rounded-lg md:rounded">
-                    <div class="flex items-center gap-3 md:gap-2 truncate">
-                        <i data-lucide="video" class="w-5 h-5 md:w-4 md:h-4 text-gray-500 shrink-0"></i>
-                        <span class="text-sm truncate">${escapeHtml(cam.name)}</span>
-                    </div>
-                    <button onclick="removeCamera('${cam.id}')" class="p-1.5 text-gray-600 hover:text-red-500"><i data-lucide="trash-2" class="w-5 h-5 md:w-4 md:h-4"></i></button>
-                </li>`).join('');
-            lucide.createIcons();
-        }
-
         async function renderGrid() {
-            stopAllAILoops(); 
-            stopAllWebRTCConnections();
+            stopAllAILoops(); // Para análises antigas
+            stopAllWebRTCConnections(); // Evita conexões fantasmas
             
             const grid = document.getElementById('video-grid');
+            const isMobile = window.matchMedia('(max-width: 767px)').matches;
             let cols = Math.ceil(Math.sqrt(layout));
             let rows = Math.ceil(layout / cols);
-            
-            if (window.innerWidth < 640) {
-                grid.style.gridTemplateColumns = layout === 1 ? `1fr` : `repeat(2, minmax(0, 1fr))`;
-                grid.style.gridTemplateRows = `auto`;
+            grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+            if (isMobile && layout === 9) {
+                grid.style.gridTemplateRows = `repeat(${rows}, minmax(200px, 1fr))`;
             } else {
-                grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
                 grid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
             }
             grid.innerHTML = '';
@@ -966,49 +1063,59 @@
             for (let i = 0; i < layout; i++) {
                 const cam = cameras[i];
                 const slot = document.createElement('div');
-                const mobileFix = window.innerWidth < 640 && layout > 1 ? "mobile-grid-fix" : "";
-                slot.className = `camera-slot bg-gray-900 rounded-lg border border-gray-800 overflow-hidden flex items-center justify-center relative ${mobileFix}`;
+                slot.className = "camera-slot bg-gray-900 rounded border border-gray-800 overflow-hidden flex items-center justify-center relative";
+                if (isMobile && layout === 9) slot.classList.add('min-h-[200px]');
                 
                 if (cam) {
-                    let mediaHtml = (cam.type === 'webcam' || cam.type === 'webrtc') 
-                        ? `<video id="media-${cam.id}" autoplay playsinline muted class="w-full h-full object-cover"></video>`
-                        : `<img id="media-${cam.id}" src="${cam.url}" crossorigin="anonymous" class="w-full h-full object-cover" onerror="this.src=''; this.alt='Sinal Bloqueado';">`;
-
+                    let mediaHtml = '';
+                    if (cam.type === 'webcam') {
+                        mediaHtml = `<video id="media-${cam.id}" autoplay playsinline muted class="w-full h-full object-cover"></video>`;
+                    } else if (cam.type === 'webrtc') {
+                        mediaHtml = `<video id="media-${cam.id}" autoplay playsinline muted class="w-full h-full object-cover"></video>`;
+                    } else {
+                        mediaHtml = `<img id="media-${cam.id}" src="${cam.url}" crossorigin="anonymous" class="w-full h-full object-cover" onerror="this.src=''; this.alt='Sinal Perdido ou Bloqueado por CORS';">`;
+                    }
                     const hasLine = !!getTripwire(cam.id);
                     const tripwireBtnBase = hasLine ? 'bg-red-600/80 hover:bg-red-600/90' : 'bg-black/60 hover:bg-black/70';
 
                     slot.innerHTML = `
                         ${mediaHtml}
                         <canvas id="canvas-${cam.id}" class="ai-canvas"></canvas>
-                        <div class="absolute top-2 left-2 bg-black/60 px-2 py-1 rounded text-[10px] sm:text-xs font-mono text-white flex items-center gap-1 sm:gap-2 backdrop-blur-sm z-20 max-w-[70%] truncate">
-                            <div class="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></div> <span class="truncate">${escapeHtml(cam.name)}</span>
+                        <div class="absolute top-2 left-2 bg-black/60 px-2 py-1 rounded text-xs font-mono text-white flex items-center gap-2 backdrop-blur-sm z-20">
+                            <div class="w-1.5 h-1.5 rounded-full bg-green-500"></div> ${cam.name}
                         </div>
                         <div class="absolute top-2 right-2 z-20 flex items-center gap-1">
-                            <button id="tripwire-btn-${cam.id}" onclick="toggleTripwireDraw('${cam.id}')" class="h-8 w-8 md:h-9 md:w-9 rounded ${tripwireBtnBase} text-white flex items-center justify-center backdrop-blur-sm transition-colors" title="Desenhar Linha Virtual">
+                            <button id="tripwire-btn-${cam.id}" onclick="toggleTripwireDraw('${cam.id}')" class="h-9 w-9 rounded ${tripwireBtnBase} text-white flex items-center justify-center backdrop-blur-sm">
                                 <i data-lucide="pencil-line" class="w-4 h-4"></i>
                             </button>
                             <div class="bg-blue-600/80 px-1.5 py-0.5 rounded text-[10px] text-white"><i data-lucide="brain" class="w-3 h-3 inline"></i> ON</div>
                         </div>
                     `;
                     grid.appendChild(slot);
-                    
                     setupTripwireCanvas(cam.id, document.getElementById(`media-${cam.id}`));
                     updateTripwireButtonState(cam.id);
 
-                    const videoEl = document.getElementById(`media-${cam.id}`);
+                    // Liga Webcam se for o caso
                     if (cam.type === 'webcam') {
-                        try { videoEl.srcObject = await navigator.mediaDevices.getUserMedia({ video: true }); } catch (e) {}
-                    } else if (cam.type === 'webrtc') {
-                        startMediaMTXWebRTC(cam.url, videoEl, cam.id).then(ok => {
-                            if (ok && isAiReady && faceMatcher && !document.hidden) startCameraAI(cam);
-                        });
+                        try {
+                            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                            document.getElementById(`media-${cam.id}`).srcObject = stream;
+                        } catch (e) { console.error("Webcam recusada"); }
                     }
 
-                    if (cam.type !== 'webrtc' && isAiReady && faceMatcher && !document.hidden) {
-                        startCameraAI(cam);
+                    if (cam.type === 'webrtc') {
+                        const videoEl = document.getElementById(`media-${cam.id}`);
+                        startMediaMTXWebRTC(cam.url, videoEl, cam.id)
+                            .then((ok) => {
+                                if (ok && isAiReady && faceMatcher && !document.hidden) startCameraAI(cam);
+                            })
+                            .catch(() => {});
+                    } else {
+                        if (isAiReady && faceMatcher && !document.hidden) startCameraAI(cam);
                     }
+
                 } else {
-                    slot.innerHTML = `<div class="flex flex-col items-center opacity-30"><i data-lucide="video-off" class="w-8 h-8 mb-2"></i><span class="text-[10px] uppercase">Sem Sinal</span></div>`;
+                    slot.innerHTML = `<i data-lucide="video-off" class="w-8 h-8 text-gray-700"></i>`;
                     grid.appendChild(slot);
                 }
             }
@@ -1026,6 +1133,7 @@
             const canvas = document.getElementById(`canvas-${cam.id}`);
             if (!media || !canvas) return;
 
+            // Executa a cada 800ms para poupar CPU
             aiLoops[cam.id] = setInterval(async () => {
                 if (document.hidden || activeTab !== 'live' || !media.clientWidth) return;
                 if (media.tagName === 'VIDEO' && media.readyState < 2) return;
@@ -1034,45 +1142,72 @@
                     const displaySize = { width: media.clientWidth, height: media.clientHeight };
                     faceapi.matchDimensions(canvas, displaySize);
 
-                    // BAIXAMOS O SCORE THRESHOLD PARA 0.4 PARA FACILITAR RECONHECIMENTO AO VIVO
-                    const detections = await faceapi.detectAllFaces(media, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.4 })).withFaceLandmarks().withFaceDescriptors();
+                    const detections = await faceapi.detectAllFaces(media, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
                     
                     const ctx = canvas.getContext('2d');
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                    // Desenha a linha virtual se existir
-                    drawTripwireOnCanvas(cam.id, canvas);
 
                     resizedDetections.forEach(det => {
                         const bestMatch = faceMatcher.findBestMatch(det.descriptor);
                         const isKnown = bestMatch.label !== 'unknown';
                         const person = isKnown ? persons.find(p => p.id === bestMatch.label) : null;
                         
-                        let color = '#3b82f6'; let text = 'Desconhecido';
+                        let color = '#3b82f6'; // Desconhecido (Azul)
+                        let text = 'Desconhecido';
+                        
                         if (person) {
                             text = person.name;
-                            color = person.level === 'danger' ? '#ef4444' : person.level === 'suspect' ? '#eab308' : '#10b981';
+                            if (person.level === 'normal') color = '#10b981'; // Verde
+                            else if (person.level === 'suspect') color = '#eab308'; // Amarelo
+                            else if (person.level === 'danger') color = '#ef4444'; // Vermelho
                         }
 
+                        // Desenha o quadrado
                         const box = det.detection.box;
-                        new faceapi.draw.DrawBox(box, { label: text, boxColor: color }).draw(canvas);
+                        const drawBox = new faceapi.draw.DrawBox(box, { label: text, boxColor: color });
+                        drawBox.draw(canvas);
 
+                        // Lógica de Notificação e Banco de Dados
                         if (person) {
                             const now = Date.now();
                             const lastTime = lastDetectionTime[person.id] || 0;
+                            const allow = shouldTriggerTripwire(cam.id, person.id, box, canvas);
                             
-                            // Avalia cruzamento da linha virtual
-                            const allowDetect = shouldTriggerTripwire(cam.id, person.id, box, canvas);
-
-                            if (allowDetect && now - lastTime > 20000) {
+                            // Cooldown de 20s
+                            if (allow && now - lastTime > 20000) {
                                 lastDetectionTime[person.id] = now;
                                 processDetection(person, cam, media);
                             }
                         }
                     });
-                } catch (e) {}
+                    drawTripwireOnCanvas(cam.id, canvas);
+                } catch (e) {
+                    // Erros comuns aqui são CORS de imagens MJPEG
+                    // console.warn("Erro IA na cam", cam.id, e);
+                }
             }, 800); 
+        }
+
+        function shouldTriggerTripwire(cameraId, personId, box, canvas) {
+            const line = getTripwire(cameraId);
+            if (!line) return true;
+            const x1 = line.x1 * canvas.width;
+            const y1 = line.y1 * canvas.height;
+            const x2 = line.x2 * canvas.width;
+            const y2 = line.y2 * canvas.height;
+            const cx = box.x + box.width / 2;
+            const cy = box.y + box.height / 2;
+            const dist = pointToSegmentDistance(cx, cy, x1, y1, x2, y2);
+            const threshold = Math.max(10, Math.min(canvas.width, canvas.height) * 0.02);
+            const side = sideOfLine(cx, cy, x1, y1, x2, y2);
+
+            lastTripwireSide[cameraId] = lastTripwireSide[cameraId] || {};
+            const prev = lastTripwireSide[cameraId][personId];
+            lastTripwireSide[cameraId][personId] = side;
+
+            const crossed = prev != null && prev !== 0 && side !== 0 && prev !== side && dist <= threshold * 2;
+            return dist <= threshold || crossed;
         }
 
         function resumeAILoopsIfNeeded() {
@@ -1086,41 +1221,65 @@
         }
 
         async function processDetection(person, cam, mediaElement) {
+            // Tira um print da tela no momento
             let snapshotBase64 = "";
             try {
                 const tempCanvas = document.createElement('canvas');
                 tempCanvas.width = mediaElement.videoWidth || mediaElement.naturalWidth || 640;
                 tempCanvas.height = mediaElement.videoHeight || mediaElement.naturalHeight || 480;
                 tempCanvas.getContext('2d').drawImage(mediaElement, 0, 0, tempCanvas.width, tempCanvas.height);
-                snapshotBase64 = tempCanvas.toDataURL('image/jpeg', 0.6);
-            } catch (e) {}
-
-            const time = new Date().toLocaleString('pt-BR');
-            if (db) {
-                try {
-                    const logEntry = { personName: person.name, level: person.level, cameraName: cam.name, time, timestamp: Date.now(), snapshot: snapshotBase64 };
-                    await addDoc(collection(db, "logs"), logEntry);
-                } catch(e) {}
+                snapshotBase64 = tempCanvas.toDataURL('image/jpeg', 0.6); // 60% qualidade
+            } catch (e) {
+                console.warn("Não foi possível tirar print (CORS?)");
             }
 
-            if (person.level === 'danger') triggerTacticalAlarm(person, cam, snapshotBase64);
-            else if (person.level === 'suspect') { showToast(`SUSPEITO: ${person.name} em ${cam.name}`, "warning"); playBeep(); }
-            else showToast(`Reconhecimento: ${person.name} em ${cam.name}`, "success");
+            const time = new Date().toLocaleString('pt-BR');
+
+            // 1. Salva no Firebase
+            if (db) {
+                try {
+                    const logEntry = {
+                        personName: person.name,
+                        level: person.level,
+                        cameraName: cam.name,
+                        time: time,
+                        timestamp: Date.now(),
+                        snapshot: snapshotBase64
+                    };
+                    await addDoc(collection(db, "logs"), logEntry);
+                    if (activeTab === 'logs') {
+                        tryInsertLocalLog(logEntry);
+                    }
+                } catch(e) { console.error("Erro Firebase Log", e); }
+            }
+
+            // 2. Aciona Interface
+            if (person.level === 'danger') {
+                triggerTacticalAlarm(person, cam, snapshotBase64);
+            } else if (person.level === 'suspect') {
+                showToast(`SUSPEITO DETECTADO: ${person.name} em ${cam.name}`, "warning");
+                playBeep();
+            } else {
+                showToast(`Reconhecimento: ${person.name} passou por ${cam.name}`, "success");
+            }
         }
 
         function triggerTacticalAlarm(person, cam, snapshot) {
             document.getElementById('tactical-alarm-panel').classList.remove('hidden');
             document.getElementById('tactical-alarm-panel').classList.add('flex');
+            
             document.getElementById('alarm-cam-name').innerText = `LOCAL: ${cam.name}`;
             document.getElementById('alarm-person-name').innerText = person.name;
             document.getElementById('alarm-person-photo').src = person.photo;
-            document.getElementById('alarm-snapshot').src = snapshot || person.photo; 
+            document.getElementById('alarm-snapshot').src = snapshot || person.photo; // fallback se falhar print
 
             if (!isMuted) {
                 if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 if (audioCtx.state === 'suspended') audioCtx.resume();
+                
                 alarmOscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
+                
                 alarmOscillator.type = 'square';
                 alarmOscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
                 
@@ -1129,12 +1288,15 @@
                     if(!alarmOscillator) return;
                     try {
                         alarmOscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.5);
-                        setTimeout(() => { if(alarmOscillator) alarmOscillator.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.5); }, 500);
+                        setTimeout(() => {
+                            if(alarmOscillator) alarmOscillator.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.5);
+                        }, 500);
                     } catch(e){}
                 }, 1000);
 
-                gainNode.gain.value = 0.2; 
-                alarmOscillator.connect(gainNode); gainNode.connect(audioCtx.destination);
+                gainNode.gain.value = 0.2;
+                alarmOscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
                 alarmOscillator.start();
             }
         }
@@ -1142,225 +1304,442 @@
         window.acknowledgeAlarm = () => {
             document.getElementById('tactical-alarm-panel').classList.add('hidden');
             document.getElementById('tactical-alarm-panel').classList.remove('flex');
-            if (alarmSirenIntervalId) { clearInterval(alarmSirenIntervalId); alarmSirenIntervalId = null; }
-            if (alarmOscillator) { try{ alarmOscillator.stop(); alarmOscillator.disconnect(); }catch(e){} alarmOscillator = null; }
+            if (alarmSirenIntervalId) {
+                clearInterval(alarmSirenIntervalId);
+                alarmSirenIntervalId = null;
+            }
+            if (alarmOscillator) {
+                alarmOscillator.stop();
+                alarmOscillator.disconnect();
+                alarmOscillator = null;
+            }
         };
 
         function playBeep() {
             if (isMuted) return;
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
-            osc.frequency.value = 400; osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(); gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
-            setTimeout(() => { try { osc.stop(); osc.disconnect(); gain.disconnect(); } catch {} }, 600);
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.frequency.value = 400;
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
+            setTimeout(() => {
+                try { osc.stop(); } catch {}
+                try { osc.disconnect(); } catch {}
+                try { gain.disconnect(); } catch {}
+            }, 600);
         }
 
-        // ================= CONFIGURAÇÕES (MUTE & IA) =================
-        function updateMuteButton() {
-            const btn = document.getElementById('mute-toggle');
-            if (!btn) return;
-            if (isMuted) {
-                btn.innerHTML = `<i data-lucide="volume-x" class="w-4 h-4"></i> Sirene Mutada`;
-                btn.classList.replace('bg-gray-900', 'bg-red-900/50');
-                btn.classList.replace('border-gray-700', 'border-red-500');
-            } else {
-                btn.innerHTML = `<i data-lucide="volume-2" class="w-4 h-4"></i> Som Ativo`;
-                btn.classList.replace('bg-red-900/50', 'bg-gray-900');
-                btn.classList.replace('border-red-500', 'border-gray-700');
-            }
-            lucide.createIcons();
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
         }
 
-        window.toggleMute = () => {
-            isMuted = !isMuted;
-            localStorage.setItem('vms_mute', isMuted ? '1' : '0');
-            if (isMuted) {
-                if (alarmSirenIntervalId) { clearInterval(alarmSirenIntervalId); alarmSirenIntervalId = null; }
-                if (alarmOscillator) { try { alarmOscillator.stop(); alarmOscillator.disconnect(); } catch {} alarmOscillator = null; }
-            }
-            updateMuteButton();
-            showToast(isMuted ? "Sons desativados." : "Sons ativados.", "success");
-        };
-
-        function hydrateSettingsControls() {
-            const slider = document.getElementById('ai-confidence');
-            const label = document.getElementById('ai-confidence-value');
-            if (slider && slider.dataset.hydrated !== '1') {
-                slider.dataset.hydrated = '1';
-                slider.addEventListener('input', (e) => {
-                    const v = Math.min(0.9, Math.max(0.1, Number(e.target.value) || 0.60));
-                    localStorage.setItem('vms_ai_confidence', String(v));
-                    if (label) label.innerText = v.toFixed(2);
-                    updateFaceMatcher();
-                });
-            }
-            const current = getAiConfidence();
-            if (slider) slider.value = String(current);
-            if (label) label.innerText = current.toFixed(2);
-            updateMuteButton();
+        function debounce(fn, waitMs) {
+            let t = null;
+            return (...args) => {
+                if (t) clearTimeout(t);
+                t = setTimeout(() => fn(...args), waitMs);
+            };
         }
 
-        // ================= LOGS UI SIMPLIFICADO =================
         function levelBadgeHtml(level) {
-            if (level === 'suspect') return '<span class="bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded whitespace-nowrap">Suspeito</span>';
-            if (level === 'danger') return '<span class="bg-red-500/20 text-red-400 px-2 py-1 rounded border border-red-500/50 animate-pulse text-xs whitespace-nowrap">Alvo Crítico</span>';
-            return '<span class="bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs whitespace-nowrap">Normal</span>';
+            if (level === 'suspect') return '<span class="bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">Suspeito</span>';
+            if (level === 'danger') return '<span class="bg-red-500/20 text-red-400 px-2 py-1 rounded border border-red-500/50 animate-pulse">Ameaça Crítica</span>';
+            return '<span class="bg-green-500/20 text-green-400 px-2 py-1 rounded">Normal</span>';
+        }
+
+        function setButtonDisabled(el, disabled) {
+            if (!el) return;
+            el.disabled = !!disabled;
+            el.classList.toggle('opacity-50', !!disabled);
+            el.classList.toggle('cursor-not-allowed', !!disabled);
         }
 
         function renderLogs() {
             const tbody = document.getElementById('logs-table-body');
             tbody.innerHTML = '';
-            
             const queryText = logsState.search.trim().toLowerCase();
-            const camFilter = document.getElementById('logs-camera-filter')?.value || 'all';
-            const lvlFilter = document.getElementById('logs-level-filter')?.value || 'all';
-            const periodFilter = document.getElementById('logs-period-filter')?.value || '7d';
-            
-            const startTs = periodStartTimestamp(periodFilter);
+            const items = queryText
+                ? logsState.items.filter(l => String(l.personName ?? '').toLowerCase().includes(queryText))
+                : logsState.items;
 
-            let filteredItems = logsState.items.filter(log => {
-                if ((log.timestamp || 0) < startTs) return false;
-                if (camFilter !== 'all' && log.cameraName !== camFilter) return false;
-                if (lvlFilter !== 'all' && log.level !== lvlFilter) return false;
-                if (queryText && !String(log.personName ?? '').toLowerCase().includes(queryText)) return false;
-                return true;
-            });
-
-            logsState.totalCount = filteredItems.length;
-            logsState.totalPages = Math.max(1, Math.ceil(logsState.totalCount / logsState.pageSize));
-            logsState.page = Math.min(Math.max(1, logsState.page), logsState.totalPages);
-            
-            const startIndex = (logsState.page - 1) * logsState.pageSize;
-            const paginatedItems = filteredItems.slice(startIndex, startIndex + logsState.pageSize);
-
-            const ind = document.getElementById('logs-page-indicator');
-            if(ind) ind.innerText = `Pág. ${logsState.page} de ${logsState.totalPages}`;
-            setButtonDisabled(document.getElementById('logs-first'), logsState.page <= 1);
-            setButtonDisabled(document.getElementById('logs-prev'), logsState.page <= 1);
-            setButtonDisabled(document.getElementById('logs-next'), logsState.page >= logsState.totalPages);
-            setButtonDisabled(document.getElementById('logs-last'), logsState.page >= logsState.totalPages);
-
-            if (paginatedItems.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="p-10 text-center"><div class="text-sm font-medium text-gray-500">Nenhum evento encontrado</div></td></tr>`;
+            if (logsState.loading) {
+                tbody.innerHTML = Array.from({ length: Math.min(8, logsState.pageSize) }).map(() => `
+                    <tr class="animate-pulse">
+                        <td class="p-4"><div class="w-16 h-12 bg-gray-800 rounded border border-gray-700"></div></td>
+                        <td class="p-4"><div class="h-3 bg-gray-800 rounded w-32"></div></td>
+                        <td class="p-4"><div class="h-3 bg-gray-800 rounded w-40"></div></td>
+                        <td class="p-4"><div class="h-3 bg-gray-800 rounded w-36"></div></td>
+                        <td class="p-4"><div class="h-6 bg-gray-800 rounded w-28"></div></td>
+                    </tr>
+                `).join('');
                 return;
             }
 
-            paginatedItems.forEach(log => {
+            if (items.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="p-10 text-center">
+                            <div class="flex flex-col items-center gap-3 text-gray-400">
+                                <i data-lucide="inbox" class="w-10 h-10 text-gray-600"></i>
+                                <div class="text-sm font-medium text-gray-300">Nenhum evento encontrado</div>
+                                <div class="text-xs text-gray-500">Ajuste os filtros ou tente outra busca.</div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            items.forEach(log => {
+                const badge = levelBadgeHtml(log.level);
                 tbody.innerHTML += `
                     <tr class="hover:bg-gray-800/50">
-                        <td class="p-3 md:p-4"><img src="${escapeHtml(log.snapshot)}" class="w-16 h-12 object-cover rounded border border-gray-700 bg-black"></td>
-                        <td class="p-3 md:p-4 font-mono text-xs text-gray-400 whitespace-nowrap">${escapeHtml(log.time)}</td>
-                        <td class="p-3 md:p-4 font-bold text-white whitespace-nowrap">${escapeHtml(log.personName)}</td>
-                        <td class="p-3 md:p-4 text-gray-400 whitespace-nowrap"><i data-lucide="video" class="w-3 h-3 inline mr-1"></i>${escapeHtml(log.cameraName)}</td>
-                        <td class="p-3 md:p-4 text-xs">${levelBadgeHtml(log.level)}</td>
-                    </tr>`;
+                        <td class="p-4">
+                            <img src="${escapeHtml(log.snapshot)}" class="w-16 h-12 object-cover rounded border border-gray-700" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' fill=\\'%23374151\\' viewBox=\\'0 0 24 24\\'><path d=\\'M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z\\'/></svg>'">
+                        </td>
+                        <td class="p-4 font-mono text-xs text-gray-400">${escapeHtml(log.time)}</td>
+                        <td class="p-4 font-bold text-white">${escapeHtml(log.personName)}</td>
+                        <td class="p-4 text-gray-400"><i data-lucide="video" class="w-3 h-3 inline mr-1"></i>${escapeHtml(log.cameraName)}</td>
+                        <td class="p-4">${badge}</td>
+                    </tr>
+                `;
             });
             lucide.createIcons();
         }
 
-        window.exportLogsCSV = () => {
-            const items = logsState.items; 
-            if (!items.length) return showToast("Nenhum evento para exportar.", "warning");
-            let csvContent = "data:text/csv;charset=utf-8,Data/Hora,Identificação,Câmera,Nível\n";
-            items.forEach(log => {
-                csvContent += `"${log.time}","${log.personName}","${log.cameraName}","${log.level}"\n`;
-            });
-            const link = document.createElement("a");
-            link.setAttribute("href", encodeURI(csvContent));
-            link.setAttribute("download", `VMS_Logs_${Date.now()}.csv`);
-            document.body.appendChild(link); link.click(); link.remove();
+        function getVisibleLogsForExport() {
+            const queryText = logsState.search.trim().toLowerCase();
+            return queryText
+                ? logsState.items.filter(l => String(l.personName ?? '').toLowerCase().includes(queryText))
+                : logsState.items.slice();
+        }
+
+        function csvEscape(value) {
+            const s = String(value ?? '');
+            const needsQuotes = s.includes('"') || s.includes(',') || s.includes('\n') || s.includes('\r');
+            const escaped = s.replaceAll('"', '""');
+            return needsQuotes ? `"${escaped}"` : escaped;
+        }
+
+        window.exportLogsCsv = () => {
+            const items = getVisibleLogsForExport();
+            if (!items.length) return showToast("Nenhum evento para exportar com os filtros atuais.", "warning");
+            const header = ['Data/Hora', 'Identificação', 'Câmera', 'Nível', 'Timestamp'];
+            const rows = items.map(l => [
+                csvEscape(l.time),
+                csvEscape(l.personName),
+                csvEscape(l.cameraName),
+                csvEscape(l.level),
+                csvEscape(l.timestamp)
+            ].join(','));
+            const csv = [header.join(','), ...rows].join('\r\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const stamp = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
+            a.href = url;
+            a.download = `vms-historico-${stamp}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
         };
+
+        function renderLogsPagination() {
+            const indicator = document.getElementById('logs-page-indicator');
+            if (indicator) indicator.innerText = `Página ${logsState.page} de ${logsState.totalPages}`;
+            setButtonDisabled(document.getElementById('logs-first'), logsState.loading || logsState.page <= 1);
+            setButtonDisabled(document.getElementById('logs-prev'), logsState.loading || logsState.page <= 1);
+            setButtonDisabled(document.getElementById('logs-next'), logsState.loading || logsState.page >= logsState.totalPages);
+            setButtonDisabled(document.getElementById('logs-last'), logsState.loading || logsState.page >= logsState.totalPages);
+        }
 
         function periodStartTimestamp(period) {
             const now = new Date();
-            if (period === 'today') return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-            if (period === 'month') return new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+            if (period === 'today') {
+                const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+                return start.getTime();
+            }
+            if (period === 'month') {
+                const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+                return start.getTime();
+            }
             return Date.now() - 7 * 24 * 60 * 60 * 1000;
         }
 
-        async function refreshLogs() { renderLogs(); }
-
-        function hydrateLogsControls() {
-            ['logs-camera-filter', 'logs-level-filter', 'logs-period-filter', 'logs-page-size'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el && !el.dataset.hydrated) {
-                    el.dataset.hydrated = '1';
-                    el.addEventListener('change', (e) => {
-                        if (id === 'logs-page-size') logsState.pageSize = Number(e.target.value);
-                        logsState.page = 1;
-                        renderLogs();
-                    });
-                }
-            });
-
-            const searchInput = document.getElementById('logs-search');
-            if (searchInput && !searchInput.dataset.hydrated) {
-                searchInput.dataset.hydrated = '1';
-                searchInput.addEventListener('input', debounce((e) => { logsState.search = e.target.value; logsState.page = 1; renderLogs(); }, 300));
-            }
-
-            const cameraSelect = document.getElementById('logs-camera-filter');
-            if (cameraSelect) {
-                const camNames = [...new Set(logsState.items.map(c => c.cameraName))];
-                cameraSelect.innerHTML = ['all', ...camNames].map(v => `<option value="${escapeHtml(v)}">${v === 'all' ? 'Câmera: Todas' : escapeHtml(v)}</option>`).join('');
-            }
-
-            ['first', 'prev', 'next', 'last'].forEach(action => {
-                const btn = document.getElementById(`logs-${action}`);
-                if (btn && !btn.dataset.hydrated) {
-                    btn.dataset.hydrated = '1';
-                    btn.addEventListener('click', () => {
-                        if (action === 'first') logsState.page = 1;
-                        if (action === 'prev') logsState.page--;
-                        if (action === 'next') logsState.page++;
-                        if (action === 'last') logsState.page = logsState.totalPages;
-                        renderLogs();
-                    });
-                }
-            });
+        function buildLogsBaseConstraints({ order = 'desc' } = {}) {
+            const constraints = [];
+            const startTs = periodStartTimestamp(logsState.period);
+            constraints.push(where('timestamp', '>=', startTs));
+            if (logsState.camera !== 'all') constraints.push(where('cameraName', '==', logsState.camera));
+            if (logsState.level !== 'all') constraints.push(where('level', '==', logsState.level));
+            constraints.push(orderBy('timestamp', order));
+            return constraints;
         }
 
-        // ================= DB FACES =================
+        async function refreshLogsCount() {
+            if (!db) return;
+            try {
+                const base = query(collection(db, 'logs'), ...buildLogsBaseConstraints({ order: 'desc' }));
+                const snapshot = await getCountFromServer(base);
+                const totalCount = snapshot.data().count || 0;
+                logsState.totalCount = totalCount;
+                logsState.totalPages = Math.max(1, Math.ceil(totalCount / logsState.pageSize));
+            } catch (e) {
+                logsState.totalCount = 0;
+                logsState.totalPages = 1;
+                showToast("Falha ao carregar total de páginas do histórico.", "warning");
+            }
+        }
+
+        async function fetchLogsPage({ mode }) {
+            if (!db) return;
+            logsState.loading = true;
+            renderLogsPagination();
+            renderLogs();
+
+            try {
+                let q = null;
+                if (mode === 'last') {
+                    q = query(collection(db, 'logs'), ...buildLogsBaseConstraints({ order: 'asc' }), limit(logsState.pageSize));
+                    const snap = await getDocs(q);
+                    const docs = snap.docs;
+                    logsState.items = docs.map(d => ({ id: d.id, ...d.data() })).reverse();
+                    logsState.firstDoc = docs.length ? docs[docs.length - 1] : null;
+                    logsState.lastDoc = docs.length ? docs[0] : null;
+                    logsState.loading = false;
+                    renderLogsPagination();
+                    renderLogs();
+                    return;
+                }
+
+                const base = [collection(db, 'logs'), ...buildLogsBaseConstraints({ order: 'desc' })];
+                if (mode === 'first') {
+                    q = query(...base, limit(logsState.pageSize));
+                } else if (mode === 'next') {
+                    if (!logsState.lastDoc) throw new Error('missing_cursor_next');
+                    q = query(...base, startAfter(logsState.lastDoc), limit(logsState.pageSize));
+                } else if (mode === 'prev') {
+                    if (!logsState.firstDoc) throw new Error('missing_cursor_prev');
+                    q = query(...base, endBefore(logsState.firstDoc), limitToLast(logsState.pageSize));
+                } else {
+                    q = query(...base, limit(logsState.pageSize));
+                }
+
+                const snap = await getDocs(q);
+                logsState.items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                logsState.firstDoc = snap.docs.length ? snap.docs[0] : null;
+                logsState.lastDoc = snap.docs.length ? snap.docs[snap.docs.length - 1] : null;
+            } catch (e) {
+                if (String(e?.message || '').includes('index')) {
+                    showToast("Filtro exige índice no Firestore. Verifique o console do Firebase.", "warning");
+                } else if (e?.message === 'missing_cursor_prev' || e?.message === 'missing_cursor_next') {
+                    showToast("Navegação indisponível. Atualize a consulta.", "warning");
+                } else {
+                    showToast("Erro ao buscar histórico no Firestore.", "error");
+                }
+                logsState.items = [];
+                logsState.firstDoc = null;
+                logsState.lastDoc = null;
+            } finally {
+                logsState.loading = false;
+                renderLogsPagination();
+                renderLogs();
+            }
+        }
+
+        async function refreshLogs({ mode = 'first' } = {}) {
+            logsState.page = mode === 'last' ? logsState.totalPages : 1;
+            logsState.firstDoc = null;
+            logsState.lastDoc = null;
+            await refreshLogsCount();
+            logsState.page = mode === 'last' ? logsState.totalPages : 1;
+            await fetchLogsPage({ mode });
+        }
+
+        function tryInsertLocalLog(logEntry) {
+            const startTs = periodStartTimestamp(logsState.period);
+            if ((logEntry.timestamp ?? 0) < startTs) return;
+            if (logsState.camera !== 'all' && logEntry.cameraName !== logsState.camera) return;
+            if (logsState.level !== 'all' && logEntry.level !== logsState.level) return;
+            if (logsState.page !== 1) return;
+            logsState.items = [logEntry, ...logsState.items].slice(0, logsState.pageSize);
+            renderLogs();
+        }
+
+        function hydrateLogsControls() {
+            const cameraSelect = document.getElementById('logs-camera-filter');
+            if (cameraSelect && cameraSelect.dataset.hydrated !== '1') {
+                cameraSelect.dataset.hydrated = '1';
+                cameraSelect.addEventListener('change', async (e) => {
+                    logsState.camera = e.target.value;
+                    await refreshLogs({ mode: 'first' });
+                });
+            }
+
+            const levelSelect = document.getElementById('logs-level-filter');
+            if (levelSelect && levelSelect.dataset.hydrated !== '1') {
+                levelSelect.dataset.hydrated = '1';
+                levelSelect.addEventListener('change', async (e) => {
+                    logsState.level = e.target.value;
+                    await refreshLogs({ mode: 'first' });
+                });
+            }
+
+            const periodSelect = document.getElementById('logs-period-filter');
+            if (periodSelect && periodSelect.dataset.hydrated !== '1') {
+                periodSelect.dataset.hydrated = '1';
+                periodSelect.addEventListener('change', async (e) => {
+                    logsState.period = e.target.value;
+                    await refreshLogs({ mode: 'first' });
+                });
+            }
+
+            const pageSizeSelect = document.getElementById('logs-page-size');
+            if (pageSizeSelect && pageSizeSelect.dataset.hydrated !== '1') {
+                pageSizeSelect.dataset.hydrated = '1';
+                pageSizeSelect.addEventListener('change', async (e) => {
+                    logsState.pageSize = Number(e.target.value) || 25;
+                    await refreshLogs({ mode: 'first' });
+                });
+            }
+
+            const searchInput = document.getElementById('logs-search');
+            if (searchInput && searchInput.dataset.hydrated !== '1') {
+                searchInput.dataset.hydrated = '1';
+                const handler = debounce((value) => {
+                    logsState.search = value;
+                    renderLogs();
+                }, 300);
+                searchInput.addEventListener('input', (e) => handler(e.target.value));
+            }
+
+            const camNames = [...new Set(cameras.map(c => c.name))];
+            if (cameraSelect) {
+                const current = logsState.camera;
+                const options = ['all', ...camNames];
+                cameraSelect.innerHTML = options.map(v => `<option value="${escapeHtml(v)}"${v === current ? ' selected' : ''}>${v === 'all' ? 'Câmera: Todas' : escapeHtml(v)}</option>`).join('');
+            }
+
+            const firstBtn = document.getElementById('logs-first');
+            if (firstBtn && firstBtn.dataset.hydrated !== '1') {
+                firstBtn.dataset.hydrated = '1';
+                firstBtn.addEventListener('click', async () => {
+                    logsState.page = 1;
+                    await fetchLogsPage({ mode: 'first' });
+                });
+            }
+            const prevBtn = document.getElementById('logs-prev');
+            if (prevBtn && prevBtn.dataset.hydrated !== '1') {
+                prevBtn.dataset.hydrated = '1';
+                prevBtn.addEventListener('click', async () => {
+                    if (logsState.page <= 1) return;
+                    logsState.page -= 1;
+                    await fetchLogsPage({ mode: 'prev' });
+                });
+            }
+            const nextBtn = document.getElementById('logs-next');
+            if (nextBtn && nextBtn.dataset.hydrated !== '1') {
+                nextBtn.dataset.hydrated = '1';
+                nextBtn.addEventListener('click', async () => {
+                    if (logsState.page >= logsState.totalPages) return;
+                    logsState.page += 1;
+                    await fetchLogsPage({ mode: 'next' });
+                });
+            }
+            const lastBtn = document.getElementById('logs-last');
+            if (lastBtn && lastBtn.dataset.hydrated !== '1') {
+                lastBtn.dataset.hydrated = '1';
+                lastBtn.addEventListener('click', async () => {
+                    logsState.page = logsState.totalPages;
+                    await fetchLogsPage({ mode: 'last' });
+                });
+            }
+            renderLogsPagination();
+        }
+
         function filteredPersons() {
             const q = facesState.search.trim().toLowerCase();
-            const lvl = document.getElementById('faces-level-filter')?.value || 'all';
-            return persons.filter(p => (lvl === 'all' || p.level === lvl) && (!q || String(p.name ?? '').toLowerCase().includes(q)));
+            return persons.filter(p => {
+                if (facesState.level !== 'all' && p.level !== facesState.level) return false;
+                if (!q) return true;
+                return String(p.name ?? '').toLowerCase().includes(q);
+            });
         }
 
         function renderFaces() {
             const grid = document.getElementById('faces-grid');
             if (!grid) return;
+
+            if (facesState.loading) {
+                grid.innerHTML = Array.from({ length: Math.min(6, facesState.pageSize) }).map(() => `
+                    <div class="animate-pulse bg-gray-950 border border-gray-800 rounded-xl p-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-full bg-gray-800 border border-gray-700"></div>
+                            <div class="flex-1">
+                                <div class="h-3 bg-gray-800 rounded w-2/3 mb-2"></div>
+                                <div class="h-3 bg-gray-800 rounded w-1/3"></div>
+                            </div>
+                        </div>
+                        <div class="mt-4 h-8 bg-gray-800 rounded"></div>
+                    </div>
+                `).join('');
+                return;
+            }
+
             const all = filteredPersons();
-            facesState.totalPages = Math.max(1, Math.ceil(all.length / facesState.pageSize));
-            facesState.page = Math.min(Math.max(1, facesState.page), facesState.totalPages);
+            const totalPages = Math.max(1, Math.ceil(all.length / facesState.pageSize));
+            facesState.page = Math.min(Math.max(1, facesState.page), totalPages);
 
             const start = (facesState.page - 1) * facesState.pageSize;
             const pageItems = all.slice(start, start + facesState.pageSize);
 
-            const ind = document.getElementById('faces-page-indicator');
-            if (ind) ind.innerText = `Pág. ${facesState.page} de ${facesState.totalPages}`;
+            const indicator = document.getElementById('faces-page-indicator');
+            if (indicator) indicator.innerText = `Página ${facesState.page} de ${totalPages}`;
             setButtonDisabled(document.getElementById('faces-first'), facesState.page <= 1);
             setButtonDisabled(document.getElementById('faces-prev'), facesState.page <= 1);
-            setButtonDisabled(document.getElementById('faces-next'), facesState.page >= facesState.totalPages);
-            setButtonDisabled(document.getElementById('faces-last'), facesState.page >= facesState.totalPages);
+            setButtonDisabled(document.getElementById('faces-next'), facesState.page >= totalPages);
+            setButtonDisabled(document.getElementById('faces-last'), facesState.page >= totalPages);
 
-            if (!pageItems.length) { grid.innerHTML = `<div class="col-span-full p-10 text-center text-gray-500 text-sm">Nenhum alvo encontrado.</div>`; return; }
+            if (pageItems.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full">
+                        <div class="p-10 text-center bg-gray-950 border border-gray-800 rounded-xl">
+                            <div class="flex flex-col items-center gap-3 text-gray-400">
+                                <i data-lucide="inbox" class="w-10 h-10 text-gray-600"></i>
+                                <div class="text-sm font-medium text-gray-300">Nenhum alvo encontrado</div>
+                                <div class="text-xs text-gray-500">Ajuste os filtros ou cadastre um novo alvo.</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
 
             grid.innerHTML = pageItems.map(p => `
                 <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 flex flex-col gap-3">
                     <div class="flex items-center gap-3">
-                        <img src="${escapeHtml(p.photo)}" class="w-12 h-12 rounded-full object-cover border border-gray-700 bg-black shrink-0" onerror="this.src=''; this.classList.add('bg-gray-800')">
+                        <img src="${escapeHtml(p.photo)}" class="w-12 h-12 rounded-full object-cover border border-gray-700 bg-black" onerror="this.src=''; this.classList.add('bg-gray-800')">
                         <div class="min-w-0 flex-1">
-                            <div class="text-sm font-bold text-white truncate w-full">${escapeHtml(p.name)}</div>
-                            <div class="mt-1">${levelBadgeHtml(p.level)}</div>
+                            <div class="text-sm font-bold text-white truncate">${escapeHtml(p.name)}</div>
+                            <div class="text-xs text-gray-400 font-mono">${levelBadgeHtml(p.level)}</div>
                         </div>
                     </div>
-                    <div class="flex gap-2 mt-auto pt-3 border-t border-gray-800/50">
-                        <button onclick="openEditPersonModal('${escapeHtml(p.id)}')" class="flex-1 py-2 rounded-lg bg-gray-900 border border-gray-700 text-gray-300 hover:bg-gray-800 flex items-center justify-center transition-colors">
-                            <i data-lucide="pencil" class="w-4 h-4 md:w-3 md:h-3"></i> <span class="hidden md:inline md:ml-2">Editar</span>
+                    <div class="flex gap-2">
+                        <button onclick="openEditPersonModal('${escapeHtml(p.id)}')" class="flex-1 h-11 px-3 rounded bg-gray-900 border border-gray-800 text-gray-200 text-xs hover:bg-gray-800 flex items-center justify-center gap-2">
+                            <i data-lucide="pencil" class="w-4 h-4"></i> Editar
                         </button>
-                        <button onclick="deletePerson('${escapeHtml(p.id)}')" class="px-4 md:px-3 py-2 rounded-lg bg-red-900/30 border border-red-900/60 text-red-300 hover:bg-red-900/50 transition-colors">
-                            <i data-lucide="trash-2" class="w-4 h-4 md:w-3 md:h-3"></i>
+                        <button onclick="deletePerson('${escapeHtml(p.id)}')" class="h-11 px-3 rounded bg-red-900/30 border border-red-900/60 text-red-200 text-xs hover:bg-red-900/50 flex items-center justify-center gap-2">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
                         </button>
                     </div>
                 </div>
@@ -1369,34 +1748,70 @@
         }
 
         function hydrateFacesControls() {
-            ['faces-page-size', 'faces-level-filter'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el && !el.dataset.hydrated) {
-                    el.dataset.hydrated = '1';
-                    el.addEventListener('change', (e) => {
-                        if(id==='faces-page-size') facesState.pageSize = Number(e.target.value);
-                        facesState.page = 1; renderFaces();
-                    });
-                }
-            });
-            const searchInput = document.getElementById('faces-search');
-            if (searchInput && !searchInput.dataset.hydrated) {
-                searchInput.dataset.hydrated = '1';
-                searchInput.addEventListener('input', debounce((e) => { facesState.search = e.target.value; facesState.page = 1; renderFaces(); }, 300));
+            const pageSizeSelect = document.getElementById('faces-page-size');
+            if (pageSizeSelect && pageSizeSelect.dataset.hydrated !== '1') {
+                pageSizeSelect.dataset.hydrated = '1';
+                pageSizeSelect.addEventListener('change', (e) => {
+                    facesState.pageSize = Number(e.target.value) || 25;
+                    facesState.page = 1;
+                    renderFaces();
+                });
             }
-            ['first', 'prev', 'next', 'last'].forEach(action => {
-                const btn = document.getElementById(`faces-${action}`);
-                if (btn && !btn.dataset.hydrated) {
-                    btn.dataset.hydrated = '1';
-                    btn.addEventListener('click', () => {
-                        if (action === 'first') facesState.page = 1;
-                        if (action === 'prev') facesState.page--;
-                        if (action === 'next') facesState.page++;
-                        if (action === 'last') facesState.page = facesState.totalPages;
-                        renderFaces();
-                    });
-                }
-            });
+
+            const levelSelect = document.getElementById('faces-level-filter');
+            if (levelSelect && levelSelect.dataset.hydrated !== '1') {
+                levelSelect.dataset.hydrated = '1';
+                levelSelect.addEventListener('change', (e) => {
+                    facesState.level = e.target.value;
+                    facesState.page = 1;
+                    renderFaces();
+                });
+            }
+
+            const searchInput = document.getElementById('faces-search');
+            if (searchInput && searchInput.dataset.hydrated !== '1') {
+                searchInput.dataset.hydrated = '1';
+                const handler = debounce((value) => {
+                    facesState.search = value;
+                    facesState.page = 1;
+                    renderFaces();
+                }, 300);
+                searchInput.addEventListener('input', (e) => handler(e.target.value));
+            }
+
+            const firstBtn = document.getElementById('faces-first');
+            if (firstBtn && firstBtn.dataset.hydrated !== '1') {
+                firstBtn.dataset.hydrated = '1';
+                firstBtn.addEventListener('click', () => {
+                    facesState.page = 1;
+                    renderFaces();
+                });
+            }
+            const prevBtn = document.getElementById('faces-prev');
+            if (prevBtn && prevBtn.dataset.hydrated !== '1') {
+                prevBtn.dataset.hydrated = '1';
+                prevBtn.addEventListener('click', () => {
+                    facesState.page = Math.max(1, facesState.page - 1);
+                    renderFaces();
+                });
+            }
+            const nextBtn = document.getElementById('faces-next');
+            if (nextBtn && nextBtn.dataset.hydrated !== '1') {
+                nextBtn.dataset.hydrated = '1';
+                nextBtn.addEventListener('click', () => {
+                    facesState.page += 1;
+                    renderFaces();
+                });
+            }
+            const lastBtn = document.getElementById('faces-last');
+            if (lastBtn && lastBtn.dataset.hydrated !== '1') {
+                lastBtn.dataset.hydrated = '1';
+                lastBtn.addEventListener('click', () => {
+                    const total = Math.max(1, Math.ceil(filteredPersons().length / facesState.pageSize));
+                    facesState.page = total;
+                    renderFaces();
+                });
+            }
         }
 
         window.openEditPersonModal = (id) => {
@@ -1407,6 +1822,7 @@
             document.getElementById('edit-person-name').value = p.name || '';
             document.getElementById('edit-person-level').value = p.level || 'normal';
             document.getElementById('edit-person-modal').classList.remove('hidden');
+            lucide.createIcons();
         };
 
         window.closeEditPersonModal = () => {
@@ -1416,31 +1832,132 @@
 
         window.savePersonEdits = async (e) => {
             e.preventDefault();
-            if (!db || !currentEditPersonId) return;
+            if (!db) return showToast("Banco Offline", "error");
+            if (!currentEditPersonId) return;
             const name = document.getElementById('edit-person-name').value.trim();
             const level = document.getElementById('edit-person-level').value;
             try {
                 await updateDoc(doc(db, 'students', currentEditPersonId), { name, level });
                 showToast("Alvo atualizado.", "success");
                 closeEditPersonModal();
-            } catch (err) { showToast("Erro ao atualizar alvo.", "error"); }
+            } catch (err) {
+                showToast("Erro ao atualizar alvo.", "error");
+            }
         };
 
         window.deletePerson = async (id) => {
-            if (!db) return;
+            if (!db) return showToast("Banco Offline", "error");
             const p = persons.find(x => x.id === id);
-            if (!confirm(`Excluir o alvo "${p?.name ?? 'sem nome'}"?`)) return;
+            const ok = confirm(`Excluir o alvo "${p?.name ?? 'sem nome'}"?`);
+            if (!ok) return;
             try {
                 await deleteDoc(doc(db, 'students', id));
                 showToast("Alvo excluído.", "success");
-            } catch (err) { showToast("Erro ao excluir alvo.", "error"); }
+            } catch (err) {
+                showToast("Erro ao excluir alvo.", "error");
+            }
         };
 
-        // ================= FUNÇÕES AUXILIARES =================
-        function escapeHtml(value) { return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;'); }
-        function debounce(fn, waitMs) { let t = null; return (...args) => { if (t) clearTimeout(t); t = setTimeout(() => fn(...args), waitMs); }; }
-        function setButtonDisabled(el, disabled) { if (!el) return; el.disabled = !!disabled; el.classList.toggle('opacity-50', !!disabled); el.classList.toggle('cursor-not-allowed', !!disabled); }
+        window.openSidebarDrawer = () => {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            if (!sidebar || !overlay) return;
+            if (window.matchMedia('(min-width: 768px)').matches) return;
+            sidebar.classList.remove('-translate-x-full');
+            overlay.classList.remove('hidden');
+            document.body.classList.add('overflow-hidden');
+        };
 
+        window.closeSidebarDrawer = () => {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            if (!sidebar || !overlay) return;
+            if (window.matchMedia('(min-width: 768px)').matches) {
+                overlay.classList.add('hidden');
+                sidebar.classList.remove('-translate-x-full');
+                document.body.classList.remove('overflow-hidden');
+                return;
+            }
+            sidebar.classList.add('-translate-x-full');
+            overlay.classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
+        };
+
+        function updateLayoutButtons() {
+            const variants = [1, 4, 9];
+            variants.forEach(v => {
+                const btn = document.getElementById(`layout-${v}`);
+                if (!btn) return;
+                const active = layout === v;
+                btn.classList.toggle('bg-gray-800', active);
+                btn.classList.toggle('text-blue-400', active);
+                btn.classList.toggle('text-gray-400', !active);
+            });
+        }
+
+        function updateMuteButton() {
+            const btn = document.getElementById('mute-toggle');
+            if (!btn) return;
+            if (isMuted) {
+                btn.innerHTML = `<i data-lucide="volume-x" class="w-4 h-4"></i> Mute Ativo`;
+            } else {
+                btn.innerHTML = `<i data-lucide="volume-2" class="w-4 h-4"></i> Som Ativo`;
+            }
+            lucide.createIcons();
+        }
+
+        window.toggleMute = () => {
+            isMuted = !isMuted;
+            localStorage.setItem('vms_mute', isMuted ? '1' : '0');
+            if (isMuted) {
+                if (alarmSirenIntervalId) {
+                    clearInterval(alarmSirenIntervalId);
+                    alarmSirenIntervalId = null;
+                }
+                if (alarmOscillator) {
+                    try { alarmOscillator.stop(); } catch {}
+                    try { alarmOscillator.disconnect(); } catch {}
+                    alarmOscillator = null;
+                }
+            }
+            updateMuteButton();
+            showToast(isMuted ? "Som desativado." : "Som ativado.", "success");
+        };
+
+        function hydrateSettingsControls() {
+            const slider = document.getElementById('ai-confidence');
+            const label = document.getElementById('ai-confidence-value');
+            if (slider && slider.dataset.hydrated !== '1') {
+                slider.dataset.hydrated = '1';
+                slider.addEventListener('input', (e) => {
+                    const v = Math.min(0.9, Math.max(0.1, Number(e.target.value) || 0.55));
+                    localStorage.setItem('vms_ai_confidence', String(v));
+                    if (label) label.innerText = v.toFixed(2);
+                    updateFaceMatcher();
+                });
+                slider.addEventListener('change', () => {
+                    showToast("Confiança da IA atualizada.", "success");
+                });
+            }
+            const current = getAiConfidence();
+            if (slider) slider.value = String(current);
+            if (label) label.innerText = current.toFixed(2);
+            updateMuteButton();
+        }
+
+        function bootApp() {
+            loadTripwires();
+            if (![1, 4, 9].includes(layout)) layout = 4;
+            updateLayoutButtons();
+            hydrateFacesControls();
+            hydrateLogsControls();
+            hydrateSettingsControls();
+            closeSidebarDrawer();
+            initAI();
+            switchTab('live');
+        }
+
+        // Utils
         function showToast(message, type = 'info') {
             const c = document.getElementById('toast-container');
             const color = type === 'error' ? 'bg-red-900 border-red-500' : type === 'success' ? 'bg-green-900 border-green-500' : type === 'warning' ? 'bg-yellow-900 border-yellow-500' : 'bg-blue-900 border-blue-500';
@@ -1449,22 +1966,25 @@
             setTimeout(() => { if(c.lastChild) c.lastChild.remove(); }, 4000);
         }
 
+        // Relógio Global
         setInterval(() => {
-            document.querySelectorAll('.vms-clock').forEach(el => el.innerText = new Date().toLocaleTimeString('pt-BR', { hour12: false }));
+            document.getElementById('vms-clock').innerText = new Date().toLocaleTimeString('pt-BR', { hour12: false });
         }, 1000);
 
-        function bootApp() {
-            loadTripwires();
-            if (![1, 4, 9].includes(layout)) layout = 4;
-            [1, 4, 9].forEach(n => {
-                const btn = document.getElementById(`btn-layout-${n}`);
-                if(btn) btn.className = layout === n ? "px-3 md:px-2 py-1.5 rounded-md bg-gray-800 text-blue-400 shadow transition-colors" : `px-3 md:px-2 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors ${n === 9 ? 'hidden sm:block' : ''}`;
-            });
-            hydrateFacesControls();
-            hydrateLogsControls();
-            hydrateSettingsControls();
-            initAI();
-            switchTab('live');
+        // Início
+        setAppVisibility(false);
+        hydrateSettingsControls();
+        document.addEventListener('visibilitychange', () => {
+            isVisibilityPaused = document.hidden;
+            if (isVisibilityPaused) {
+                stopAllAILoops();
+            } else {
+                resumeAILoopsIfNeeded();
+            }
+        });
+
+        if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+            navigator.serviceWorker.register('./sw.js').catch(() => {});
         }
 
     </script>
