@@ -209,17 +209,17 @@
                                 <h2 class="text-lg md:text-xl font-bold text-white flex items-center gap-2">
                                     <i data-lucide="scan-face" class="text-blue-500"></i> Registo de Alvos
                                 </h2>
-                                <p class="text-xs md:text-sm text-gray-400 mt-1">Carregue uma fotografia frontal para a IA procurar nas câmaras.</p>
+                                <p class="text-xs md:text-sm text-gray-400 mt-1">Carregue várias perspetivas da face para maior rigor da IA.</p>
                             </div>
                             <div class="flex flex-col p-4 md:p-6 gap-6">
                                 <div class="w-full flex flex-col items-center">
                                     
-                                    <!-- MUDANÇA: Upload de Imagem em vez de Webcam -->
-                                    <div class="w-48 h-48 md:w-64 md:h-64 bg-black rounded-xl mb-4 overflow-hidden relative border-4 border-gray-700 shadow-lg flex items-center justify-center">
+                                    <!-- MUDANÇA: Upload Múltiplo -->
+                                    <div class="w-32 h-32 md:w-48 md:h-48 bg-black rounded-xl mb-4 overflow-hidden relative border-4 border-gray-700 shadow-lg flex items-center justify-center">
                                         <img id="register-preview" class="w-full h-full object-cover hidden">
-                                        <div id="upload-placeholder" class="text-gray-500 flex flex-col items-center">
-                                            <i data-lucide="image-plus" class="w-12 h-12 mb-2"></i>
-                                            <span class="text-xs">Nenhuma foto carregada</span>
+                                        <div id="upload-placeholder" class="text-gray-500 flex flex-col items-center p-4 text-center">
+                                            <i data-lucide="image-plus" class="w-10 h-10 mb-2"></i>
+                                            <span class="text-xs">Selecione uma perspetiva</span>
                                         </div>
                                         <div id="scan-animation" class="absolute inset-0 bg-blue-500/20 hidden">
                                             <div class="w-full h-1 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,1)] animate-[scan_1.5s_infinite]"></div>
@@ -228,16 +228,21 @@
 
                                     <div class="flex gap-2 w-full max-w-xs mb-4">
                                         <label class="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors border border-gray-700">
-                                            <i data-lucide="upload" class="w-4 h-4"></i> Carregar Foto
+                                            <i data-lucide="upload" class="w-4 h-4"></i> Adicionar Foto
                                             <input type="file" id="register-upload" accept="image/*" class="hidden" onchange="handlePhotoUpload(event)">
                                         </label>
                                     </div>
 
-                                    <button id="btn-scan" onclick="analyzeUploadedPhoto()" disabled class="w-full max-w-xs bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow flex items-center justify-center gap-2 disabled:bg-gray-700 active:scale-95">
+                                    <button id="btn-scan" onclick="analyzeUploadedPhoto()" disabled class="w-full max-w-xs bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow flex items-center justify-center gap-2 disabled:bg-gray-700 active:scale-95 mb-4">
                                         <i data-lucide="scan-face" class="w-4 h-4"></i> Analisar Biometria
                                     </button>
+
+                                    <!-- Lista de Biometrias Extraídas -->
+                                    <div id="biometrics-list" class="w-full flex flex-wrap justify-center gap-3 bg-gray-950 p-3 rounded-lg border border-gray-800 min-h-[80px]">
+                                        <div class="text-xs text-gray-600 w-full text-center my-auto">Nenhuma biometria processada ainda.</div>
+                                    </div>
                                 </div>
-                                <form id="db-form" onsubmit="savePersonToDB(event)" class="w-full space-y-4">
+                                <form id="db-form" onsubmit="savePersonToDB(event)" class="w-full space-y-4 border-t border-gray-800 pt-6">
                                     <div>
                                         <label class="block text-sm font-medium text-gray-400 mb-1">Nome de Identificação</label>
                                         <input type="text" id="person-name" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 md:py-2.5 text-white focus:border-blue-500 outline-none transition-colors">
@@ -252,7 +257,7 @@
                                     </div>
                                     <div class="pt-2">
                                         <button type="submit" class="w-full bg-green-600 hover:bg-green-500 text-white font-medium py-3.5 rounded-lg transition-colors shadow flex justify-center items-center gap-2 active:scale-95">
-                                            <i data-lucide="save" class="w-5 h-5"></i> Guardar
+                                            <i data-lucide="save" class="w-5 h-5"></i> Concluir Registo
                                         </button>
                                     </div>
                                 </form>
@@ -531,6 +536,9 @@
         let aiLoops = {}; 
         const webrtcConnections = {}; 
         const lastDetectionTime = {}; 
+        
+        window.concurrentAI = 0; // Controle de fila global da IA
+        const MAX_CONCURRENT_AI = 2; // Limite de processamento neural simultâneo
 
         let audioCtx = null;
         let alarmOscillator = null;
@@ -549,6 +557,10 @@
         const logsState = { search: '', camera: 'all', level: 'all', period: '7d', pageSize: 25, page: 1, totalPages: 1, totalCount: 0, loading: false };
 
         let currentEditPersonId = null;
+
+        // Variaveis para multi-biometria
+        let tempBiometrics = [];
+        let currentPreviewPhoto = null;
 
         lucide.createIcons();
 
@@ -645,7 +657,6 @@
             try {
                 const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/';
                 
-                // SUBSTITUÍDO: Mudámos do TinyFaceDetector para o SSD Mobilenet V1 (muito superior para distâncias)
                 await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
@@ -669,11 +680,18 @@
         }
 
         function updateFaceMatcher() {
-            // Removido o bloqueio se a base de dados estiver vazia. A IA corre na mesma!
             if (!isAiReady) { faceMatcher = null; return; }
             if (persons.length === 0) { faceMatcher = null; return; }
             
-            const labeledDescriptors = persons.map(p => new faceapi.LabeledFaceDescriptors(p.id, [new Float32Array(p.descriptor)]));
+            const labeledDescriptors = persons.map(p => {
+                // Compatibilidade: Aceita a nova array de descritores ou o descritor único antigo
+                const descArrays = p.descriptors 
+                    ? p.descriptors.map(d => new Float32Array(d)) 
+                    : [new Float32Array(p.descriptor)];
+                    
+                return new faceapi.LabeledFaceDescriptors(p.id, descArrays);
+            });
+            
             faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, getAiConfidence());
         }
 
@@ -725,7 +743,7 @@
             document.body.classList.remove('overflow-hidden');
         };
 
-        // ================= IMPORTAÇÃO DE INFRAESTRUTURA (CSV -> MediaMTX) =================
+        // ================= IMPORTAÇÃO DE INFRAESTRUTURA =================
         window.importCamerasFromCSV = (event) => {
             const file = event.target.files[0];
             if (!file) return;
@@ -811,9 +829,7 @@
             event.target.value = ''; 
         };
 
-        // ================= BIOMETRIA (CADASTRO POR UPLOAD) =================
-        let tempDescriptor = null;
-        let tempPhoto = null;
+        // ================= BIOMETRIA MULTIPLA (CADASTRO) =================
 
         window.handlePhotoUpload = (event) => {
             const file = event.target.files[0];
@@ -828,8 +844,7 @@
                 preview.classList.remove('hidden');
                 if(placeholder) placeholder.classList.add('hidden');
                 
-                tempPhoto = e.target.result;
-                tempDescriptor = null;
+                currentPreviewPhoto = e.target.result;
                 
                 const btn = document.getElementById('btn-scan');
                 btn.disabled = false;
@@ -841,45 +856,92 @@
             reader.readAsDataURL(file);
         };
 
+        function renderBiometricsList() {
+            const list = document.getElementById('biometrics-list');
+            if(!list) return;
+            
+            if (tempBiometrics.length === 0) {
+                list.innerHTML = `<div class="text-xs text-gray-600 w-full text-center my-auto">Nenhuma biometria processada ainda.</div>`;
+                return;
+            }
+
+            list.innerHTML = tempBiometrics.map((bio, index) => `
+                <div class="relative w-16 h-16 rounded overflow-hidden border-2 ${index === 0 ? 'border-blue-500' : 'border-gray-600'}">
+                    <img src="${escapeHtml(bio.photo)}" class="w-full h-full object-cover">
+                    ${index === 0 ? '<div class="absolute bottom-0 inset-x-0 bg-blue-500 text-white text-[8px] text-center font-bold">PRINCIPAL</div>' : ''}
+                    <button type="button" onclick="removeBiometric(${index})" class="absolute top-0 right-0 bg-red-600/80 text-white p-0.5 rounded-bl hover:bg-red-500"><i data-lucide="x" class="w-3 h-3"></i></button>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        window.removeBiometric = (index) => {
+            tempBiometrics.splice(index, 1);
+            renderBiometricsList();
+        };
+
         window.analyzeUploadedPhoto = async () => {
             if (!isAiReady) return showToast("Aguarde a inicialização da IA...", "warning");
-            
-            const preview = document.getElementById('register-preview');
+            if (!currentPreviewPhoto) return showToast("Carregue uma foto primeiro!", "warning");
+
             const scanAnim = document.getElementById('scan-animation');
             const btn = document.getElementById('btn-scan');
             
-            if (!preview.src || preview.src === window.location.href || preview.classList.contains('hidden')) {
-                return showToast("Carregue uma foto primeiro!", "warning");
-            }
-
             scanAnim.classList.remove('hidden');
             btn.disabled = true;
             showToast("A analisar rosto...", "info");
 
             try {
                 const img = new Image();
-                img.src = preview.src;
+                img.src = currentPreviewPhoto;
                 await new Promise((resolve) => { img.onload = resolve; });
 
-                // NOVO: Pré-processamento HDR também na foto de registo para extrair a melhor biometria
+                const MAX_SIZE = 400;
+                const scale = Math.min(1, MAX_SIZE / img.width, MAX_SIZE / img.height);
+                const targetWidth = img.width * scale;
+                const targetHeight = img.height * scale;
+
                 const offCanvas = document.createElement('canvas');
-                offCanvas.width = img.width; offCanvas.height = img.height;
+                offCanvas.width = targetWidth; 
+                offCanvas.height = targetHeight;
                 const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
                 offCtx.filter = 'contrast(1.10) brightness(1.05)';
-                offCtx.drawImage(img, 0, 0, img.width, img.height);
+                offCtx.drawImage(img, 0, 0, targetWidth, targetHeight);
 
-                // ATUALIZADO: Usar SSD Mobilenet V1 no canvas processado
                 const detection = await faceapi.detectSingleFace(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })).withFaceLandmarks().withFaceDescriptor();
                 
                 if (detection) {
-                    tempDescriptor = Array.from(detection.descriptor);
+                    const optimizedPhoto = offCanvas.toDataURL('image/jpeg', 0.7);
+                    
+                    // Adiciona a nova perspetiva à lista local
+                    tempBiometrics.push({
+                        photo: optimizedPhoto,
+                        descriptor: Array.from(detection.descriptor)
+                    });
+                    
+                    renderBiometricsList();
                     
                     btn.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4"></i> Biometria Extraída';
                     btn.classList.replace('bg-blue-600', 'bg-green-600');
                     btn.classList.replace('hover:bg-blue-500', 'hover:bg-green-500');
                     lucide.createIcons();
                     
-                    showToast("Biometria extraída com sucesso!", "success");
+                    showToast(`Biometria adicionada! (${tempBiometrics.length} total)`, "success");
+                    
+                    // Reseta o ecrã de cima para permitir adicionar mais logo a seguir
+                    setTimeout(() => {
+                        document.getElementById('register-preview').classList.add('hidden');
+                        document.getElementById('upload-placeholder').classList.remove('hidden');
+                        document.getElementById('register-upload').value = "";
+                        currentPreviewPhoto = null;
+                        
+                        btn.innerHTML = '<i data-lucide="scan-face" class="w-4 h-4"></i> Analisar Biometria';
+                        btn.classList.replace('bg-green-600', 'bg-blue-600');
+                        btn.classList.replace('hover:bg-green-500', 'hover:bg-blue-500');
+                        btn.disabled = true;
+                        lucide.createIcons();
+                    }, 1500);
+
                 } else {
                     showToast("Nenhum rosto detetado na foto. Tente uma foto mais clara.", "error");
                     btn.disabled = false;
@@ -896,22 +958,23 @@
         window.savePersonToDB = async (e) => {
             e.preventDefault();
             if (!db) return showToast("Base de Dados Offline", "error");
-            if (!tempDescriptor || !tempPhoto) return showToast("Analise a biometria primeiro!", "error");
+            if (tempBiometrics.length === 0) return showToast("Analise e adicione pelo menos uma biometria primeiro!", "error");
 
             const person = {
                 name: document.getElementById('person-name').value,
                 level: document.getElementById('person-level').value,
-                photo: tempPhoto,
-                descriptor: tempDescriptor
+                photo: tempBiometrics[0].photo, // A primeira inserida é a Principal
+                descriptors: tempBiometrics.map(b => b.descriptor) // Array com todos os descritores extraídos
             };
 
             try {
                 await addDoc(collection(db, "students"), person); 
-                showToast("Alvo guardado na base de dados!", "success");
+                showToast("Alvo guardado com múltiplas biometrias!", "success");
                 
                 document.getElementById('db-form').reset();
-                tempDescriptor = null; 
-                tempPhoto = null;
+                tempBiometrics = []; 
+                currentPreviewPhoto = null;
+                renderBiometricsList();
                 
                 const preview = document.getElementById('register-preview');
                 preview.classList.add('hidden');
@@ -1436,26 +1499,43 @@
                     return;
                 }
                 
+                // GESTÃO DE FILA: Se já estivermos a processar o limite de câmaras, aguarda 100ms
+                if (window.concurrentAI >= MAX_CONCURRENT_AI) {
+                    setTimeout(processFrame, 100);
+                    return;
+                }
+
+                window.concurrentAI++;
                 const startTime = Date.now();
                 
                 try {
                     const vidWidth = media.videoWidth || media.naturalWidth || media.clientWidth || 640;
                     const vidHeight = media.videoHeight || media.naturalHeight || media.clientHeight || 480;
-                    const displaySize = { width: media.clientWidth, height: media.clientHeight };
-                    faceapi.matchDimensions(canvas, displaySize);
+                    
+                    // OTIMIZAÇÃO EXTREMA: Redimensionamento Inteligente
+                    // A IA não precisa de ler 1080p. Limitamos a análise a máx 512px de largura.
+                    const MAX_ANALYZE_WIDTH = 512;
+                    const scale = Math.min(1, MAX_ANALYZE_WIDTH / vidWidth);
+                    const analyzeWidth = vidWidth * scale;
+                    const analyzeHeight = vidHeight * scale;
 
-                    // APLICAR HDR E CONSTRASTE ANTES DA IA LER
-                    offCanvas.width = vidWidth;
-                    offCanvas.height = vidHeight;
+                    // APLICAR HDR E CONSTRASTE NUMA RESOLUÇÃO MUITO MENOR (Processamento hiper-rápido)
+                    offCanvas.width = analyzeWidth;
+                    offCanvas.height = analyzeHeight;
                     offCtx.filter = 'contrast(1.15) brightness(1.10)';
-                    offCtx.drawImage(media, 0, 0, vidWidth, vidHeight);
+                    offCtx.drawImage(media, 0, 0, analyzeWidth, analyzeHeight);
 
-                    // ATUALIZADO: Motor SSD Mobilenet lendo do offCanvas tratado
+                    // ATUALIZADO: Motor SSD Mobilenet lendo a versão pequena e otimizada
                     let detections = await faceapi.detectAllFaces(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })).withFaceLandmarks().withFaceDescriptors();
                     
-                    // NOVO: Filtrar falsos positivos microscópicos (< 40px na imagem original)
-                    detections = detections.filter(d => d.detection.box.width >= 40 && d.detection.box.height >= 40);
+                    // Filtrar falsos positivos microscópicos (ajustado para a nova escala pequena)
+                    const minBoxSize = 40 * scale;
+                    detections = detections.filter(d => d.detection.box.width >= minBoxSize && d.detection.box.height >= minBoxSize);
 
+                    const displaySize = { width: media.clientWidth, height: media.clientHeight };
+                    faceapi.matchDimensions(canvas, displaySize);
+                    
+                    // MÁGICA: A IA estica e mapeia as coordenadas da imagem pequena para o ecrã real
                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
                     
                     const ctx = canvas.getContext('2d');
@@ -1498,12 +1578,13 @@
                     });
                 } catch (e) {
                     console.warn("Erro no processamento da câmara", cam.id, e);
+                } finally {
+                    window.concurrentAI--; // Liberta o "passe" para a próxima câmara na fila
                 }
 
                 // CÁLCULO INTELIGENTE DO CPU: 
-                // Mede o tempo gasto na IA. Se demorou 300ms, espera 500ms (para manter ~1 FPS e deixar o PC respirar)
                 const elapsed = Date.now() - startTime;
-                const delay = Math.max(100, 800 - elapsed);
+                const delay = Math.max(50, 600 - elapsed); // Reduzido o delay base devido à brutal poupança de CPU
                 
                 // Agenda a próxima leitura APENAS se o loop ainda estiver ativo
                 if (loopState.active) {
@@ -1787,12 +1868,19 @@
 
             if (!pageItems.length) { grid.innerHTML = `<div class="col-span-full p-10 text-center text-gray-500 text-sm">Nenhum alvo encontrado.</div>`; return; }
 
-            grid.innerHTML = pageItems.map(p => `
-                <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 flex flex-col gap-3 h-full">
+            grid.innerHTML = pageItems.map(p => {
+                const countBiometrics = p.descriptors ? p.descriptors.length : 1;
+                return `
+                <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 flex flex-col gap-3 h-full relative">
                     <div class="flex items-center gap-3">
                         <img src="${escapeHtml(p.photo)}" class="w-12 h-12 rounded-full object-cover border border-gray-700 bg-black shrink-0" onerror="this.src=''; this.classList.add('bg-gray-800')">
                         <div class="min-w-0 flex-1">
-                            <div class="text-sm font-bold text-white truncate w-full" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
+                            <div class="text-sm font-bold text-white truncate w-full flex items-center" title="${escapeHtml(p.name)}">
+                                ${escapeHtml(p.name)}
+                                <span class="bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded text-[9px] whitespace-nowrap ml-2 border border-blue-500/30" title="${countBiometrics} fotos guardadas para este alvo">
+                                    <i data-lucide="scan-face" class="w-3 h-3 inline"></i> ${countBiometrics}
+                                </span>
+                            </div>
                             <div class="mt-1">${levelBadgeHtml(p.level)}</div>
                         </div>
                     </div>
@@ -1805,7 +1893,7 @@
                         </button>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
             lucide.createIcons();
         }
 
