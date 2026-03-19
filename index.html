@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-PT">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -37,7 +37,7 @@
     <!-- TOASTS -->
     <div id="toast-container" class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"></div>
 
-    <!-- TELA DE LOGIN -->
+    <!-- ECRÃ DE SESSÃO -->
     <div id="login-screen" class="fixed inset-0 z-[300] flex items-center justify-center bg-gray-950 p-6">
         <div class="w-full max-w-sm bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden">
             <div class="p-6 border-b border-gray-800 bg-black/50">
@@ -53,7 +53,7 @@
                     <input id="login-email" type="email" autocomplete="username" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none transition-colors">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-400 mb-1">Senha</label>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">Palavra-passe</label>
                     <input id="login-password" type="password" autocomplete="current-password" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none transition-colors">
                 </div>
                 <button id="login-submit" type="submit" class="w-full h-12 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors shadow-lg active:scale-95">
@@ -63,17 +63,17 @@
         </div>
     </div>
 
-    <!-- APP SHELL (Oculto até o login) -->
+    <!-- APP SHELL (Oculto até iniciar sessão) -->
     <div id="app-shell" class="hidden flex-1 flex flex-col overflow-hidden w-full h-full">
 
         <!-- OVERLAY DO MENU MOBILE -->
         <div id="sidebar-overlay" onclick="closeSidebarDrawer()" class="fixed inset-0 bg-black/70 z-40 hidden md:hidden backdrop-blur-sm transition-opacity"></div>
 
-        <!-- PAINEL TÁTICO DE ALARME (TELA CHEIA) -->
+        <!-- PAINEL TÁTICO DE ALARME (ECRÃ INTEIRO) -->
         <div id="tactical-alarm-panel" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/80 backdrop-blur-md pointer-events-auto p-4">
             <div class="alarm-flash border-4 border-red-500 rounded-2xl p-6 md:p-8 max-w-2xl w-full text-center flex flex-col items-center max-h-[90vh] overflow-y-auto">
                 <i data-lucide="siren" class="w-16 h-16 md:w-20 md:h-20 text-white mb-2 animate-bounce"></i>
-                <h2 class="text-3xl md:text-4xl font-black text-white uppercase tracking-widest mb-1 text-center">Ameaça Detectada</h2>
+                <h2 class="text-3xl md:text-4xl font-black text-white uppercase tracking-widest mb-1 text-center">Ameaça Detetada</h2>
                 <p id="alarm-cam-name" class="text-xl md:text-2xl text-red-200 font-mono mb-6 font-bold tracking-wider text-center"></p>
                 
                 <div class="flex flex-col md:flex-row gap-6 w-full mb-8 bg-black/50 p-4 rounded-xl border border-red-500/50">
@@ -98,7 +98,7 @@
         <div class="hidden md:flex h-8 bg-black border-b border-gray-800 items-center justify-between px-4 text-xs text-gray-500 font-mono z-20 shrink-0">
             <div class="flex items-center gap-4">
                 <span class="flex items-center gap-1"><div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> VMS Online</span>
-                <span id="ai-status-desktop" class="text-amber-500">IA Carregando...</span>
+                <span id="ai-status-desktop" class="text-amber-500">IA a Carregar...</span>
             </div>
             <div class="vms-clock font-bold text-gray-300">--:--:--</div>
         </div>
@@ -135,24 +135,24 @@
 
                 <div class="p-2 border-b border-gray-800 flex flex-col gap-1 bg-gray-950">
                     <button onclick="switchTab('live')" id="nav-live" class="nav-btn py-3 md:py-2.5 px-4 bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3">
-                        <i data-lucide="layout-grid" class="w-5 h-5 md:w-4 md:h-4"></i> Monitoramento
+                        <i data-lucide="layout-grid" class="w-5 h-5 md:w-4 md:h-4"></i> Monitorização
                     </button>
                     <button onclick="switchTab('db')" id="nav-db" class="nav-btn py-3 md:py-2.5 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3">
-                        <i data-lucide="users" class="w-5 h-5 md:w-4 md:h-4"></i> Banco de Faces
+                        <i data-lucide="users" class="w-5 h-5 md:w-4 md:h-4"></i> Base de Dados de Faces
                     </button>
                     <button onclick="switchTab('logs')" id="nav-logs" class="nav-btn py-3 md:py-2.5 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3">
                         <i data-lucide="history" class="w-5 h-5 md:w-4 md:h-4"></i> Relatórios
                     </button>
                     <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn py-3 md:py-2.5 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3">
-                        <i data-lucide="settings" class="w-5 h-5 md:w-4 md:h-4"></i> Configurações
+                        <i data-lucide="settings" class="w-5 h-5 md:w-4 md:h-4"></i> Definições
                     </button>
                 </div>
 
-                <!-- Lista de Câmeras -->
+                <!-- Lista de Câmaras -->
                 <div class="p-4 flex-1 overflow-y-auto relative hidden flex-col" id="sidebar-cameras">
                     <div class="flex items-center justify-between mb-4 sticky top-0 bg-gray-900 z-10 pb-2">
                         <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500">Dispositivos</h2>
-                        <button onclick="openAddCameraModal()" class="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow transition-colors" title="Adicionar Câmera">
+                        <button onclick="openAddCameraModal()" class="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow transition-colors" title="Adicionar Câmara">
                             <i data-lucide="plus" class="w-4 h-4"></i>
                         </button>
                     </div>
@@ -161,7 +161,7 @@
 
                 <div class="p-2 border-t border-gray-800 bg-gray-950 mt-auto">
                     <button onclick="logout()" class="w-full py-3 md:py-2.5 px-4 rounded-lg text-sm font-medium transition-colors flex items-center gap-3 text-red-400 hover:bg-red-900/20">
-                        <i data-lucide="log-out" class="w-5 h-5 md:w-4 md:h-4"></i> Sair do Sistema
+                        <i data-lucide="log-out" class="w-5 h-5 md:w-4 md:h-4"></i> Terminar Sessão
                     </button>
                 </div>
             </aside>
@@ -169,11 +169,11 @@
             <!-- ÁREA PRINCIPAL -->
             <main class="flex-1 flex flex-col z-0 relative bg-black overflow-hidden w-full">
                 
-                <!-- VISTA 1: MONITORAMENTO -->
+                <!-- VISTA 1: MONITORIZAÇÃO -->
                 <div id="tab-live" class="tab-content active flex-col h-full w-full">
                     <header class="h-14 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4 md:px-6 shrink-0 flex-wrap">
                         <h2 class="text-base md:text-lg font-medium text-white flex items-center gap-2 truncate">
-                            <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0"></div> <span class="hidden sm:inline">Monitoramento Tático</span><span class="sm:hidden">Painel Ao Vivo</span>
+                            <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0"></div> <span class="hidden sm:inline">Monitorização Tática</span><span class="sm:hidden">Painel Ao Vivo</span>
                         </h2>
                         <div class="flex items-center gap-1 bg-gray-950 p-1 rounded-lg border border-gray-800 text-xs font-mono">
                             <button onclick="setLayout(1)" id="btn-layout-1" class="px-3 md:px-2 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors">1x1</button>
@@ -186,15 +186,15 @@
                     </div>
                 </div>
 
-                <!-- VISTA 2: BANCO DE FACES -->
+                <!-- VISTA 2: BASE DE DADOS DE FACES -->
                 <div id="tab-db" class="tab-content hidden flex-col h-full w-full bg-gray-950 overflow-y-auto p-4 md:p-6">
                     <div class="max-w-7xl mx-auto w-full grid grid-cols-1 xl:grid-cols-2 gap-6 pb-10">
                         <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden shadow-2xl h-fit">
                             <div class="p-4 md:p-6 border-b border-gray-800 bg-black/50">
                                 <h2 class="text-lg md:text-xl font-bold text-white flex items-center gap-2">
-                                    <i data-lucide="scan-face" class="text-blue-500"></i> Cadastro de Alvos
+                                    <i data-lucide="scan-face" class="text-blue-500"></i> Registo de Alvos
                                 </h2>
-                                <p class="text-xs md:text-sm text-gray-400 mt-1">Extraia a biometria para a IA buscar nas câmeras.</p>
+                                <p class="text-xs md:text-sm text-gray-400 mt-1">Extraia a biometria para a IA procurar nas câmaras.</p>
                             </div>
                             <div class="flex flex-col p-4 md:p-6 gap-6">
                                 <div class="w-full flex flex-col items-center">
@@ -215,28 +215,28 @@
                                         <input type="text" id="person-name" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 md:py-2.5 text-white focus:border-blue-500 outline-none transition-colors">
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-400 mb-1">Grau de Atenção</label>
+                                        <label class="block text-sm font-medium text-gray-400 mb-1">Nível de Atenção</label>
                                         <select id="person-level" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 md:py-2.5 text-white focus:border-blue-500 outline-none appearance-none transition-colors">
                                             <option value="normal">🟢 Normal (Apenas Registo)</option>
                                             <option value="suspect">🟡 Suspeito (Aviso Silencioso)</option>
-                                            <option value="danger">🔴 Ameaça Crítica (Dispara Alarme Sonoro/Tático)</option>
+                                            <option value="danger">🔴 Ameaça Crítica (Dispara Alarme)</option>
                                         </select>
                                     </div>
                                     <div class="pt-2">
                                         <button type="submit" class="w-full bg-green-600 hover:bg-green-500 text-white font-medium py-3.5 rounded-lg transition-colors shadow flex justify-center items-center gap-2 active:scale-95">
-                                            <i data-lucide="save" class="w-5 h-5"></i> Salvar no Firebase
+                                            <i data-lucide="save" class="w-5 h-5"></i> Guardar
                                         </button>
                                     </div>
                                 </form>
                             </div>
                         </div>
 
-                        <!-- Grid de Banco de Faces -->
+                        <!-- Grid de Base de Dados de Faces -->
                         <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden shadow-2xl flex flex-col h-[600px] md:h-auto md:min-h-[520px]">
                             <div class="p-4 md:p-6 border-b border-gray-800 bg-black/50 flex flex-col gap-4">
                                 <div class="flex items-center justify-between gap-3">
                                     <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                                        <i data-lucide="users" class="text-blue-500"></i> Banco de Dados
+                                        <i data-lucide="users" class="text-blue-500"></i> Alvos Cadastrados
                                     </h3>
                                     <select id="faces-page-size" class="bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm outline-none transition-colors">
                                         <option value="6">Exibir 6</option>
@@ -247,10 +247,10 @@
                                 <div class="flex flex-col sm:flex-row gap-3">
                                     <div class="flex-1 relative">
                                         <i data-lucide="search" class="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
-                                        <input id="faces-search" type="text" placeholder="Buscar..." class="w-full bg-gray-950 border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:border-blue-500 outline-none text-sm transition-colors">
+                                        <input id="faces-search" type="text" placeholder="Procurar..." class="w-full bg-gray-950 border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:border-blue-500 outline-none text-sm transition-colors">
                                     </div>
                                     <select id="faces-level-filter" class="w-full sm:w-auto bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm appearance-none outline-none transition-colors">
-                                        <option value="all" selected>Grau: Todos</option>
+                                        <option value="all" selected>Nível: Todos</option>
                                         <option value="normal">🟢 Normal</option>
                                         <option value="suspect">🟡 Suspeito</option>
                                         <option value="danger">🔴 Ameaça</option>
@@ -284,11 +284,11 @@
                                     <h2 class="text-xl font-bold text-white flex items-center gap-2">
                                         <i data-lucide="clipboard-list" class="text-blue-500"></i> Relatório
                                     </h2>
-                                    <p class="text-xs md:text-sm text-gray-400 mt-1">Eventos detectados pela Inteligência Artificial.</p>
+                                    <p class="text-xs md:text-sm text-gray-400 mt-1">Eventos detetados pela Inteligência Artificial.</p>
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <button onclick="exportLogsCSV()" class="flex-1 sm:flex-none bg-green-700 hover:bg-green-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors shadow">
-                                        <i data-lucide="download" class="w-4 h-4"></i> Exportar CSV
+                                        <i data-lucide="download" class="w-4 h-4"></i> Descarregar CSV
                                     </button>
                                     <select id="logs-page-size" class="bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm outline-none transition-colors">
                                         <option value="10">Exibir 10</option>
@@ -302,16 +302,16 @@
                             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
                                 <div class="sm:col-span-2 lg:col-span-4 relative">
                                     <i data-lucide="search" class="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
-                                    <input id="logs-search" type="text" placeholder="Buscar (página atual)..." class="w-full bg-gray-950 border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:border-blue-500 outline-none text-sm transition-colors">
+                                    <input id="logs-search" type="text" placeholder="Procurar (página atual)..." class="w-full bg-gray-950 border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:border-blue-500 outline-none text-sm transition-colors">
                                 </div>
                                 <div class="lg:col-span-3">
                                     <select id="logs-camera-filter" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm appearance-none outline-none transition-colors">
-                                        <option value="all" selected>Câmera: Todas</option>
+                                        <option value="all" selected>Câmara: Todas</option>
                                     </select>
                                 </div>
                                 <div class="lg:col-span-3">
                                     <select id="logs-level-filter" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm appearance-none outline-none transition-colors">
-                                        <option value="all" selected>Grau: Todos</option>
+                                        <option value="all" selected>Nível: Todos</option>
                                         <option value="normal">🟢 Normal</option>
                                         <option value="suspect">🟡 Suspeito</option>
                                         <option value="danger">🔴 Ameaça Crítica</option>
@@ -335,7 +335,7 @@
                                         <th class="p-4 w-24">Evidência</th>
                                         <th class="p-4">Data/Hora</th>
                                         <th class="p-4">Identificação</th>
-                                        <th class="p-4">Câmera</th>
+                                        <th class="p-4">Câmara</th>
                                         <th class="p-4">Alerta</th>
                                     </tr>
                                 </thead>
@@ -361,7 +361,7 @@
                     <div class="max-w-3xl mx-auto w-full bg-gray-900 rounded-xl border border-gray-800 shadow-2xl overflow-hidden">
                         <div class="p-4 md:p-6 border-b border-gray-800 bg-black/50">
                             <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                                <i data-lucide="settings" class="text-blue-500"></i> Configurações do Sistema
+                                <i data-lucide="settings" class="text-blue-500"></i> Definições do Sistema
                             </h2>
                             <p class="text-sm text-gray-400 mt-1">Parâmetros locais por dispositivo do operador.</p>
                         </div>
@@ -375,7 +375,7 @@
                                         <div class="text-sm font-semibold text-white flex items-center gap-2">
                                             <i data-lucide="file-spreadsheet" class="w-4 h-4 text-green-500"></i> Automação de Infraestrutura (CSV)
                                         </div>
-                                        <div class="text-xs text-gray-400 mt-1">Carregue sua planilha de IPs para cadastrar as câmeras no VMS e gerar automaticamente o <b>mediamtx.yml</b>.</div>
+                                        <div class="text-xs text-gray-400 mt-1">Carregue a sua folha de cálculo de IPs (formato .csv) para adicionar as câmaras ao VMS e gerar automaticamente o <b>mediamtx.yml</b>.</div>
                                     </div>
                                     <label class="h-11 px-4 rounded-lg border border-gray-700 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer active:scale-95">
                                         <i data-lucide="upload-cloud" class="w-4 h-4"></i> Importar CSV
@@ -388,7 +388,7 @@
                                 <div class="flex items-center justify-between gap-4 mb-3">
                                     <div class="min-w-0">
                                         <div class="text-sm font-semibold text-white">Tolerância da IA (Reconhecimento)</div>
-                                        <div class="text-xs text-gray-400">Ajusta a flexibilidade do reconhecimento (0.1 a 0.9). Valores maiores reconhecem mais fácil, mas geram falsos positivos.</div>
+                                        <div class="text-xs text-gray-400">Ajusta a flexibilidade (0.1 a 0.9). Valores maiores reconhecem mais fácil, mas podem gerar falsos positivos.</div>
                                     </div>
                                     <div id="ai-confidence-value" class="text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-900/40 px-2 py-1 rounded">0.40</div>
                                 </div>
@@ -416,7 +416,7 @@
     <div id="add-cam-modal" class="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-800 flex justify-between items-center bg-black/50">
-                <h3 class="text-lg font-bold text-white">Adicionar Câmera IP</h3>
+                <h3 class="text-lg font-bold text-white">Adicionar Câmara IP</h3>
                 <button onclick="closeAddCameraModal()" class="p-1 text-gray-400 hover:text-white rounded transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
             <form onsubmit="saveCamera(event)" class="p-6 space-y-4">
@@ -425,19 +425,19 @@
                     <input type="text" id="new-cam-name" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white outline-none focus:border-blue-500 transition-colors" required>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-400 mb-1">Tipo de Conexão</label>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">Tipo de Ligação</label>
                     <select id="new-cam-type" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white outline-none focus:border-blue-500 appearance-none transition-colors" onchange="updateCamHint()">
                         <option value="webrtc">Servidor MediaMTX (WebRTC)</option>
                         <option value="webcam">Webcam USB (Testes)</option>
-                        <option value="mjpeg">Câmera Genérica (MJPEG)</option>
+                        <option value="mjpeg">Câmara Genérica (MJPEG)</option>
                     </select>
                 </div>
                 <div id="url-container">
                     <label class="block text-sm font-medium text-gray-400 mb-1">URL (WHEP / MJPEG)</label>
                     <input type="text" id="new-cam-url" placeholder="http://localhost:8889/camera_01/whep" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white outline-none focus:border-blue-500 transition-colors">
-                    <p id="cam-hint" class="text-xs text-blue-400 mt-2">Para MediaMTX, não esqueça do "/whep" no final da URL.</p>
+                    <p id="cam-hint" class="text-xs text-blue-400 mt-2">Para MediaMTX, adicione "/whep" no final do URL.</p>
                 </div>
-                <button type="submit" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium mt-2 shadow transition-colors active:scale-95">Salvar Câmera</button>
+                <button type="submit" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium mt-2 shadow transition-colors active:scale-95">Guardar Câmara</button>
             </form>
         </div>
     </div>
@@ -467,7 +467,7 @@
                 </div>
                 <div class="pt-2 flex flex-col sm:flex-row gap-3">
                     <button type="button" onclick="closeEditPersonModal()" class="w-full sm:flex-1 py-3 bg-gray-950 hover:bg-gray-800 text-white rounded-lg font-medium border border-gray-700 transition-colors">Cancelar</button>
-                    <button type="submit" class="w-full sm:flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium shadow transition-colors active:scale-95">Salvar Alterações</button>
+                    <button type="submit" class="w-full sm:flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium shadow transition-colors active:scale-95">Guardar Alterações</button>
                 </div>
             </form>
         </div>
@@ -476,7 +476,7 @@
     <!-- JAVASCRIPT PRINCIPAL -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // ================= ESTADO GLOBAL =================
@@ -491,7 +491,7 @@
         let faceMatcher = null;
         
         let persons = [];
-        let allLogs = []; // Cache local seguro de logs
+        let allLogs = []; 
         let cameras = JSON.parse(localStorage.getItem('vms_cameras')) || [
             { id: 'cam-webcam', name: 'Webcam Local (Testes IA)', type: 'webcam', url: 'local' }
         ];
@@ -514,13 +514,10 @@
         const lastTripwireSide = {};
 
         const facesState = { search: '', level: 'all', pageSize: 12, page: 1, loading: false };
-        
-        // Histórico de Logs Otimizado (Memória Local via onSnapshot)
         const logsState = { search: '', camera: 'all', level: 'all', period: '7d', pageSize: 25, page: 1, totalPages: 1, totalCount: 0, loading: false };
 
         let currentEditPersonId = null;
 
-        // INICIALIZA LUCIDE ICONS
         lucide.createIcons();
 
         // ================= FIREBASE & AUTH =================
@@ -538,7 +535,6 @@
             db = getFirestore(app);
             auth = getAuth(app);
 
-            // Sincroniza Alvos
             onSnapshot(collection(db, "students"), (snapshot) => {
                 persons = [];
                 snapshot.forEach(doc => persons.push({ id: doc.id, ...doc.data() }));
@@ -546,7 +542,6 @@
                 if (activeTab === 'db') renderFaces();
             });
 
-            // Sincroniza Logs limitando a 500 para não estourar a memória (Tempo Real mantido)
             const logsQ = query(collection(db, "logs"), orderBy("timestamp", "desc"), limit(500));
             onSnapshot(logsQ, (snapshot) => {
                 allLogs = [];
@@ -596,7 +591,7 @@
                 const password = document.getElementById('login-password')?.value ?? '';
                 await signInWithEmailAndPassword(auth, email, password);
             } catch (err) {
-                showToast("Falha no login. Verifique e-mail e senha.", "error");
+                showToast("Falha ao iniciar sessão. Verifique o e-mail e a palavra-passe.", "error");
             } finally {
                 if (btn) btn.disabled = false;
             }
@@ -676,8 +671,8 @@
                     };
                     window.currentRegisterStream = stream; 
                 } catch(e) {
-                    console.warn("Permissão de câmera negada na aba DB", e);
-                    showToast("Permita a câmera no navegador para cadastrar alvos.", "error");
+                    console.warn("Permissão de câmara negada na aba DB", e);
+                    showToast("Permita a câmara no navegador para registar alvos.", "error");
                 }
                 hydrateFacesControls(); renderFaces();
             } else if (window.currentRegisterStream) {
@@ -711,24 +706,30 @@
         window.importCamerasFromCSV = (event) => {
             const file = event.target.files[0];
             if (!file) return;
+
+            // Bloqueio de segurança para ficheiros .xlsx diretos
+            if (file.name.toLowerCase().endsWith('.xlsx')) {
+                showToast("Erro: O ficheiro deve estar no formato CSV. No Excel, vá a Ficheiro > Guardar Como > CSV.", "error");
+                event.target.value = '';
+                return;
+            }
             
             const reader = new FileReader();
             reader.onload = (e) => {
                 let text = e.target.result;
                 
-                // Remove o BOM (Byte Order Mark) invisível do Excel que quebrava o nome da coluna 'IP'
+                // Remove o BOM (Byte Order Mark) invisível
                 text = text.replace(/^\uFEFF/, '');
                 
-                const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+                const lines = text.split(/\r\n|\n|\r/).filter(line => line.trim().length > 0);
                 
                 if (lines.length < 2) {
-                    return showToast("O arquivo CSV está vazio ou inválido.", "error");
+                    return showToast("O ficheiro CSV está vazio ou tem um formato inválido.", "error");
                 }
 
-                // Identifica as colunas dinamicamente removendo aspas extras
-                const headers = lines[0].split(/[,;]/).map(h => h.trim().toUpperCase().replace(/["']/g, ''));
+                // Extrai cabeçalhos e remove carateres especiais/invisíveis para garantir a correspondência
+                const headers = lines[0].split(/[,;]/).map(h => h.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''));
                 
-                // Busca mais flexível (suporta 'IP' ou colunas que incluam 'IP')
                 const idxIP = headers.findIndex(h => h === 'IP' || h.includes('IP'));
                 const idxNome = headers.findIndex(h => h.includes('NOMENCLATURA') || h.includes('NOME'));
                 const idxLogin = headers.findIndex(h => h === 'LOGIN' || h.includes('USUARIO'));
@@ -736,8 +737,8 @@
                 const idxLocal = headers.findIndex(h => h === 'LOCAL');
 
                 if (idxIP === -1) {
-                    console.log("Cabeçalhos detectados:", headers);
-                    return showToast("A coluna 'IP' não foi encontrada. Verifique os títulos do arquivo.", "error");
+                    console.log("Cabeçalhos detetados (limpos):", headers);
+                    return showToast("A coluna 'IP' não foi encontrada. Certifique-se de usar um ficheiro CSV válido.", "error");
                 }
 
                 let ymlOutput = "###############################################\n# MediaMTX Config Gerado pelo Defense VMS\n###############################################\npaths:\n";
@@ -755,7 +756,7 @@
                     let login = idxLogin > -1 && row[idxLogin] ? row[idxLogin] : 'admin';
                     let senha = idxSenha > -1 && row[idxSenha] ? row[idxSenha] : 'admin';
 
-                    // Pula linhas reservadas sem nome ou local (evita cadastrar buracos)
+                    // Ignora linhas reservadas sem nome ou local
                     if (!rawNome && !rawLocal && (!idxLogin || !row[idxLogin])) continue;
                     
                     const nomenclatura = rawNome || `CAM_${ip.replace(/\./g, '_')}`;
@@ -794,9 +795,9 @@
                     a.remove();
                     URL.revokeObjectURL(url);
                     
-                    showToast(`${addedCount} câmeras importadas! O arquivo mediamtx.yml foi baixado.`, "success");
+                    showToast(`${addedCount} câmaras importadas! O ficheiro mediamtx.yml foi descarregado.`, "success");
                 } else {
-                    showToast("Nenhuma câmera nova válida encontrada.", "warning");
+                    showToast("Nenhuma câmara nova válida encontrada.", "warning");
                 }
             };
             reader.readAsText(file, 'UTF-8'); 
@@ -826,7 +827,7 @@
 
             scanAnim.classList.remove('hidden');
             btn.disabled = true;
-            showToast("Analisando pontos faciais...");
+            showToast("A analisar pontos faciais...");
 
             try {
                 const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.3 })).withFaceLandmarks().withFaceDescriptor();
@@ -855,7 +856,7 @@
                     
                     showToast("Face mapeada com sucesso!", "success");
                 } else {
-                    showToast("Nenhum rosto claro detectado. Centralize o rosto.", "error");
+                    showToast("Nenhum rosto claro detetado. Centralize o rosto.", "error");
                 }
             } catch (err) {
                 showToast("Erro ao analisar imagem.", "error");
@@ -867,7 +868,7 @@
 
         window.savePersonToDB = async (e) => {
             e.preventDefault();
-            if (!db) return showToast("Banco Offline", "error");
+            if (!db) return showToast("Base de Dados Offline", "error");
             if (!tempDescriptor || !tempPhoto) return showToast("Extraia a biometria primeiro!", "error");
 
             const person = {
@@ -879,7 +880,7 @@
 
             try {
                 await addDoc(collection(db, "students"), person); 
-                showToast("Alvo salvo na base de dados!", "success");
+                showToast("Alvo guardado na base de dados!", "success");
                 
                 document.getElementById('db-form').reset();
                 tempDescriptor = null; tempPhoto = null;
@@ -892,7 +893,7 @@
                 btn.classList.replace('hover:bg-gray-600', 'hover:bg-blue-500');
                 lucide.createIcons();
             } catch (err) {
-                showToast("Erro ao salvar no Firebase.", "error");
+                showToast("Erro ao guardar no Firebase.", "error");
             }
         };
 
@@ -943,7 +944,7 @@
             const x2 = (toDraw.x2 ?? 0) * canvas.width, y2 = (toDraw.y2 ?? 0) * canvas.height;
             ctx.save();
             ctx.lineWidth = 3;
-            ctx.strokeStyle = '#ef4444'; // Vermelho
+            ctx.strokeStyle = '#ef4444'; 
             ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
             ctx.restore();
         }
@@ -1018,7 +1019,7 @@
                 if (d) setTripwire(cameraId, { x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2 });
                 delete tripwireDraft[cameraId];
                 setTripwireDrawing(cameraId, false);
-                showToast("Linha virtual salva para esta câmera.", "success");
+                showToast("Linha virtual guardada para esta câmara.", "success");
                 updateTripwireButtonState(cameraId);
             };
 
@@ -1028,12 +1029,12 @@
 
         function shouldTriggerTripwire(cameraId, personId, box, canvas) {
             const line = getTripwire(cameraId);
-            if (!line) return true; // Se não tem linha, dispara em qualquer lugar
+            if (!line) return true; 
             const x1 = line.x1 * canvas.width, y1 = line.y1 * canvas.height;
             const x2 = line.x2 * canvas.width, y2 = line.y2 * canvas.height;
             const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
             const dist = pointToSegmentDistance(cx, cy, x1, y1, x2, y2);
-            const threshold = Math.max(10, Math.min(canvas.width, canvas.height) * 0.05); // 5% tolerância
+            const threshold = Math.max(10, Math.min(canvas.width, canvas.height) * 0.05); 
             const side = sideOfLine(cx, cy, x1, y1, x2, y2);
 
             lastTripwireSide[cameraId] = lastTripwireSide[cameraId] || {};
@@ -1044,7 +1045,7 @@
             return dist <= threshold || crossed;
         }
 
-        // ================= WEBRTC & CÂMERAS =================
+        // ================= WEBRTC & CÂMARAS =================
         function renderWebRTCFailure(videoEl) {
             const slot = videoEl?.closest?.('.camera-slot');
             if (!slot) return;
@@ -1126,7 +1127,7 @@
             if(type === 'webcam') container.classList.add('hidden');
             else {
                 container.classList.remove('hidden');
-                hint.innerText = type === 'webrtc' ? 'Use o final "/whep". Ex: http://localhost:8889/cam/whep' : 'Insira a URL direta MJPEG.';
+                hint.innerText = type === 'webrtc' ? 'Use o final "/whep". Ex: http://localhost:8889/cam/whep' : 'Insira o URL direto MJPEG.';
             }
         };
 
@@ -1200,7 +1201,7 @@
                 if (cam) {
                     let mediaHtml = (cam.type === 'webcam' || cam.type === 'webrtc') 
                         ? `<video id="media-${cam.id}" autoplay playsinline muted class="w-full h-full object-cover"></video>`
-                        : `<img id="media-${cam.id}" src="${cam.url}" crossorigin="anonymous" class="w-full h-full object-cover" onerror="this.src=''; this.alt='Sinal Perdido ou Bloqueado por CORS';">`;
+                        : `<img id="media-${cam.id}" src="${cam.url}" crossorigin="anonymous" class="w-full h-full object-cover" onerror="this.src=''; this.alt='Sinal Bloqueado';">`;
 
                     const hasLine = !!getTripwire(cam.id);
                     const tripwireBtnBase = hasLine ? 'bg-red-600/80 hover:bg-red-600/90' : 'bg-black/60 hover:bg-black/70';
@@ -1265,6 +1266,7 @@
                     const displaySize = { width: media.clientWidth, height: media.clientHeight };
                     faceapi.matchDimensions(canvas, displaySize);
 
+                    // SCORE THRESHOLD EM 0.4 PARA FACILITAR RECONHECIMENTO AO VIVO
                     const detections = await faceapi.detectAllFaces(media, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.4 })).withFaceLandmarks().withFaceDescriptors();
                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
                     
@@ -1325,7 +1327,7 @@
                 snapshotBase64 = tempCanvas.toDataURL('image/jpeg', 0.6);
             } catch (e) {}
 
-            const time = new Date().toLocaleString('pt-BR');
+            const time = new Date().toLocaleString('pt-PT');
             if (db) {
                 try {
                     const logEntry = { personName: person.name, level: person.level, cameraName: cam.name, time, timestamp: Date.now(), snapshot: snapshotBase64 };
@@ -1390,7 +1392,7 @@
             const btn = document.getElementById('mute-toggle');
             if (!btn) return;
             if (isMuted) {
-                btn.innerHTML = `<i data-lucide="volume-x" class="w-4 h-4"></i> Sirene Mutada`;
+                btn.innerHTML = `<i data-lucide="volume-x" class="w-4 h-4"></i> Sirene Silenciada`;
                 btn.classList.replace('bg-gray-900', 'bg-red-900/50');
                 btn.classList.replace('border-gray-700', 'border-red-500');
             } else {
@@ -1491,7 +1493,7 @@
 
         window.exportLogsCSV = () => {
             if (!allLogs.length) return showToast("Nenhum evento para exportar.", "warning");
-            let csvContent = "data:text/csv;charset=utf-8,Data/Hora,Identificação,Câmera,Nível\n";
+            let csvContent = "data:text/csv;charset=utf-8,Data/Hora,Identificação,Câmara,Nível\n";
             allLogs.forEach(log => {
                 csvContent += `"${log.time}","${log.personName}","${log.cameraName}","${log.level}"\n`;
             });
@@ -1530,7 +1532,7 @@
             const cameraSelect = document.getElementById('logs-camera-filter');
             if (cameraSelect) {
                 const camNames = [...new Set(allLogs.map(c => c.cameraName))];
-                cameraSelect.innerHTML = ['all', ...camNames].map(v => `<option value="${escapeHtml(v)}">${v === 'all' ? 'Câmera: Todas' : escapeHtml(v)}</option>`).join('');
+                cameraSelect.innerHTML = ['all', ...camNames].map(v => `<option value="${escapeHtml(v)}">${v === 'all' ? 'Câmara: Todas' : escapeHtml(v)}</option>`).join('');
             }
 
             ['first', 'prev', 'next', 'last'].forEach(action => {
@@ -1657,11 +1659,11 @@
         window.deletePerson = async (id) => {
             if (!db) return;
             const p = persons.find(x => x.id === id);
-            if (!confirm(`Excluir o alvo "${p?.name ?? 'sem nome'}"?`)) return;
+            if (!confirm(`Eliminar o alvo "${p?.name ?? 'sem nome'}"?`)) return;
             try {
                 await deleteDoc(doc(db, 'students', id));
-                showToast("Alvo excluído.", "success");
-            } catch (err) { showToast("Erro ao excluir alvo.", "error"); }
+                showToast("Alvo eliminado.", "success");
+            } catch (err) { showToast("Erro ao eliminar alvo.", "error"); }
         };
 
         // ================= UTILIDADES =================
@@ -1678,7 +1680,7 @@
         }
 
         setInterval(() => {
-            document.querySelectorAll('.vms-clock').forEach(el => el.innerText = new Date().toLocaleTimeString('pt-BR', { hour12: false }));
+            document.querySelectorAll('.vms-clock').forEach(el => el.innerText = new Date().toLocaleTimeString('pt-PT', { hour12: false }));
         }, 1000);
 
         function bootApp() {
