@@ -28,7 +28,7 @@
         @keyframes pulseRed { 0% { background-color: rgba(220, 38, 38, 0.95); box-shadow: inset 0 0 100px rgba(153, 27, 27, 1); } 100% { background-color: rgba(153, 27, 27, 0.95); box-shadow: inset 0 0 20px rgba(220, 38, 38, 1); } }
         
         .camera-slot { position: relative; }
-        .ai-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+        .ai-canvas { position: absolute; pointer-events: none; z-index: 10; }
         .mobile-grid-fix { min-height: 250px; }
     </style>
 </head>
@@ -1216,8 +1216,8 @@
                 
                 if (cam) {
                     let mediaHtml = (cam.type === 'webcam' || cam.type === 'webrtc') 
-                        ? `<video id="media-${cam.id}" autoplay playsinline muted class="w-full h-full object-cover"></video>`
-                        : `<img id="media-${cam.id}" src="${cam.url}" crossorigin="anonymous" class="w-full h-full object-cover" onerror="this.src=''; this.alt='Sinal Perdido ou Bloqueado por CORS';">`;
+                        ? `<video id="media-${cam.id}" autoplay playsinline muted class="max-w-full max-h-full"></video>`
+                        : `<img id="media-${cam.id}" src="${cam.url}" crossorigin="anonymous" class="max-w-full max-h-full" onerror="this.src=''; this.alt='Sinal Perdido ou Bloqueado por CORS';">`;
 
                     const hasLine = !!getTripwire(cam.id);
                     const tripwireBtnBase = hasLine ? 'bg-red-600/80 hover:bg-red-600/90' : 'bg-black/60 hover:bg-black/70';
@@ -1283,7 +1283,7 @@
                     const displaySize = { width: media.clientWidth, height: media.clientHeight };
                     faceapi.matchDimensions(canvas, displaySize);
 
-                    const detections = await faceapi.detectAllFaces(media, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.3 })).withFaceLandmarks().withFaceDescriptors();
+                    const detections = await faceapi.detectAllFaces(media, new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.3 })).withFaceLandmarks().withFaceDescriptors();
                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
                     
                     const ctx = canvas.getContext('2d');
