@@ -531,9 +531,6 @@
         let aiLoops = {}; 
         const webrtcConnections = {}; 
         const lastDetectionTime = {}; 
-        
-        window.concurrentAI = 0; // Controle de fila global da IA
-        const MAX_CONCURRENT_AI = 2; // Limite de processamento neural simultâneo
 
         let audioCtx = null;
         let alarmOscillator = null;
@@ -864,28 +861,18 @@
                 img.src = preview.src;
                 await new Promise((resolve) => { img.onload = resolve; });
 
-                // NOVO: Pré-processamento HDR e REDIMENSIONAMENTO para aliviar a Base de Dados
-                // Diminuir a imagem para um tamanho máximo muito leve antes de enviar para o Firebase
-                const MAX_SIZE = 400;
-                const scale = Math.min(1, MAX_SIZE / img.width, MAX_SIZE / img.height);
-                const targetWidth = img.width * scale;
-                const targetHeight = img.height * scale;
-
+                // NOVO: Pré-processamento HDR também na foto de registo para extrair a melhor biometria
                 const offCanvas = document.createElement('canvas');
-                offCanvas.width = targetWidth; 
-                offCanvas.height = targetHeight;
+                offCanvas.width = img.width; offCanvas.height = img.height;
                 const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
                 offCtx.filter = 'contrast(1.10) brightness(1.05)';
-                offCtx.drawImage(img, 0, 0, targetWidth, targetHeight);
+                offCtx.drawImage(img, 0, 0, img.width, img.height);
 
-                // ATUALIZADO: Usar SSD Mobilenet V1 no canvas processado e redimensionado
+                // ATUALIZADO: Usar SSD Mobilenet V1 no canvas processado
                 const detection = await faceapi.detectSingleFace(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })).withFaceLandmarks().withFaceDescriptor();
                 
                 if (detection) {
                     tempDescriptor = Array.from(detection.descriptor);
-                    
-                    // MÁGICA: Substitui a foto original (pesada) pela processada (muito leve ~20KB)
-                    tempPhoto = offCanvas.toDataURL('image/jpeg', 0.7);
                     
                     btn.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4"></i> Biometria Extraída';
                     btn.classList.replace('bg-blue-600', 'bg-green-600');
@@ -1449,43 +1436,26 @@
                     return;
                 }
                 
-                // GESTÃO DE FILA: Se já estivermos a processar o limite de câmaras, aguarda 100ms
-                if (window.concurrentAI >= MAX_CONCURRENT_AI) {
-                    setTimeout(processFrame, 100);
-                    return;
-                }
-
-                window.concurrentAI++;
                 const startTime = Date.now();
                 
                 try {
                     const vidWidth = media.videoWidth || media.naturalWidth || media.clientWidth || 640;
                     const vidHeight = media.videoHeight || media.naturalHeight || media.clientHeight || 480;
-                    
-                    // OTIMIZAÇÃO EXTREMA: Redimensionamento Inteligente
-                    // A IA não precisa de ler 1080p. Limitamos a análise a máx 512px de largura.
-                    const MAX_ANALYZE_WIDTH = 512;
-                    const scale = Math.min(1, MAX_ANALYZE_WIDTH / vidWidth);
-                    const analyzeWidth = vidWidth * scale;
-                    const analyzeHeight = vidHeight * scale;
-
-                    // APLICAR HDR E CONSTRASTE NUMA RESOLUÇÃO MUITO MENOR (Processamento hiper-rápido)
-                    offCanvas.width = analyzeWidth;
-                    offCanvas.height = analyzeHeight;
-                    offCtx.filter = 'contrast(1.15) brightness(1.10)';
-                    offCtx.drawImage(media, 0, 0, analyzeWidth, analyzeHeight);
-
-                    // ATUALIZADO: Motor SSD Mobilenet lendo a versão pequena e otimizada
-                    let detections = await faceapi.detectAllFaces(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })).withFaceLandmarks().withFaceDescriptors();
-                    
-                    // Filtrar falsos positivos microscópicos (ajustado para a nova escala pequena)
-                    const minBoxSize = 40 * scale;
-                    detections = detections.filter(d => d.detection.box.width >= minBoxSize && d.detection.box.height >= minBoxSize);
-
                     const displaySize = { width: media.clientWidth, height: media.clientHeight };
                     faceapi.matchDimensions(canvas, displaySize);
+
+                    // APLICAR HDR E CONSTRASTE ANTES DA IA LER
+                    offCanvas.width = vidWidth;
+                    offCanvas.height = vidHeight;
+                    offCtx.filter = 'contrast(1.15) brightness(1.10)';
+                    offCtx.drawImage(media, 0, 0, vidWidth, vidHeight);
+
+                    // ATUALIZADO: Motor SSD Mobilenet lendo do offCanvas tratado
+                    let detections = await faceapi.detectAllFaces(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })).withFaceLandmarks().withFaceDescriptors();
                     
-                    // MÁGICA: A IA estica e mapeia as coordenadas da imagem pequena para o ecrã real
+                    // NOVO: Filtrar falsos positivos microscópicos (< 40px na imagem original)
+                    detections = detections.filter(d => d.detection.box.width >= 40 && d.detection.box.height >= 40);
+
                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
                     
                     const ctx = canvas.getContext('2d');
@@ -1528,13 +1498,12 @@
                     });
                 } catch (e) {
                     console.warn("Erro no processamento da câmara", cam.id, e);
-                } finally {
-                    window.concurrentAI--; // Liberta o "passe" para a próxima câmara na fila
                 }
 
                 // CÁLCULO INTELIGENTE DO CPU: 
+                // Mede o tempo gasto na IA. Se demorou 300ms, espera 500ms (para manter ~1 FPS e deixar o PC respirar)
                 const elapsed = Date.now() - startTime;
-                const delay = Math.max(50, 600 - elapsed); // Reduzido o delay base devido à brutal poupança de CPU
+                const delay = Math.max(100, 800 - elapsed);
                 
                 // Agenda a próxima leitura APENAS se o loop ainda estiver ativo
                 if (loopState.active) {
