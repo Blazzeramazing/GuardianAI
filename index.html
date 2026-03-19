@@ -194,27 +194,32 @@
                                 <h2 class="text-lg md:text-xl font-bold text-white flex items-center gap-2">
                                     <i data-lucide="scan-face" class="text-blue-500"></i> Registo de Alvos
                                 </h2>
-                                <p class="text-xs md:text-sm text-gray-400 mt-1">Extraia a biometria para a IA procurar nas câmaras.</p>
+                                <p class="text-xs md:text-sm text-gray-400 mt-1">Carregue uma fotografia frontal para a IA procurar nas câmaras.</p>
                             </div>
                             <div class="flex flex-col p-4 md:p-6 gap-6">
                                 <div class="w-full flex flex-col items-center">
-                                    <div class="w-48 h-48 md:w-64 md:h-64 bg-black rounded-full overflow-hidden relative border-4 border-gray-700 shadow-lg flex items-center justify-center mb-4">
-                                        <video id="register-video" autoplay playsinline muted class="w-full h-full object-cover transform -scale-x-100"></video>
+                                    
+                                    <!-- MUDANÇA: Upload de Imagem em vez de Webcam -->
+                                    <div class="w-48 h-48 md:w-64 md:h-64 bg-black rounded-xl mb-4 overflow-hidden relative border-4 border-gray-700 shadow-lg flex items-center justify-center">
                                         <img id="register-preview" class="w-full h-full object-cover hidden">
+                                        <div id="upload-placeholder" class="text-gray-500 flex flex-col items-center">
+                                            <i data-lucide="image-plus" class="w-12 h-12 mb-2"></i>
+                                            <span class="text-xs">Nenhuma foto carregada</span>
+                                        </div>
                                         <div id="scan-animation" class="absolute inset-0 bg-blue-500/20 hidden">
                                             <div class="w-full h-1 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,1)] animate-[scan_1.5s_infinite]"></div>
                                         </div>
                                     </div>
 
-                                    <!-- SELETOR DE WEBCAM REPOSTO AQUI -->
-                                    <div class="w-full max-w-xs mb-4">
-                                        <select id="register-cam-selector" onchange="changeRegisterCamera(this.value)" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-gray-400 text-xs outline-none transition-colors appearance-none text-center">
-                                            <option value="">A procurar câmaras...</option>
-                                        </select>
+                                    <div class="flex gap-2 w-full max-w-xs mb-4">
+                                        <label class="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors border border-gray-700">
+                                            <i data-lucide="upload" class="w-4 h-4"></i> Carregar Foto
+                                            <input type="file" id="register-upload" accept="image/*" class="hidden" onchange="handlePhotoUpload(event)">
+                                        </label>
                                     </div>
 
-                                    <button id="btn-scan" onclick="captureFaceForDB()" disabled class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-full font-medium transition-colors shadow flex items-center gap-2 disabled:bg-gray-700 active:scale-95">
-                                        <i data-lucide="camera" class="w-5 h-5"></i> Extrair Biometria
+                                    <button id="btn-scan" onclick="analyzeUploadedPhoto()" disabled class="w-full max-w-xs bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow flex items-center justify-center gap-2 disabled:bg-gray-700 active:scale-95">
+                                        <i data-lucide="scan-face" class="w-4 h-4"></i> Analisar Biometria
                                     </button>
                                 </div>
                                 <form id="db-form" onsubmit="savePersonToDB(event)" class="w-full space-y-4">
@@ -647,48 +652,7 @@
             faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, getAiConfidence());
         }
 
-        // ================= NAVEGAÇÃO & SELEÇÃO DE WEBCAM =================
-        // Função para carregar as câmaras no Dropdown (Seletor)
-        async function loadLocalWebcams() {
-            const selector = document.getElementById('register-cam-selector');
-            if (!selector) return;
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const videoInputs = devices.filter(d => d.kind === 'videoinput');
-                if (videoInputs.length === 0) {
-                    selector.innerHTML = '<option value="">Nenhuma câmara detetada</option>';
-                    return;
-                }
-                selector.innerHTML = videoInputs.map(d => `<option value="${d.deviceId}">${d.label || 'Câmara ' + d.deviceId.substring(0, 5)}</option>`).join('');
-                
-                const currentTrack = window.currentRegisterStream?.getVideoTracks()[0];
-                if (currentTrack) {
-                    const currentDevice = videoInputs.find(d => d.label === currentTrack.label);
-                    if (currentDevice) selector.value = currentDevice.deviceId;
-                }
-            } catch(e) {
-                selector.innerHTML = '<option value="">Permita o acesso à câmara primeiro</option>';
-            }
-        }
-
-        // Função ativada quando o utilizador muda a câmara no dropdown
-        window.changeRegisterCamera = async (deviceId) => {
-            if (!deviceId) return;
-            try {
-                if (window.currentRegisterStream) {
-                    window.currentRegisterStream.getTracks().forEach(t => t.stop());
-                }
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: deviceId } } });
-                const videoEl = document.getElementById('register-video');
-                videoEl.srcObject = stream;
-                videoEl.play().catch(e => console.warn(e));
-                window.currentRegisterStream = stream;
-            } catch(e) {
-                console.error("Erro a mudar de câmara:", e);
-                showToast("Erro ao aceder à câmara selecionada.", "error");
-            }
-        };
-
+        // ================= NAVEGAÇÃO =================
         window.switchTab = async (tab) => {
             activeTab = tab;
             closeSidebarDrawer();
@@ -711,25 +675,7 @@
             }
 
             if (tab === 'db') {
-                if (window.location.protocol === 'file:') {
-                    showToast("ATENÇÃO: O Chrome pode bloquear a câmara em ficheiros locais (file://). Utilize um servidor local (ex: Live Server).", "warning");
-                }
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                    const videoEl = document.getElementById('register-video');
-                    videoEl.srcObject = stream;
-                    videoEl.play().catch(e => console.warn("Autoplay bloqueado", e));
-                    window.currentRegisterStream = stream; 
-                    await loadLocalWebcams(); // Carrega opções no seletor
-                } catch(e) {
-                    console.warn("Permissão de câmara negada na aba DB", e);
-                    showToast("Permita a câmara no navegador para registar alvos.", "error");
-                    await loadLocalWebcams();
-                }
                 hydrateFacesControls(); renderFaces();
-            } else if (window.currentRegisterStream) {
-                window.currentRegisterStream.getTracks().forEach(t => t.stop());
-                window.currentRegisterStream = null;
             }
 
             if (tab === 'logs') { hydrateLogsControls(); renderLogs(); }
@@ -768,14 +714,10 @@
             const reader = new FileReader();
             reader.onload = (e) => {
                 let text = e.target.result;
-                
                 text = text.replace(/^\uFEFF/, '');
                 
                 const lines = text.split(/\r\n|\n|\r/).filter(line => line.trim().length > 0);
-                
-                if (lines.length < 2) {
-                    return showToast("O ficheiro CSV está vazio ou tem um formato inválido.", "error");
-                }
+                if (lines.length < 2) return showToast("O ficheiro CSV está vazio ou tem um formato inválido.", "error");
 
                 const headers = lines[0].split(/[,;]/).map(h => h.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''));
                 
@@ -785,10 +727,7 @@
                 const idxSenha = headers.findIndex(h => h === 'SENHA' || h.includes('PASSWORD'));
                 const idxLocal = headers.findIndex(h => h === 'LOCAL');
 
-                if (idxIP === -1) {
-                    console.log("Cabeçalhos detetados (limpos):", headers);
-                    return showToast("A coluna 'IP' não foi encontrada. Certifique-se de usar um ficheiro CSV válido.", "error");
-                }
+                if (idxIP === -1) return showToast("A coluna 'IP' não foi encontrada no CSV.", "error");
 
                 let ymlOutput = "###############################################\n# MediaMTX Config Gerado pelo Defense VMS\n###############################################\npaths:\n";
                 let addedCount = 0;
@@ -816,12 +755,7 @@
                     const webrtcUrl = `http://localhost:8889/${safeName}/whep`;
                     
                     if (!cameras.find(c => c.url === webrtcUrl)) {
-                        cameras.push({
-                            id: `cam-${Date.now()}-${i}`,
-                            name: displayName,
-                            type: 'webrtc',
-                            url: webrtcUrl
-                        });
+                        cameras.push({ id: `cam-${Date.now()}-${i}`, name: displayName, type: 'webrtc', url: webrtcUrl });
                         addedCount++;
                     }
                 }
@@ -852,72 +786,85 @@
             event.target.value = ''; 
         };
 
-        // ================= BIOMETRIA (CADASTRO) =================
+        // ================= BIOMETRIA (CADASTRO POR UPLOAD) =================
         let tempDescriptor = null;
         let tempPhoto = null;
 
-        window.captureFaceForDB = async () => {
+        window.handlePhotoUpload = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const preview = document.getElementById('register-preview');
+                const placeholder = document.getElementById('upload-placeholder');
+                
+                preview.src = e.target.result;
+                preview.classList.remove('hidden');
+                if(placeholder) placeholder.classList.add('hidden');
+                
+                tempPhoto = e.target.result;
+                tempDescriptor = null;
+                
+                const btn = document.getElementById('btn-scan');
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="scan-face" class="w-4 h-4"></i> Analisar Biometria';
+                btn.classList.replace('bg-green-600', 'bg-blue-600');
+                btn.classList.replace('hover:bg-green-500', 'hover:bg-blue-500');
+                lucide.createIcons();
+            };
+            reader.readAsDataURL(file);
+        };
+
+        window.analyzeUploadedPhoto = async () => {
             if (!isAiReady) return showToast("Aguarde a inicialização da IA...", "warning");
-            const video = document.getElementById('register-video');
+            
+            const preview = document.getElementById('register-preview');
             const scanAnim = document.getElementById('scan-animation');
             const btn = document.getElementById('btn-scan');
             
-            if (tempPhoto) {
-                tempPhoto = null; tempDescriptor = null;
-                document.getElementById('register-preview').classList.add('hidden');
-                video.classList.remove('hidden');
-                btn.innerHTML = '<i data-lucide="camera" class="w-5 h-5"></i> Extrair Biometria';
-                btn.classList.replace('bg-gray-700', 'bg-blue-600');
-                btn.classList.replace('hover:bg-gray-600', 'hover:bg-blue-500');
-                lucide.createIcons();
-                return;
+            if (!preview.src || preview.src === window.location.href || preview.classList.contains('hidden')) {
+                return showToast("Carregue uma foto primeiro!", "warning");
             }
 
             scanAnim.classList.remove('hidden');
             btn.disabled = true;
-            showToast("A analisar pontos faciais...");
+            showToast("A analisar rosto...", "info");
 
             try {
-                const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.3 })).withFaceLandmarks().withFaceDescriptor();
+                const img = new Image();
+                img.src = preview.src;
+                await new Promise((resolve) => { img.onload = resolve; });
+
+                // Resolução mais alta para conseguir encontrar o rosto na foto parada
+                const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.3 })).withFaceLandmarks().withFaceDescriptor();
                 
                 if (detection) {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-                    const ctx = canvas.getContext('2d');
-                    
-                    ctx.translate(canvas.width, 0);
-                    ctx.scale(-1, 1);
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    
-                    tempPhoto = canvas.toDataURL('image/jpeg', 0.8);
                     tempDescriptor = Array.from(detection.descriptor);
                     
-                    video.classList.add('hidden');
-                    const preview = document.getElementById('register-preview');
-                    preview.src = tempPhoto;
-                    preview.classList.remove('hidden');
-                    
-                    btn.innerHTML = '<i data-lucide="refresh-cw" class="w-5 h-5"></i> Refazer Captura';
-                    btn.classList.replace('bg-blue-600', 'bg-gray-700');
-                    btn.classList.replace('hover:bg-blue-500', 'hover:bg-gray-600');
+                    btn.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4"></i> Biometria Extraída';
+                    btn.classList.replace('bg-blue-600', 'bg-green-600');
+                    btn.classList.replace('hover:bg-blue-500', 'hover:bg-green-500');
                     lucide.createIcons();
                     
-                    showToast("Face mapeada com sucesso!", "success");
+                    showToast("Biometria extraída com sucesso!", "success");
                 } else {
-                    showToast("Nenhum rosto claro detetado. Centralize o rosto.", "error");
+                    showToast("Nenhum rosto detetado na foto. Tente uma foto mais clara.", "error");
+                    btn.disabled = false;
                 }
             } catch (err) {
+                console.error(err);
                 showToast("Erro ao analisar imagem.", "error");
+                btn.disabled = false;
             } finally {
                 scanAnim.classList.add('hidden');
-                btn.disabled = false;
             }
         };
 
         window.savePersonToDB = async (e) => {
             e.preventDefault();
             if (!db) return showToast("Base de Dados Offline", "error");
-            if (!tempDescriptor || !tempPhoto) return showToast("Extraia a biometria primeiro!", "error");
+            if (!tempDescriptor || !tempPhoto) return showToast("Analise a biometria primeiro!", "error");
 
             const person = {
                 name: document.getElementById('person-name').value,
@@ -931,14 +878,20 @@
                 showToast("Alvo guardado na base de dados!", "success");
                 
                 document.getElementById('db-form').reset();
-                tempDescriptor = null; tempPhoto = null;
-                document.getElementById('register-preview').classList.add('hidden');
-                document.getElementById('register-video').classList.remove('hidden');
+                tempDescriptor = null; 
+                tempPhoto = null;
+                
+                const preview = document.getElementById('register-preview');
+                preview.classList.add('hidden');
+                preview.src = "";
+                document.getElementById('upload-placeholder').classList.remove('hidden');
+                document.getElementById('register-upload').value = "";
                 
                 const btn = document.getElementById('btn-scan');
-                btn.innerHTML = '<i data-lucide="camera" class="w-5 h-5"></i> Extrair Biometria';
-                btn.classList.replace('bg-gray-700', 'bg-blue-600');
-                btn.classList.replace('hover:bg-gray-600', 'hover:bg-blue-500');
+                btn.innerHTML = '<i data-lucide="scan-face" class="w-4 h-4"></i> Analisar Biometria';
+                btn.classList.replace('bg-green-600', 'bg-blue-600');
+                btn.classList.replace('hover:bg-green-500', 'hover:bg-blue-500');
+                btn.disabled = true;
                 lucide.createIcons();
             } catch (err) {
                 showToast("Erro ao guardar no Firebase.", "error");
@@ -1126,7 +1079,6 @@
         async function startMediaMTXWebRTC(whepUrl, videoEl, cameraId) {
             if (!whepUrl || !videoEl || !cameraId) return;
             if (!whepUrl.endsWith('/whep')) {
-                console.error("URL Inválida (deve terminar com /whep):", whepUrl);
                 renderWebRTCFailure(videoEl, 'URL de WebRTC Inválida');
                 return false;
             }
@@ -1146,7 +1098,6 @@
                 if (videoEl.srcObject !== stream) videoEl.srcObject = stream;
                 videoEl.play().catch(() => {});
                 
-                // Remove o overlay de erro se conseguiu conectar
                 const slot = videoEl.closest('.camera-slot');
                 if (slot) {
                     const errOverlay = slot.querySelector(`#${videoEl.id}-overlay`);
@@ -1176,7 +1127,6 @@
                 await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
                 return true;
             } catch (e) {
-                console.error("Falha no WebRTC para", cameraId, e);
                 renderWebRTCFailure(videoEl, 'Falha na Negociação WHEP');
                 try { pc.close(); } catch {}
                 delete webrtcConnections[cameraId];
@@ -1191,7 +1141,7 @@
             if(type === 'webcam') container.classList.add('hidden');
             else {
                 container.classList.remove('hidden');
-                hint.innerText = type === 'webrtc' ? 'Use o final "/whep". Ex: http://localhost:8889/cam/whep' : 'Insira o URL direto MJPEG.';
+                hint.innerText = type === 'webrtc' ? 'Use o final "/whep". Ex: http://localhost:8889/cam/whep' : 'Insira a URL direta MJPEG.';
             }
         };
 
@@ -1293,7 +1243,7 @@
                         try { 
                             videoEl.srcObject = await navigator.mediaDevices.getUserMedia({ video: true }); 
                             videoEl.play().catch(e => console.warn(e));
-                        } catch (e) { console.error("Webcam recusada"); }
+                        } catch (e) {}
                     } else if (cam.type === 'webrtc') {
                         startMediaMTXWebRTC(cam.url, videoEl, cam.id).then(ok => {
                             if (ok && isAiReady && faceMatcher && !document.hidden) startCameraAI(cam);
@@ -1350,6 +1300,9 @@
                             color = person.level === 'danger' ? '#ef4444' : person.level === 'suspect' ? '#eab308' : '#10b981';
                         }
 
+                        // DESENHO TÁTICO: Malha de pontos sobre o rosto para confirmar que a IA está "A ver"
+                        faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+                        
                         const box = det.detection.box;
                         new faceapi.draw.DrawBox(box, { label: text, boxColor: color }).draw(canvas);
 
