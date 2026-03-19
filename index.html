@@ -581,7 +581,14 @@
 
             onSnapshot(collection(db, "students"), (snapshot) => {
                 persons = [];
-                snapshot.forEach(doc => persons.push({ id: doc.id, ...doc.data() }));
+                snapshot.forEach(doc => {
+                    let data = doc.data();
+                    // Converte de volta de texto para Array caso existam múltiplas biometrias guardadas
+                    if (typeof data.descriptors === 'string') {
+                        try { data.descriptors = JSON.parse(data.descriptors); } catch(e){}
+                    }
+                    persons.push({ id: doc.id, ...data });
+                });
                 updateFaceMatcher();
                 if (activeTab === 'db') renderFaces();
             });
@@ -964,7 +971,8 @@
                 name: document.getElementById('person-name').value,
                 level: document.getElementById('person-level').value,
                 photo: tempBiometrics[0].photo, // A primeira inserida é a Principal
-                descriptors: tempBiometrics.map(b => b.descriptor) // Array com todos os descritores extraídos
+                // MÁGICA: Converte as matrizes aninhadas em formato de texto para o Firebase aceitar
+                descriptors: JSON.stringify(tempBiometrics.map(b => b.descriptor))
             };
 
             try {
