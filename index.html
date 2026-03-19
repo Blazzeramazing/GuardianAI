@@ -196,7 +196,6 @@
                                 </h2>
                                 <p class="text-xs md:text-sm text-gray-400 mt-1">Extraia a biometria para a IA buscar nas câmeras.</p>
                             </div>
-                            
                             <div class="flex flex-col p-4 md:p-6 gap-6">
                                 <div class="w-full flex flex-col items-center">
                                     <div class="w-48 h-48 md:w-64 md:h-64 bg-black rounded-full overflow-hidden relative border-4 border-gray-700 shadow-lg flex items-center justify-center mb-4">
@@ -210,7 +209,6 @@
                                         <i data-lucide="camera" class="w-5 h-5"></i> Extrair Biometria
                                     </button>
                                 </div>
-
                                 <form id="db-form" onsubmit="savePersonToDB(event)" class="w-full space-y-4">
                                     <div>
                                         <label class="block text-sm font-medium text-gray-400 mb-1">Nome de Identificação</label>
@@ -221,7 +219,7 @@
                                         <select id="person-level" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 md:py-2.5 text-white focus:border-blue-500 outline-none appearance-none transition-colors">
                                             <option value="normal">🟢 Normal (Apenas Registo)</option>
                                             <option value="suspect">🟡 Suspeito (Aviso Silencioso)</option>
-                                            <option value="danger">🔴 Ameaça Crítica (Alarme)</option>
+                                            <option value="danger">🔴 Ameaça Crítica (Dispara Alarme Sonoro/Tático)</option>
                                         </select>
                                     </div>
                                     <div class="pt-2">
@@ -240,7 +238,7 @@
                                     <h3 class="text-lg font-bold text-white flex items-center gap-2">
                                         <i data-lucide="users" class="text-blue-500"></i> Banco de Dados
                                     </h3>
-                                    <select id="faces-page-size" class="bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm outline-none">
+                                    <select id="faces-page-size" class="bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm outline-none transition-colors">
                                         <option value="6">Exibir 6</option>
                                         <option value="12" selected>Exibir 12</option>
                                         <option value="24">Exibir 24</option>
@@ -296,6 +294,7 @@
                                         <option value="10">Exibir 10</option>
                                         <option value="25" selected>Exibir 25</option>
                                         <option value="50">Exibir 50</option>
+                                        <option value="100">Exibir 100</option>
                                     </select>
                                 </div>
                             </div>
@@ -374,7 +373,7 @@
                                         <div class="text-sm font-semibold text-white">Tolerância da IA (Reconhecimento)</div>
                                         <div class="text-xs text-gray-400">Ajusta a flexibilidade do reconhecimento (0.1 a 0.9). Valores maiores reconhecem mais fácil, mas geram falsos positivos.</div>
                                     </div>
-                                    <div id="ai-confidence-value" class="text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-900/40 px-2 py-1 rounded">0.60</div>
+                                    <div id="ai-confidence-value" class="text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-900/40 px-2 py-1 rounded">0.40</div>
                                 </div>
                                 <input id="ai-confidence" type="range" min="0.1" max="0.9" step="0.05" class="w-full accent-blue-500">
                             </div>
@@ -460,7 +459,7 @@
     <!-- JAVASCRIPT PRINCIPAL -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc, getDocs, query, where, orderBy, limit, startAfter, endBefore, limitToLast, getCountFromServer } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // ================= ESTADO GLOBAL =================
@@ -497,7 +496,8 @@
         const lastTripwireSide = {};
 
         const facesState = { search: '', level: 'all', pageSize: 12, page: 1, loading: false };
-        const logsState = { search: '', camera: 'all', level: 'all', period: '7d', pageSize: 25, page: 1, totalPages: 1, totalCount: 0, loading: false, firstDoc: null, lastDoc: null, items: [] };
+        // LOGS SIMPLIFICADO: Busca dados do onSnapshot para evitar paginação complexa s/ index no Firebase
+        const logsState = { search: '', camera: 'all', level: 'all', period: '7d', pageSize: 25, page: 1, totalPages: 1, totalCount: 0, loading: false, items: [] };
 
         let currentEditPersonId = null;
 
@@ -519,11 +519,20 @@
             db = getFirestore(app);
             auth = getAuth(app);
 
+            // Sincroniza Alvos
             onSnapshot(collection(db, "students"), (snapshot) => {
                 persons = [];
                 snapshot.forEach(doc => persons.push({ id: doc.id, ...doc.data() }));
                 updateFaceMatcher();
                 renderFaces();
+            });
+
+            // Sincroniza os últimos 500 logs para o histórico
+            const logsQ = query(collection(db, "logs"), orderBy("timestamp", "desc"), limit(500));
+            onSnapshot(logsQ, (snapshot) => {
+                logsState.items = [];
+                snapshot.forEach(doc => logsState.items.push({ id: doc.id, ...doc.data() }));
+                if (activeTab === 'logs') renderLogs();
             });
 
             onAuthStateChanged(auth, (user) => {
@@ -579,7 +588,7 @@
         // ================= IA & CONFIGURAÇÕES =================
         function getAiConfidence() {
             const v = Number(localStorage.getItem('vms_ai_confidence'));
-            return Number.isFinite(v) && v > 0 ? Math.min(0.9, Math.max(0.1, v)) : 0.60;
+            return Number.isFinite(v) && v > 0 ? Math.min(0.9, Math.max(0.1, v)) : 0.40;
         }
 
         async function initAI() {
@@ -641,11 +650,12 @@
                     const videoEl = document.getElementById('register-video');
                     videoEl.srcObject = stream;
                     videoEl.onloadedmetadata = () => {
-                        videoEl.play().catch(e => console.warn("Autoplay da câmera do DB bloqueado", e));
+                        videoEl.play().catch(e => console.warn("Autoplay bloqueado", e));
                     };
                     window.currentRegisterStream = stream; 
                 } catch(e) {
                     console.warn("Permissão de câmera negada na aba DB", e);
+                    showToast("Permita a câmera no navegador para cadastrar alvos.", "error");
                 }
                 hydrateFacesControls(); renderFaces();
             } else if (window.currentRegisterStream) {
@@ -653,7 +663,7 @@
                 window.currentRegisterStream = null;
             }
 
-            if (tab === 'logs') { hydrateLogsControls(); await refreshLogs({ mode: 'first' }); }
+            if (tab === 'logs') { hydrateLogsControls(); refreshLogs(); }
             if (tab === 'settings') hydrateSettingsControls();
         };
 
@@ -1002,7 +1012,10 @@
 
                     const videoEl = document.getElementById(`media-${cam.id}`);
                     if (cam.type === 'webcam') {
-                        try { videoEl.srcObject = await navigator.mediaDevices.getUserMedia({ video: true }); } catch (e) {}
+                        try { 
+                            videoEl.srcObject = await navigator.mediaDevices.getUserMedia({ video: true }); 
+                            videoEl.play().catch(e => console.warn(e));
+                        } catch (e) { console.error("Webcam recusada"); }
                     } else if (cam.type === 'webrtc') {
                         startMediaMTXWebRTC(cam.url, videoEl, cam.id).then(ok => {
                             if (ok && isAiReady && faceMatcher && !document.hidden) startCameraAI(cam);
@@ -1039,7 +1052,7 @@
                     const displaySize = { width: media.clientWidth, height: media.clientHeight };
                     faceapi.matchDimensions(canvas, displaySize);
 
-                    // BAIXAMOS O SCORE THRESHOLD PARA 0.4 PARA FACILITAR RECONHECIMENTO AO VIVO
+                    // SCORE THRESHOLD EM 0.4 PARA FACILITAR RECONHECIMENTO AO VIVO
                     const detections = await faceapi.detectAllFaces(media, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.4 })).withFaceLandmarks().withFaceDescriptors();
                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
                     
@@ -1487,6 +1500,7 @@
             showToast("Analisando biometria, por favor aguarde...");
 
             try {
+                // REDUZIDO A EXIGÊNCIA PARA CADASTRO TAMBÉM (0.3)
                 const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.3, inputSize: 512 })).withFaceLandmarks().withFaceDescriptor();
                 
                 if (detection) {
