@@ -647,7 +647,10 @@
         }
 
         function updateFaceMatcher() {
-            if (!isAiReady || persons.length === 0) { faceMatcher = null; return; }
+            // Removido o bloqueio se a base de dados estiver vazia. A IA corre na mesma!
+            if (!isAiReady) { faceMatcher = null; return; }
+            if (persons.length === 0) { faceMatcher = null; return; }
+            
             const labeledDescriptors = persons.map(p => new faceapi.LabeledFaceDescriptors(p.id, [new Float32Array(p.descriptor)]));
             faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, getAiConfidence());
         }
@@ -836,7 +839,6 @@
                 img.src = preview.src;
                 await new Promise((resolve) => { img.onload = resolve; });
 
-                // Resolução mais alta para conseguir encontrar o rosto na foto parada
                 const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.3 })).withFaceLandmarks().withFaceDescriptor();
                 
                 if (detection) {
@@ -1243,14 +1245,15 @@
                         try { 
                             videoEl.srcObject = await navigator.mediaDevices.getUserMedia({ video: true }); 
                             videoEl.play().catch(e => console.warn(e));
-                        } catch (e) {}
+                        } catch (e) { console.error("Webcam recusada"); }
                     } else if (cam.type === 'webrtc') {
                         startMediaMTXWebRTC(cam.url, videoEl, cam.id).then(ok => {
-                            if (ok && isAiReady && faceMatcher && !document.hidden) startCameraAI(cam);
+                            // AQUI É A CORREÇÃO: O MOTOR DA IA ARRANCA MESMO SEM ALVOS NA BASE DE DADOS
+                            if (ok && isAiReady && !document.hidden) startCameraAI(cam);
                         });
                     }
 
-                    if (cam.type !== 'webrtc' && isAiReady && faceMatcher && !document.hidden) {
+                    if (cam.type !== 'webrtc' && isAiReady && !document.hidden) {
                         startCameraAI(cam);
                     }
                 } else {
@@ -1280,37 +1283,39 @@
                     const displaySize = { width: media.clientWidth, height: media.clientHeight };
                     faceapi.matchDimensions(canvas, displaySize);
 
-                    const detections = await faceapi.detectAllFaces(media, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.4 })).withFaceLandmarks().withFaceDescriptors();
+                    const detections = await faceapi.detectAllFaces(media, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.3 })).withFaceLandmarks().withFaceDescriptors();
                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
                     
                     const ctx = canvas.getContext('2d');
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                    // Desenha a linha virtual se existir
                     drawTripwireOnCanvas(cam.id, canvas);
 
+                    if (resizedDetections.length > 0) {
+                        faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+                    }
+
                     resizedDetections.forEach(det => {
-                        const bestMatch = faceMatcher.findBestMatch(det.descriptor);
-                        const isKnown = bestMatch.label !== 'unknown';
-                        const person = isKnown ? persons.find(p => p.id === bestMatch.label) : null;
-                        
                         let color = '#3b82f6'; let text = 'Desconhecido';
-                        if (person) {
-                            text = person.name;
-                            color = person.level === 'danger' ? '#ef4444' : person.level === 'suspect' ? '#eab308' : '#10b981';
+                        let person = null;
+
+                        if (faceMatcher) {
+                            const bestMatch = faceMatcher.findBestMatch(det.descriptor);
+                            const isKnown = bestMatch.label !== 'unknown';
+                            person = isKnown ? persons.find(p => p.id === bestMatch.label) : null;
+                            
+                            if (person) {
+                                text = person.name;
+                                color = person.level === 'danger' ? '#ef4444' : person.level === 'suspect' ? '#eab308' : '#10b981';
+                            }
                         }
 
-                        // DESENHO TÁTICO: Malha de pontos sobre o rosto para confirmar que a IA está "A ver"
-                        faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
-                        
                         const box = det.detection.box;
                         new faceapi.draw.DrawBox(box, { label: text, boxColor: color }).draw(canvas);
 
                         if (person) {
                             const now = Date.now();
                             const lastTime = lastDetectionTime[person.id] || 0;
-                            
-                            // Avalia cruzamento da linha virtual
                             const allowDetect = shouldTriggerTripwire(cam.id, person.id, box, canvas);
 
                             if (allowDetect && now - lastTime > 20000) {
@@ -1325,7 +1330,7 @@
 
         function resumeAILoopsIfNeeded() {
             if (document.hidden || activeTab !== 'live') return;
-            if (!isAiReady || !faceMatcher) return;
+            if (!isAiReady) return; // Alterado
             for (let i = 0; i < layout; i++) {
                 const cam = cameras[i];
                 if (!cam) continue;
@@ -1448,7 +1453,7 @@
             updateMuteButton();
         }
 
-        // ================= LOGS (HISTÓRICO LOCAL - MANTÉM TEMPO REAL) =================
+        // ================= LOGS (HISTÓRICO LOCAL) =================
         function levelBadgeHtml(level) {
             if (level === 'suspect') return '<span class="bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded whitespace-nowrap">Suspeito</span>';
             if (level === 'danger') return '<span class="bg-red-500/20 text-red-400 px-2 py-1 rounded border border-red-500/50 animate-pulse text-xs whitespace-nowrap">Alvo Crítico</span>';
