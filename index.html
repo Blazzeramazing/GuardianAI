@@ -49,7 +49,7 @@
             </div>
             <form id="login-form" onsubmit="login(event)" class="p-6 space-y-5">
                 <div>
-                    <label class="block text-sm font-medium text-gray-400 mb-1">E-mail</label>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">E-mail Corporativo</label>
                     <input id="login-email" type="email" autocomplete="username" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none transition-colors">
                 </div>
                 <div>
@@ -120,7 +120,7 @@
         <div class="flex flex-1 relative overflow-hidden">
             
             <!-- BARRA LATERAL -->
-            <aside id="sidebar" class="fixed inset-y-0 left-0 w-72 bg-gray-900 border-r border-gray-800 flex flex-col z-50 shadow-xl shrink-0 transform -translate-x-full md:translate-x-0 md:static md:inset-auto transition-transform duration-300 ease-in-out">
+            <aside id="sidebar" class="fixed inset-y-0 left-0 w-72 bg-gray-900 border-r border-gray-800 flex flex-col z-50 shadow-xl shrink-0 transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 ease-in-out">
                 <div class="hidden md:flex p-4 border-b border-gray-800 items-center justify-between">
                     <div class="flex items-center gap-2">
                         <i data-lucide="crosshair" class="w-6 h-6 text-red-500"></i>
@@ -134,17 +134,17 @@
                 </div>
 
                 <div class="p-2 border-b border-gray-800 flex flex-col gap-1 bg-gray-950">
-                    <button onclick="switchTab('live')" id="nav-live" class="nav-btn h-11 px-4 bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3">
-                        <i data-lucide="layout-grid" class="w-4 h-4"></i> Monitoramento
+                    <button onclick="switchTab('live')" id="nav-live" class="nav-btn py-3 md:py-2.5 px-4 bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3">
+                        <i data-lucide="layout-grid" class="w-5 h-5 md:w-4 md:h-4"></i> Monitoramento
                     </button>
-                    <button onclick="switchTab('db')" id="nav-db" class="nav-btn h-11 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3">
-                        <i data-lucide="users" class="w-4 h-4"></i> Banco de Faces
+                    <button onclick="switchTab('db')" id="nav-db" class="nav-btn py-3 md:py-2.5 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3">
+                        <i data-lucide="users" class="w-5 h-5 md:w-4 md:h-4"></i> Banco de Faces
                     </button>
-                    <button onclick="switchTab('logs')" id="nav-logs" class="nav-btn h-11 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3">
-                        <i data-lucide="history" class="w-4 h-4"></i> Relatórios
+                    <button onclick="switchTab('logs')" id="nav-logs" class="nav-btn py-3 md:py-2.5 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3">
+                        <i data-lucide="history" class="w-5 h-5 md:w-4 md:h-4"></i> Relatórios
                     </button>
-                    <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn h-11 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3">
-                        <i data-lucide="settings" class="w-4 h-4"></i> Configurações
+                    <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn py-3 md:py-2.5 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-3">
+                        <i data-lucide="settings" class="w-5 h-5 md:w-4 md:h-4"></i> Configurações
                     </button>
                 </div>
 
@@ -152,7 +152,7 @@
                 <div class="p-4 flex-1 overflow-y-auto relative hidden flex-col" id="sidebar-cameras">
                     <div class="flex items-center justify-between mb-4 sticky top-0 bg-gray-900 z-10 pb-2">
                         <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500">Dispositivos</h2>
-                        <button onclick="openAddCameraModal()" class="h-11 w-11 flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow transition-colors" title="Adicionar Câmera">
+                        <button onclick="openAddCameraModal()" class="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow transition-colors" title="Adicionar Câmera">
                             <i data-lucide="plus" class="w-4 h-4"></i>
                         </button>
                     </div>
@@ -160,8 +160,8 @@
                 </div>
 
                 <div class="p-2 border-t border-gray-800 bg-gray-950 mt-auto">
-                    <button onclick="logout()" class="w-full h-11 px-4 rounded-lg text-sm font-medium transition-colors flex items-center gap-3 text-red-400 hover:bg-red-900/20">
-                        <i data-lucide="log-out" class="w-4 h-4"></i> Sair do Sistema
+                    <button onclick="logout()" class="w-full py-3 md:py-2.5 px-4 rounded-lg text-sm font-medium transition-colors flex items-center gap-3 text-red-400 hover:bg-red-900/20">
+                        <i data-lucide="log-out" class="w-5 h-5 md:w-4 md:h-4"></i> Sair do Sistema
                     </button>
                 </div>
             </aside>
@@ -176,9 +176,9 @@
                             <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0"></div> <span class="hidden sm:inline">Monitoramento Tático</span><span class="sm:hidden">Painel Ao Vivo</span>
                         </h2>
                         <div class="flex items-center gap-1 bg-gray-950 p-1 rounded-lg border border-gray-800 text-xs font-mono">
-                            <button id="btn-layout-1" onclick="setLayout(1)" class="px-3 md:px-2 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors">1x1</button>
-                            <button id="btn-layout-4" onclick="setLayout(4)" class="px-3 md:px-2 py-1.5 rounded-md bg-gray-800 text-blue-400 shadow transition-colors">2x2</button>
-                            <button id="btn-layout-9" onclick="setLayout(9)" class="px-3 md:px-2 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors hidden sm:block">3x3</button>
+                            <button onclick="setLayout(1)" id="btn-layout-1" class="px-3 md:px-2 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors">1x1</button>
+                            <button onclick="setLayout(4)" id="btn-layout-4" class="px-3 md:px-2 py-1.5 rounded-md bg-gray-800 text-blue-400 shadow transition-colors">2x2</button>
+                            <button onclick="setLayout(9)" id="btn-layout-9" class="px-3 md:px-2 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors hidden sm:block">3x3</button>
                         </div>
                     </header>
                     <div class="flex-1 p-1 md:p-2 overflow-y-auto md:overflow-hidden relative bg-black">
@@ -194,7 +194,7 @@
                                 <h2 class="text-lg md:text-xl font-bold text-white flex items-center gap-2">
                                     <i data-lucide="scan-face" class="text-blue-500"></i> Cadastro de Alvos
                                 </h2>
-                                <p class="text-xs md:text-sm text-gray-400 mt-1">Extraia a biometria para a IA buscar em todas as câmeras.</p>
+                                <p class="text-xs md:text-sm text-gray-400 mt-1">Extraia a biometria para a IA buscar nas câmeras.</p>
                             </div>
                             <div class="flex flex-col p-4 md:p-6 gap-6">
                                 <div class="w-full flex flex-col items-center">
@@ -205,7 +205,7 @@
                                             <div class="w-full h-1 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,1)] animate-[scan_1.5s_infinite]"></div>
                                         </div>
                                     </div>
-                                    <button id="btn-scan" onclick="captureFaceForDB()" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-full font-medium transition-colors shadow flex items-center gap-2 active:scale-95">
+                                    <button id="btn-scan" onclick="captureFaceForDB()" disabled class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-full font-medium transition-colors shadow flex items-center gap-2 disabled:bg-gray-700 active:scale-95">
                                         <i data-lucide="camera" class="w-5 h-5"></i> Extrair Biometria
                                     </button>
                                 </div>
@@ -366,6 +366,23 @@
                         </div>
 
                         <div class="p-4 md:p-6 space-y-6">
+                            
+                            <!-- MÓDULO IMPORTAÇÃO DE CÂMERAS -->
+                            <div class="bg-gray-950 border border-gray-800 rounded-xl p-5">
+                                <div class="flex items-center justify-between gap-4 mb-3 flex-wrap">
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-semibold text-white flex items-center gap-2">
+                                            <i data-lucide="file-spreadsheet" class="w-4 h-4 text-green-500"></i> Automação de Infraestrutura (CSV)
+                                        </div>
+                                        <div class="text-xs text-gray-400 mt-1">Carregue sua planilha de IPs para cadastrar as câmeras no VMS e gerar automaticamente o <b>mediamtx.yml</b>.</div>
+                                    </div>
+                                    <label class="h-11 px-4 rounded-lg border border-gray-700 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer active:scale-95">
+                                        <i data-lucide="upload-cloud" class="w-4 h-4"></i> Importar CSV
+                                        <input type="file" accept=".csv" class="hidden" onchange="importCamerasFromCSV(event)">
+                                    </label>
+                                </div>
+                            </div>
+
                             <div class="bg-gray-950 border border-gray-800 rounded-xl p-5">
                                 <div class="flex items-center justify-between gap-4 mb-3">
                                     <div class="min-w-0">
@@ -517,6 +534,7 @@
             db = getFirestore(app);
             auth = getAuth(app);
 
+            // Sincroniza Alvos
             onSnapshot(collection(db, "students"), (snapshot) => {
                 persons = [];
                 snapshot.forEach(doc => persons.push({ id: doc.id, ...doc.data() }));
@@ -648,10 +666,11 @@
                     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                     const videoEl = document.getElementById('register-video');
                     videoEl.srcObject = stream;
-                    videoEl.play().catch(e => {});
+                    videoEl.play().catch(e => console.warn("Autoplay bloqueado", e));
                     window.currentRegisterStream = stream; 
                 } catch(e) {
                     console.warn("Permissão de câmera negada na aba DB", e);
+                    showToast("Permita a câmera no navegador para cadastrar alvos.", "error");
                 }
                 hydrateFacesControls(); renderFaces();
             } else if (window.currentRegisterStream) {
@@ -681,43 +700,135 @@
             document.body.classList.remove('overflow-hidden');
         };
 
+        // ================= IMPORTAÇÃO DE INFRAESTRUTURA (CSV -> MediaMTX) =================
+        window.importCamerasFromCSV = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                const lines = text.split(/\r?\n/);
+                
+                let ymlOutput = "###############################################\n# MediaMTX Config Gerado pelo Defense VMS\n###############################################\npaths:\n";
+                let addedCount = 0;
+                
+                for (let i = 1; i < lines.length; i++) {
+                    const row = lines[i].split(/[,;]/);
+                    if (row.length < 2) continue;
+                    
+                    const ip = row[0].trim();
+                    // Verifica se é um IP válido (básico)
+                    if (!ip.match(/^(\d{1,3}\.){3}\d{1,3}$/)) continue;
+                    
+                    const nomenclatura = row[1]?.trim() || `cam_${ip.replace(/\./g, '_')}`;
+                    let login = row[6]?.trim() || 'admin';
+                    let senha = row[7]?.trim() || 'admin';
+                    const local = row[11]?.trim() || row[6]?.trim() || 'Desconhecido'; 
+                    
+                    // Sanitiza o nome para o link WebRTC (sem espaços, sem caracteres especiais)
+                    const safeName = nomenclatura.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+                    
+                    // 1. Gera a entrada para o mediamtx.yml
+                    ymlOutput += `  ${safeName}:\n    source: rtsp://${login}:${senha}@${ip}:554/cam/realmonitor?channel=1&subtype=0\n\n`;
+                    
+                    // 2. Adiciona a câmara no VMS
+                    const displayName = `${nomenclatura} - ${local}`;
+                    const webrtcUrl = `http://localhost:8889/${safeName}/whep`;
+                    
+                    // Verifica se já não existe na grelha para não duplicar
+                    if (!cameras.find(c => c.url === webrtcUrl)) {
+                        cameras.push({
+                            id: `cam-${Date.now()}-${i}`,
+                            name: displayName,
+                            type: 'webrtc',
+                            url: webrtcUrl
+                        });
+                        addedCount++;
+                    }
+                }
+                
+                ymlOutput += "  all_others:\n";
+                
+                if (addedCount > 0) {
+                    localStorage.setItem('vms_cameras', JSON.stringify(cameras));
+                    renderSidebarCameras();
+                    if(activeTab === 'live') renderGrid();
+                    
+                    // Download do mediamtx.yml
+                    const blob = new Blob([ymlOutput], { type: 'text/yaml;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'mediamtx.yml';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                    
+                    showToast(`${addedCount} câmaras importadas! O ficheiro mediamtx.yml foi descarregado.`, "success");
+                } else {
+                    showToast("Nenhuma câmara nova encontrada ou formato de CSV inválido.", "warning");
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = ''; // Reset do input
+        };
+
         // ================= BIOMETRIA (CADASTRO) - LÓGICA RESTAURADA =================
         let tempDescriptor = null;
         let tempPhoto = null;
 
         window.captureFaceForDB = async () => {
-            if (!isAiReady) return;
+            if (!isAiReady) return showToast("Aguarde a inicialização da IA...", "warning");
             const video = document.getElementById('register-video');
             const scanAnim = document.getElementById('scan-animation');
             const btn = document.getElementById('btn-scan');
             
+            if (tempPhoto) {
+                tempPhoto = null; tempDescriptor = null;
+                document.getElementById('register-preview').classList.add('hidden');
+                video.classList.remove('hidden');
+                btn.innerHTML = '<i data-lucide="camera" class="w-5 h-5"></i> Extrair Biometria';
+                btn.classList.replace('bg-gray-700', 'bg-blue-600');
+                btn.classList.replace('hover:bg-gray-600', 'hover:bg-blue-500');
+                lucide.createIcons();
+                return;
+            }
+
             scanAnim.classList.remove('hidden');
             btn.disabled = true;
             showToast("Analisando pontos faciais...");
 
             try {
-                // Removemos os threshold rigorosos extras para garantir captura fácil e instantânea
-                const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+                const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.3 })).withFaceLandmarks().withFaceDescriptor();
                 
                 if (detection) {
                     const canvas = document.createElement('canvas');
-                    canvas.width = video.videoWidth; 
-                    canvas.height = video.videoHeight;
+                    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
                     const ctx = canvas.getContext('2d');
                     
-                    // Mantivemos o código de espelhamento que funcionou perfeitamente
+                    // Espelha a imagem para salvar corretamente
+                    ctx.translate(canvas.width, 0);
+                    ctx.scale(-1, 1);
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     
-                    tempPhoto = canvas.toDataURL('image/jpeg');
+                    tempPhoto = canvas.toDataURL('image/jpeg', 0.8);
                     tempDescriptor = Array.from(detection.descriptor);
                     
                     video.classList.add('hidden');
                     const preview = document.getElementById('register-preview');
                     preview.src = tempPhoto;
                     preview.classList.remove('hidden');
+                    
+                    btn.innerHTML = '<i data-lucide="refresh-cw" class="w-5 h-5"></i> Refazer Captura';
+                    btn.classList.replace('bg-blue-600', 'bg-gray-700');
+                    btn.classList.replace('hover:bg-blue-500', 'hover:bg-gray-600');
+                    lucide.createIcons();
+                    
                     showToast("Face mapeada com sucesso!", "success");
                 } else {
-                    showToast("Nenhum rosto claro detectado.", "error");
+                    showToast("Nenhum rosto claro detectado. Centralize o rosto.", "error");
                 }
             } catch (err) {
                 showToast("Erro ao analisar imagem.", "error");
@@ -747,6 +858,12 @@
                 tempDescriptor = null; tempPhoto = null;
                 document.getElementById('register-preview').classList.add('hidden');
                 document.getElementById('register-video').classList.remove('hidden');
+                
+                const btn = document.getElementById('btn-scan');
+                btn.innerHTML = '<i data-lucide="camera" class="w-5 h-5"></i> Extrair Biometria';
+                btn.classList.replace('bg-gray-700', 'bg-blue-600');
+                btn.classList.replace('hover:bg-gray-600', 'hover:bg-blue-500');
+                lucide.createIcons();
             } catch (err) {
                 showToast("Erro ao salvar no Firebase.", "error");
             }
@@ -1056,7 +1173,7 @@
                 if (cam) {
                     let mediaHtml = (cam.type === 'webcam' || cam.type === 'webrtc') 
                         ? `<video id="media-${cam.id}" autoplay playsinline muted class="w-full h-full object-cover"></video>`
-                        : `<img id="media-${cam.id}" src="${cam.url}" crossorigin="anonymous" class="w-full h-full object-cover" onerror="this.src=''; this.alt='Sinal Bloqueado';">`;
+                        : `<img id="media-${cam.id}" src="${cam.url}" crossorigin="anonymous" class="w-full h-full object-cover" onerror="this.src=''; this.alt='Sinal Perdido ou Bloqueado por CORS';">`;
 
                     const hasLine = !!getTripwire(cam.id);
                     const tripwireBtnBase = hasLine ? 'bg-red-600/80 hover:bg-red-600/90' : 'bg-black/60 hover:bg-black/70';
@@ -1121,7 +1238,8 @@
                     const displaySize = { width: media.clientWidth, height: media.clientHeight };
                     faceapi.matchDimensions(canvas, displaySize);
 
-                    const detections = await faceapi.detectAllFaces(media, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
+                    // SCORE THRESHOLD EM 0.4 PARA FACILITAR RECONHECIMENTO AO VIVO
+                    const detections = await faceapi.detectAllFaces(media, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.4 })).withFaceLandmarks().withFaceDescriptors();
                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
                     
                     const ctx = canvas.getContext('2d');
@@ -1241,7 +1359,7 @@
             setTimeout(() => { try { osc.stop(); osc.disconnect(); gain.disconnect(); } catch {} }, 600);
         }
 
-        // ================= CONFIGURAÇÕES (MUTE & IA) =================
+        // ================= CONFIGURAÇÕES (MUTE E IA) =================
         function updateMuteButton() {
             const btn = document.getElementById('mute-toggle');
             if (!btn) return;
