@@ -864,18 +864,28 @@
                 img.src = preview.src;
                 await new Promise((resolve) => { img.onload = resolve; });
 
-                // NOVO: Pré-processamento HDR também na foto de registo para extrair a melhor biometria
+                // NOVO: Pré-processamento HDR e REDIMENSIONAMENTO para aliviar a Base de Dados
+                // Diminuir a imagem para um tamanho máximo muito leve antes de enviar para o Firebase
+                const MAX_SIZE = 400;
+                const scale = Math.min(1, MAX_SIZE / img.width, MAX_SIZE / img.height);
+                const targetWidth = img.width * scale;
+                const targetHeight = img.height * scale;
+
                 const offCanvas = document.createElement('canvas');
-                offCanvas.width = img.width; offCanvas.height = img.height;
+                offCanvas.width = targetWidth; 
+                offCanvas.height = targetHeight;
                 const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
                 offCtx.filter = 'contrast(1.10) brightness(1.05)';
-                offCtx.drawImage(img, 0, 0, img.width, img.height);
+                offCtx.drawImage(img, 0, 0, targetWidth, targetHeight);
 
-                // ATUALIZADO: Usar SSD Mobilenet V1 no canvas processado
+                // ATUALIZADO: Usar SSD Mobilenet V1 no canvas processado e redimensionado
                 const detection = await faceapi.detectSingleFace(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })).withFaceLandmarks().withFaceDescriptor();
                 
                 if (detection) {
                     tempDescriptor = Array.from(detection.descriptor);
+                    
+                    // MÁGICA: Substitui a foto original (pesada) pela processada (muito leve ~20KB)
+                    tempPhoto = offCanvas.toDataURL('image/jpeg', 0.7);
                     
                     btn.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4"></i> Biometria Extraída';
                     btn.classList.replace('bg-blue-600', 'bg-green-600');
