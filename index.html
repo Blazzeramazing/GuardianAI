@@ -185,9 +185,10 @@
                     </div>
                 </div>
 
-                <!-- VISTA 2: BANCO DE FACES (CADASTRO) -->
+                <!-- VISTA 2: BANCO DE FACES -->
                 <div id="tab-db" class="tab-content hidden flex-col h-full w-full bg-gray-950 overflow-y-auto p-4 md:p-6">
                     <div class="max-w-7xl mx-auto w-full grid grid-cols-1 xl:grid-cols-2 gap-6 pb-10">
+                        <!-- Formulário de Cadastro -->
                         <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden shadow-2xl h-fit">
                             <div class="p-4 md:p-6 border-b border-gray-800 bg-black/50">
                                 <h2 class="text-lg md:text-xl font-bold text-white flex items-center gap-2">
@@ -195,6 +196,7 @@
                                 </h2>
                                 <p class="text-xs md:text-sm text-gray-400 mt-1">Extraia a biometria para a IA buscar nas câmeras.</p>
                             </div>
+                            
                             <div class="flex flex-col p-4 md:p-6 gap-6">
                                 <div class="w-full flex flex-col items-center">
                                     <div class="w-48 h-48 md:w-64 md:h-64 bg-black rounded-full overflow-hidden relative border-4 border-gray-700 shadow-lg flex items-center justify-center mb-4">
@@ -208,6 +210,7 @@
                                         <i data-lucide="camera" class="w-5 h-5"></i> Extrair Biometria
                                     </button>
                                 </div>
+
                                 <form id="db-form" onsubmit="savePersonToDB(event)" class="w-full space-y-4">
                                     <div>
                                         <label class="block text-sm font-medium text-gray-400 mb-1">Nome de Identificação</label>
@@ -217,7 +220,7 @@
                                         <label class="block text-sm font-medium text-gray-400 mb-1">Grau de Atenção</label>
                                         <select id="person-level" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 md:py-2.5 text-white focus:border-blue-500 outline-none appearance-none transition-colors">
                                             <option value="normal">🟢 Normal (Apenas Registo)</option>
-                                            <option value="suspect">🟡 Suspeito (Aviso)</option>
+                                            <option value="suspect">🟡 Suspeito (Aviso Silencioso)</option>
                                             <option value="danger">🔴 Ameaça Crítica (Alarme)</option>
                                         </select>
                                     </div>
@@ -325,6 +328,7 @@
                             </div>
                         </header>
                         
+                        <!-- Container Responsivo para Tabela -->
                         <div class="w-full overflow-x-auto">
                             <table class="w-full text-left border-collapse min-w-[600px]">
                                 <thead>
@@ -337,7 +341,6 @@
                                     </tr>
                                 </thead>
                                 <tbody id="logs-table-body" class="text-sm text-gray-300 divide-y divide-gray-800/50">
-                                    <!-- Injetado via JS -->
                                 </tbody>
                             </table>
                         </div>
@@ -369,7 +372,7 @@
                                 <div class="flex items-center justify-between gap-4 mb-3">
                                     <div class="min-w-0">
                                         <div class="text-sm font-semibold text-white">Tolerância da IA (Reconhecimento)</div>
-                                        <div class="text-xs text-gray-400">Ajusta a flexibilidade do reconhecimento (0.1 a 0.9). Valores maiores reconhecem mais fácil, mas podem gerar falsos positivos.</div>
+                                        <div class="text-xs text-gray-400">Ajusta a flexibilidade do reconhecimento (0.1 a 0.9). Valores maiores reconhecem mais fácil, mas geram falsos positivos.</div>
                                     </div>
                                     <div id="ai-confidence-value" class="text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-900/40 px-2 py-1 rounded">0.60</div>
                                 </div>
@@ -637,7 +640,9 @@
                     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                     const videoEl = document.getElementById('register-video');
                     videoEl.srcObject = stream;
-                    videoEl.play().catch(e => console.warn("Autoplay da câmera do DB bloqueado", e));
+                    videoEl.onloadedmetadata = () => {
+                        videoEl.play().catch(e => console.warn("Autoplay da câmera do DB bloqueado", e));
+                    };
                     window.currentRegisterStream = stream; 
                 } catch(e) {
                     console.warn("Permissão de câmera negada na aba DB", e);
@@ -1351,7 +1356,7 @@
                     <div class="flex items-center gap-3">
                         <img src="${escapeHtml(p.photo)}" class="w-12 h-12 rounded-full object-cover border border-gray-700 bg-black shrink-0" onerror="this.src=''; this.classList.add('bg-gray-800')">
                         <div class="min-w-0 flex-1">
-                            <div class="text-sm font-bold text-white truncate w-full">${escapeHtml(p.name)}</div>
+                            <div class="text-sm font-bold text-white truncate w-full" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
                             <div class="mt-1">${levelBadgeHtml(p.level)}</div>
                         </div>
                     </div>
@@ -1452,6 +1457,103 @@
         setInterval(() => {
             document.querySelectorAll('.vms-clock').forEach(el => el.innerText = new Date().toLocaleTimeString('pt-BR', { hour12: false }));
         }, 1000);
+
+        window.captureFaceForDB = async () => {
+            if (!isAiReady) return showToast("Aguarde a IA carregar...", "warning");
+            
+            const video = document.getElementById('register-video');
+            const preview = document.getElementById('register-preview');
+            const btn = document.getElementById('btn-scan');
+
+            if (tempPhoto) {
+                tempPhoto = null;
+                tempDescriptor = null;
+                preview.classList.add('hidden');
+                video.classList.remove('hidden');
+                btn.innerHTML = '<i data-lucide="camera" class="w-5 h-5"></i> Extrair Biometria';
+                btn.classList.replace('bg-gray-700', 'bg-blue-600');
+                btn.classList.replace('hover:bg-gray-600', 'hover:bg-blue-500');
+                lucide.createIcons();
+                return;
+            }
+
+            if (!video || video.readyState < 2) {
+                return showToast("Aguarde a câmera inicializar...", "warning");
+            }
+
+            const scanAnim = document.getElementById('scan-animation');
+            scanAnim.classList.remove('hidden');
+            btn.disabled = true;
+            showToast("Analisando biometria, por favor aguarde...");
+
+            try {
+                const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.3, inputSize: 512 })).withFaceLandmarks().withFaceDescriptor();
+                
+                if (detection) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth; 
+                    canvas.height = video.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    
+                    ctx.translate(canvas.width, 0);
+                    ctx.scale(-1, 1);
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    tempPhoto = canvas.toDataURL('image/jpeg', 0.8);
+                    tempDescriptor = Array.from(detection.descriptor);
+                    
+                    video.classList.add('hidden');
+                    preview.src = tempPhoto;
+                    preview.classList.remove('hidden');
+                    
+                    btn.innerHTML = '<i data-lucide="refresh-cw" class="w-5 h-5"></i> Refazer Captura';
+                    btn.classList.replace('bg-blue-600', 'bg-gray-700');
+                    btn.classList.replace('hover:bg-blue-500', 'hover:bg-gray-600');
+                    lucide.createIcons();
+                    
+                    showToast("Biometria extraída com sucesso!", "success");
+                } else {
+                    showToast("Nenhum rosto detectado. Fique de frente para a câmera e melhore a iluminação.", "error");
+                }
+            } catch (err) {
+                console.error(err);
+                showToast("Erro ao processar a imagem pela IA.", "error");
+            } finally {
+                scanAnim.classList.add('hidden');
+                btn.disabled = false;
+            }
+        };
+
+        window.savePersonToDB = async (e) => {
+            e.preventDefault();
+            if (!db) return showToast("Banco Offline", "error");
+            if (!tempDescriptor || !tempPhoto) return showToast("Extraia a biometria primeiro!", "error");
+
+            const person = {
+                name: document.getElementById('person-name').value,
+                level: document.getElementById('person-level').value,
+                photo: tempPhoto,
+                descriptor: tempDescriptor
+            };
+
+            try {
+                await addDoc(collection(db, "students"), person);
+                showToast("Alvo salvo na base de dados!", "success");
+                
+                document.getElementById('db-form').reset();
+                tempDescriptor = null; tempPhoto = null;
+                document.getElementById('register-preview').classList.add('hidden');
+                document.getElementById('register-video').classList.remove('hidden');
+                
+                const btn = document.getElementById('btn-scan');
+                btn.innerHTML = '<i data-lucide="camera" class="w-5 h-5"></i> Extrair Biometria';
+                btn.classList.replace('bg-gray-700', 'bg-blue-600');
+                btn.classList.replace('hover:bg-gray-600', 'hover:bg-blue-500');
+                lucide.createIcons();
+            } catch (err) {
+                showToast("Erro ao salvar no Firebase.", "error");
+            }
+        };
 
         function bootApp() {
             loadTripwires();
