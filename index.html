@@ -597,6 +597,7 @@
                 } else {
                     stopAllAILoops();
                     stopAllWebRTCConnections();
+                    stopAllMediaStreams();
                     if (typeof window.acknowledgeAlarm === 'function') window.acknowledgeAlarm();
                 }
             });
@@ -693,7 +694,7 @@
                 renderSidebarCameras(); renderGrid();
             } else {
                 sidebarCams.classList.add('hidden'); sidebarCams.classList.remove('flex');
-                stopAllAILoops(); stopAllWebRTCConnections();
+                stopAllAILoops(); stopAllWebRTCConnections(); stopAllMediaStreams();
             }
 
             if (tab === 'db') {
@@ -1087,6 +1088,21 @@
             });
         }
 
+        function stopAllMediaStreams() {
+            document.querySelectorAll('.camera-slot video').forEach(video => {
+                if (video.srcObject) {
+                    try { video.srcObject.getTracks().forEach(track => track.stop()); } catch(e){}
+                    video.srcObject = null;
+                }
+                video.pause();
+                video.removeAttribute('src');
+                video.load();
+            });
+            document.querySelectorAll('.camera-slot img').forEach(img => {
+                img.src = '';
+            });
+        }
+
         async function waitForIceGatheringComplete(pc, timeoutMs = 2000) {
             if (pc.iceGatheringState === 'complete') return;
             await new Promise((resolve) => {
@@ -1213,6 +1229,7 @@
         async function renderGrid() {
             stopAllAILoops(); 
             stopAllWebRTCConnections();
+            stopAllMediaStreams();
             
             const grid = document.getElementById('video-grid');
             let cols = Math.ceil(Math.sqrt(layout));
@@ -1274,18 +1291,25 @@
                     const videoEl = document.getElementById(`media-${cam.id}`);
                     if (cam.type === 'webcam') {
                         try { 
-                            videoEl.srcObject = await navigator.mediaDevices.getUserMedia({ video: true }); 
-                            videoEl.play().catch(e => console.warn(e));
+                            const stream = await navigator.mediaDevices.getUserMedia({ video: true }); 
+                            const stillActive = document.getElementById(`media-${cam.id}`);
+                            if (stillActive) {
+                                videoEl.srcObject = stream; 
+                                videoEl.play().catch(e => console.warn(e));
+                            } else {
+                                stream.getTracks().forEach(t => t.stop());
+                            }
                         } catch (e) { console.error("Webcam recusada"); }
                     } else if (cam.type === 'webrtc') {
                         startMediaMTXWebRTC(cam.url, videoEl, cam.id).then(ok => {
-                            // AQUI É A CORREÇÃO: O MOTOR DA IA ARRANCA MESMO SEM ALVOS NA BASE DE DADOS
-                            if (ok && isAiReady && !document.hidden) startCameraAI(cam);
+                            const stillActive = document.getElementById(`media-${cam.id}`);
+                            if (ok && isAiReady && !document.hidden && stillActive) startCameraAI(cam);
                         });
                     }
 
                     if (cam.type !== 'webrtc' && isAiReady && !document.hidden) {
-                        startCameraAI(cam);
+                        const stillActive = document.getElementById(`media-${cam.id}`);
+                        if(stillActive) startCameraAI(cam);
                     }
                 } else {
                     slot.innerHTML = `<div class="flex flex-col items-center opacity-30 pointer-events-none"><i data-lucide="video-off" class="w-8 h-8 mb-2"></i><span class="text-[10px] uppercase">Slot Vazio ${i+1}</span></div>`;
