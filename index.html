@@ -859,7 +859,8 @@
                 img.src = preview.src;
                 await new Promise((resolve) => { img.onload = resolve; });
 
-                const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.3 })).withFaceLandmarks().withFaceDescriptor();
+                // AUMENTADO: scoreThreshold de 0.3 para 0.5 para ignorar ruído em fotos
+                const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.5 })).withFaceLandmarks().withFaceDescriptor();
                 
                 if (detection) {
                     tempDescriptor = Array.from(detection.descriptor);
@@ -1412,7 +1413,8 @@
                     const displaySize = { width: media.clientWidth, height: media.clientHeight };
                     faceapi.matchDimensions(canvas, displaySize);
 
-                    const detections = await faceapi.detectAllFaces(media, new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.3 })).withFaceLandmarks().withFaceDescriptors();
+                    // AUMENTADO: scoreThreshold de 0.3 para 0.6 para ignorar rigorosamente objetos do ambiente
+                    const detections = await faceapi.detectAllFaces(media, new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.6 })).withFaceLandmarks().withFaceDescriptors();
                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
                     
                     const ctx = canvas.getContext('2d');
