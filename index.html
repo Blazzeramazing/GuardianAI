@@ -198,13 +198,21 @@
                             </div>
                             <div class="flex flex-col p-4 md:p-6 gap-6">
                                 <div class="w-full flex flex-col items-center">
-                                    <div class="w-48 h-48 md:w-64 md:h-64 bg-black rounded-full overflow-hidden relative border-4 border-gray-700 shadow-lg flex items-center justify-center mb-4">
+                                    <div class="w-48 h-48 md:w-64 md:h-64 bg-black rounded-full overflow-hidden relative border-4 border-gray-700 shadow-lg flex items-center justify-center mb-2">
                                         <video id="register-video" autoplay playsinline muted class="w-full h-full object-cover transform -scale-x-100"></video>
                                         <img id="register-preview" class="w-full h-full object-cover hidden">
                                         <div id="scan-animation" class="absolute inset-0 bg-blue-500/20 hidden">
                                             <div class="w-full h-1 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,1)] animate-[scan_1.5s_infinite]"></div>
                                         </div>
                                     </div>
+                                    
+                                    <!-- NOVO SELETOR DE WEBCAM PARA REGISTRO -->
+                                    <div class="w-full max-w-xs mb-4">
+                                        <select id="register-cam-selector" onchange="changeRegisterCamera(this.value)" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-gray-400 text-xs outline-none transition-colors appearance-none text-center">
+                                            <option value="">A procurar câmaras...</option>
+                                        </select>
+                                    </div>
+
                                     <button id="btn-scan" onclick="captureFaceForDB()" disabled class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-full font-medium transition-colors shadow flex items-center gap-2 disabled:bg-gray-700 active:scale-95">
                                         <i data-lucide="camera" class="w-5 h-5"></i> Extrair Biometria
                                     </button>
@@ -639,7 +647,48 @@
             faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, getAiConfidence());
         }
 
-        // ================= NAVEGAÇÃO =================
+        // ================= NAVEGAÇÃO & SELEÇÃO DE WEBCAM =================
+        // Extrai a lista de webcams ativas para popular o dropdown
+        async function loadLocalWebcams() {
+            const selector = document.getElementById('register-cam-selector');
+            if (!selector) return;
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoInputs = devices.filter(d => d.kind === 'videoinput');
+                if (videoInputs.length === 0) {
+                    selector.innerHTML = '<option value="">Nenhuma câmara detetada</option>';
+                    return;
+                }
+                selector.innerHTML = videoInputs.map(d => `<option value="${d.deviceId}">${d.label || 'Câmara ' + d.deviceId.substring(0, 5)}</option>`).join('');
+                
+                // Se já houver um vídeo a tocar, tenta selecionar o correspondente
+                const currentTrack = window.currentRegisterStream?.getVideoTracks()[0];
+                if (currentTrack) {
+                    const currentDevice = videoInputs.find(d => d.label === currentTrack.label);
+                    if (currentDevice) selector.value = currentDevice.deviceId;
+                }
+            } catch(e) {
+                selector.innerHTML = '<option value="">Permita o acesso à câmara primeiro</option>';
+            }
+        }
+
+        window.changeRegisterCamera = async (deviceId) => {
+            if (!deviceId) return;
+            try {
+                if (window.currentRegisterStream) {
+                    window.currentRegisterStream.getTracks().forEach(t => t.stop());
+                }
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: deviceId } } });
+                const videoEl = document.getElementById('register-video');
+                videoEl.srcObject = stream;
+                videoEl.play().catch(e => console.warn(e));
+                window.currentRegisterStream = stream;
+            } catch(e) {
+                console.error("Erro a mudar de câmara:", e);
+                showToast("Erro ao aceder à câmara selecionada.", "error");
+            }
+        };
+
         window.switchTab = async (tab) => {
             activeTab = tab;
             closeSidebarDrawer();
@@ -663,14 +712,17 @@
 
             if (tab === 'db') {
                 try {
+                    // Pede a câmara padrão (ou a primeira) e depois lista as opções
                     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                     const videoEl = document.getElementById('register-video');
                     videoEl.srcObject = stream;
                     videoEl.play().catch(e => console.warn("Autoplay bloqueado", e));
                     window.currentRegisterStream = stream; 
+                    await loadLocalWebcams();
                 } catch(e) {
                     console.warn("Permissão de câmara negada na aba DB", e);
                     showToast("Permita a câmara no navegador para registar alvos.", "error");
+                    await loadLocalWebcams(); // Mostra a mensagem de erro no dropdown
                 }
                 hydrateFacesControls(); renderFaces();
             } else if (window.currentRegisterStream) {
@@ -756,7 +808,6 @@
                     const nomenclatura = rawNome || `CAM_${ip.replace(/\./g, '_')}`;
                     const safeName = nomenclatura.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
                     
-                    // CORREÇÃO CRÍTICA: FORÇAR O RTSP TRANSPORT PARA TCP
                     ymlOutput += `  ${safeName}:\n    source: rtsp://${login}:${senha}@${ip}:554/cam/realmonitor?channel=1&subtype=0\n    rtspTransport: tcp\n\n`;
                     
                     const displayName = rawLocal ? `${nomenclatura} - ${rawLocal}` : nomenclatura;
@@ -1041,7 +1092,7 @@
         }
 
         // ================= WEBRTC & CÂMARAS =================
-        function renderWebRTCFailure(videoEl) {
+        function renderWebRTCFailure(videoEl, errorMsg = 'Falha WebRTC') {
             const slot = videoEl?.closest?.('.camera-slot');
             if (!slot) return;
             const old = slot.querySelector(`#${videoEl.id}-overlay`);
@@ -1049,7 +1100,7 @@
             const overlay = document.createElement('div');
             overlay.id = `${videoEl.id}-overlay`;
             overlay.className = 'absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-gray-200 z-30 gap-2';
-            overlay.innerHTML = `<i data-lucide="wifi-off" class="w-8 h-8 text-red-400"></i><div class="text-sm font-bold">Falha WebRTC</div>`;
+            overlay.innerHTML = `<i data-lucide="wifi-off" class="w-8 h-8 text-red-400"></i><div class="text-sm font-bold text-center">${errorMsg}</div>`;
             slot.appendChild(overlay); lucide.createIcons();
         }
 
@@ -1072,6 +1123,12 @@
 
         async function startMediaMTXWebRTC(whepUrl, videoEl, cameraId) {
             if (!whepUrl || !videoEl || !cameraId) return;
+            if (!whepUrl.endsWith('/whep')) {
+                console.error("URL Inválida (deve terminar com /whep):", whepUrl);
+                renderWebRTCFailure(videoEl, 'URL de WebRTC Inválida');
+                return false;
+            }
+
             if (webrtcConnections[cameraId]) {
                 try { webrtcConnections[cameraId].close(); } catch {}
                 delete webrtcConnections[cameraId];
@@ -1086,10 +1143,19 @@
                 if (!stream) return;
                 if (videoEl.srcObject !== stream) videoEl.srcObject = stream;
                 videoEl.play().catch(() => {});
+                
+                // Remove o overlay de erro se conseguiu conectar
+                const slot = videoEl.closest('.camera-slot');
+                if (slot) {
+                    const errOverlay = slot.querySelector(`#${videoEl.id}-overlay`);
+                    if (errOverlay) errOverlay.remove();
+                }
             };
 
             pc.oniceconnectionstatechange = () => {
-                if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') renderWebRTCFailure(videoEl);
+                if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+                    renderWebRTCFailure(videoEl, 'Desconectado pelo Servidor');
+                }
             };
 
             try {
@@ -1108,7 +1174,8 @@
                 await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
                 return true;
             } catch (e) {
-                renderWebRTCFailure(videoEl);
+                console.error("Falha no WebRTC para", cameraId, e);
+                renderWebRTCFailure(videoEl, 'Falha na Negociação WHEP');
                 try { pc.close(); } catch {}
                 delete webrtcConnections[cameraId];
                 return false;
