@@ -644,7 +644,9 @@
         async function initAI() {
             try {
                 const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/';
-                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                
+                // SUBSTITUÍDO: Mudámos do TinyFaceDetector para o SSD Mobilenet V1 (muito superior para distâncias)
+                await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
                 
@@ -859,8 +861,8 @@
                 img.src = preview.src;
                 await new Promise((resolve) => { img.onload = resolve; });
 
-                // AUMENTADO: scoreThreshold de 0.3 para 0.5 para ignorar ruído em fotos
-                const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.5 })).withFaceLandmarks().withFaceDescriptor();
+                // ATUALIZADO: Usar SSD Mobilenet V1 para extração biométrica mais rigorosa
+                const detection = await faceapi.detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })).withFaceLandmarks().withFaceDescriptor();
                 
                 if (detection) {
                     tempDescriptor = Array.from(detection.descriptor);
@@ -1292,7 +1294,8 @@
                     const videoEl = document.getElementById(`media-${cam.id}`);
                     if (cam.type === 'webcam') {
                         try { 
-                            const stream = await navigator.mediaDevices.getUserMedia({ video: true }); 
+                            // FORÇADO: Solicita à webcam a melhor resolução possível (FullHD) em vez de VGA(640x480)
+                            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } } }); 
                             const stillActive = document.getElementById(`media-${cam.id}`);
                             if (stillActive) {
                                 videoEl.srcObject = stream; 
@@ -1413,8 +1416,8 @@
                     const displaySize = { width: media.clientWidth, height: media.clientHeight };
                     faceapi.matchDimensions(canvas, displaySize);
 
-                    // AUMENTADO: scoreThreshold de 0.3 para 0.6 para ignorar rigorosamente objetos do ambiente
-                    const detections = await faceapi.detectAllFaces(media, new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.6 })).withFaceLandmarks().withFaceDescriptors();
+                    // ATUALIZADO: Motor SSD Mobilenet V1 - Excelente para capturar rostos distantes (minConfidence a 0.5)
+                    const detections = await faceapi.detectAllFaces(media, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })).withFaceLandmarks().withFaceDescriptors();
                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
                     
                     const ctx = canvas.getContext('2d');
