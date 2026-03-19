@@ -861,8 +861,15 @@
                 img.src = preview.src;
                 await new Promise((resolve) => { img.onload = resolve; });
 
-                // ATUALIZADO: Usar SSD Mobilenet V1 para extração biométrica mais rigorosa
-                const detection = await faceapi.detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })).withFaceLandmarks().withFaceDescriptor();
+                // NOVO: Pré-processamento HDR também na foto de registo para extrair a melhor biometria
+                const offCanvas = document.createElement('canvas');
+                offCanvas.width = img.width; offCanvas.height = img.height;
+                const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+                offCtx.filter = 'contrast(1.10) brightness(1.05)';
+                offCtx.drawImage(img, 0, 0, img.width, img.height);
+
+                // ATUALIZADO: Usar SSD Mobilenet V1 no canvas processado
+                const detection = await faceapi.detectSingleFace(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })).withFaceLandmarks().withFaceDescriptor();
                 
                 if (detection) {
                     tempDescriptor = Array.from(detection.descriptor);
@@ -1398,7 +1405,7 @@
         };
 
         function stopAllAILoops() {
-            Object.values(aiLoops).forEach(clearInterval);
+            Object.values(aiLoops).forEach(loop => { if(loop) loop.active = false; });
             aiLoops = {};
         }
 
@@ -1408,16 +1415,47 @@
             const canvas = document.getElementById(`canvas-${cam.id}`);
             if (!media || !canvas) return;
 
-            aiLoops[cam.id] = setInterval(async () => {
-                if (document.hidden || activeTab !== 'live' || !media.clientWidth) return;
-                if (media.tagName === 'VIDEO' && media.readyState < 2) return;
+            // NOVO: Criar canvas virtual para Pré-processamento (HDR Computacional)
+            const offCanvas = document.createElement('canvas');
+            const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+
+            // Estado de controlo para a câmara individual
+            const loopState = { active: true };
+            aiLoops[cam.id] = loopState;
+
+            async function processFrame() {
+                if (!loopState.active) return;
+                
+                // Se a tab estiver oculta ou o vídeo não estiver pronto, repousa um pouco e tenta de novo
+                if (document.hidden || activeTab !== 'live' || !media.clientWidth) {
+                    setTimeout(processFrame, 1000);
+                    return;
+                }
+                if (media.tagName === 'VIDEO' && media.readyState < 2) {
+                    setTimeout(processFrame, 500);
+                    return;
+                }
+                
+                const startTime = Date.now();
                 
                 try {
+                    const vidWidth = media.videoWidth || media.naturalWidth || media.clientWidth || 640;
+                    const vidHeight = media.videoHeight || media.naturalHeight || media.clientHeight || 480;
                     const displaySize = { width: media.clientWidth, height: media.clientHeight };
                     faceapi.matchDimensions(canvas, displaySize);
 
-                    // ATUALIZADO: Motor SSD Mobilenet V1 - Excelente para capturar rostos distantes (minConfidence a 0.5)
-                    const detections = await faceapi.detectAllFaces(media, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })).withFaceLandmarks().withFaceDescriptors();
+                    // APLICAR HDR E CONSTRASTE ANTES DA IA LER
+                    offCanvas.width = vidWidth;
+                    offCanvas.height = vidHeight;
+                    offCtx.filter = 'contrast(1.15) brightness(1.10)';
+                    offCtx.drawImage(media, 0, 0, vidWidth, vidHeight);
+
+                    // ATUALIZADO: Motor SSD Mobilenet lendo do offCanvas tratado
+                    let detections = await faceapi.detectAllFaces(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })).withFaceLandmarks().withFaceDescriptors();
+                    
+                    // NOVO: Filtrar falsos positivos microscópicos (< 40px na imagem original)
+                    detections = detections.filter(d => d.detection.box.width >= 40 && d.detection.box.height >= 40);
+
                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
                     
                     const ctx = canvas.getContext('2d');
@@ -1458,8 +1496,23 @@
                             }
                         }
                     });
-                } catch (e) {}
-            }, 800); 
+                } catch (e) {
+                    console.warn("Erro no processamento da câmara", cam.id, e);
+                }
+
+                // CÁLCULO INTELIGENTE DO CPU: 
+                // Mede o tempo gasto na IA. Se demorou 300ms, espera 500ms (para manter ~1 FPS e deixar o PC respirar)
+                const elapsed = Date.now() - startTime;
+                const delay = Math.max(100, 800 - elapsed);
+                
+                // Agenda a próxima leitura APENAS se o loop ainda estiver ativo
+                if (loopState.active) {
+                    setTimeout(processFrame, delay);
+                }
+            }
+            
+            // Dá o arranque ao loop assíncrono desta câmara específica
+            processFrame();
         }
 
         function resumeAILoopsIfNeeded() {
