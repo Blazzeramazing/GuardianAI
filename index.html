@@ -38,32 +38,6 @@
     <!-- TOASTS -->
     <div id="toast-container" class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"></div>
 
-    <div id="login-screen" class="fixed inset-0 z-[300] flex items-center justify-center bg-gray-950 p-6">
-        <div class="w-full max-w-sm bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden">
-            <div class="p-6 border-b border-gray-800 bg-black/50">
-                <div class="flex items-center gap-2 mb-2">
-                    <i data-lucide="shield" class="w-5 h-5 text-blue-500"></i>
-                    <div class="text-lg font-bold text-white">Acesso Operador</div>
-                </div>
-                <div class="text-xs text-gray-400 font-mono">DefenseAI VMS • Autenticação Obrigatória</div>
-            </div>
-            <form id="login-form" onsubmit="login(event)" class="p-6 space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-400 mb-1">E-mail</label>
-                    <input id="login-email" type="email" autocomplete="username" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-400 mb-1">Senha</label>
-                    <input id="login-password" type="password" autocomplete="current-password" required class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none">
-                </div>
-                <button id="login-submit" type="submit" class="w-full h-12 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium flex items-center justify-center gap-2">
-                    <i data-lucide="log-in" class="w-4 h-4"></i> Entrar
-                </button>
-            </form>
-        </div>
-    </div>
-
-    <div id="app-shell" class="hidden flex-1 flex flex-col overflow-hidden">
     <!-- PAINEL TÁTICO DE ALARME (TELA CHEIA) -->
     <div id="tactical-alarm-panel" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/80 backdrop-blur-md pointer-events-auto">
         <div class="alarm-flash border-4 border-red-500 rounded-2xl p-4 md:p-8 max-w-2xl w-full text-center flex flex-col items-center">
@@ -126,9 +100,6 @@
                 <button onclick="switchTab('logs')" id="nav-logs" class="nav-btn h-11 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded text-sm font-medium transition-colors flex items-center gap-3">
                     <i data-lucide="history" class="w-4 h-4"></i> Histórico de Eventos
                 </button>
-                <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn h-11 px-4 text-gray-400 hover:bg-gray-800 hover:text-white rounded text-sm font-medium transition-colors flex items-center gap-3">
-                    <i data-lucide="settings" class="w-4 h-4"></i> Configurações
-                </button>
             </div>
 
             <!-- Lista de Câmeras (Apenas na aba Ao Vivo) -->
@@ -140,12 +111,6 @@
                     </button>
                 </div>
                 <ul id="camera-list" class="space-y-2"></ul>
-            </div>
-
-            <div class="p-2 border-t border-gray-800 bg-gray-950 mt-auto">
-                <button onclick="logout()" class="w-full h-11 px-4 rounded text-sm font-medium transition-colors flex items-center gap-3 text-gray-300 hover:bg-gray-800 hover:text-white">
-                    <i data-lucide="log-out" class="w-4 h-4"></i> Sair
-                </button>
             </div>
         </aside>
 
@@ -342,40 +307,6 @@
                 </div>
             </div>
 
-            <div id="tab-settings" class="tab-content hidden flex-col h-full w-full bg-gray-950 p-6 overflow-y-auto">
-                <div class="max-w-3xl mx-auto w-full bg-gray-900 rounded-xl border border-gray-800 shadow-2xl overflow-hidden">
-                    <div class="p-6 border-b border-gray-800 bg-black/50">
-                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                            <i data-lucide="settings" class="text-blue-500"></i> Configurações do Sistema
-                        </h2>
-                        <p class="text-sm text-gray-400 mt-1">Parâmetros locais por dispositivo do operador.</p>
-                    </div>
-
-                    <div class="p-6 space-y-6">
-                        <div class="bg-gray-950 border border-gray-800 rounded-xl p-5">
-                            <div class="flex items-center justify-between gap-4 mb-3">
-                                <div class="min-w-0">
-                                    <div class="text-sm font-semibold text-white">Confiança da IA</div>
-                                    <div class="text-xs text-gray-400">Ajusta a margem do FaceMatcher (0.1 a 0.9).</div>
-                                </div>
-                                <div id="ai-confidence-value" class="text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-900/40 px-2 py-1 rounded">0.55</div>
-                            </div>
-                            <input id="ai-confidence" type="range" min="0.1" max="0.9" step="0.05" class="w-full accent-blue-500">
-                        </div>
-
-                        <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 flex items-center justify-between gap-4 flex-wrap">
-                            <div class="min-w-0">
-                                <div class="text-sm font-semibold text-white">Sirene (Som)</div>
-                                <div class="text-xs text-gray-400">Desativa alertas sonoros; mantém alarmes visuais.</div>
-                            </div>
-                            <button id="mute-toggle" onclick="toggleMute()" class="h-11 px-4 rounded-lg border border-gray-700 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium flex items-center gap-2">
-                                <i data-lucide="volume-2" class="w-4 h-4"></i> Som Ativo
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
         </main>
     </div>
 
@@ -431,8 +362,6 @@
                 </div>
             </form>
         </div>
-    </div>
-
     </div>
 
     <!-- LÓGICA DO SISTEMA -->
