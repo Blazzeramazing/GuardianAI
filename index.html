@@ -666,9 +666,7 @@
                     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                     const videoEl = document.getElementById('register-video');
                     videoEl.srcObject = stream;
-                    videoEl.onloadedmetadata = () => {
-                        videoEl.play().catch(e => console.warn("Autoplay bloqueado", e));
-                    };
+                    videoEl.play().catch(e => console.warn("Autoplay bloqueado", e));
                     window.currentRegisterStream = stream; 
                 } catch(e) {
                     console.warn("Permissão de câmara negada na aba DB", e);
@@ -707,7 +705,6 @@
             const file = event.target.files[0];
             if (!file) return;
 
-            // Bloqueio de segurança para ficheiros .xlsx diretos
             if (file.name.toLowerCase().endsWith('.xlsx')) {
                 showToast("Erro: O ficheiro deve estar no formato CSV. No Excel, vá a Ficheiro > Guardar Como > CSV.", "error");
                 event.target.value = '';
@@ -718,7 +715,6 @@
             reader.onload = (e) => {
                 let text = e.target.result;
                 
-                // Remove o BOM (Byte Order Mark) invisível
                 text = text.replace(/^\uFEFF/, '');
                 
                 const lines = text.split(/\r\n|\n|\r/).filter(line => line.trim().length > 0);
@@ -727,7 +723,6 @@
                     return showToast("O ficheiro CSV está vazio ou tem um formato inválido.", "error");
                 }
 
-                // Extrai cabeçalhos e remove carateres especiais/invisíveis para garantir a correspondência
                 const headers = lines[0].split(/[,;]/).map(h => h.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''));
                 
                 const idxIP = headers.findIndex(h => h === 'IP' || h.includes('IP'));
@@ -756,13 +751,13 @@
                     let login = idxLogin > -1 && row[idxLogin] ? row[idxLogin] : 'admin';
                     let senha = idxSenha > -1 && row[idxSenha] ? row[idxSenha] : 'admin';
 
-                    // Ignora linhas reservadas sem nome ou local
                     if (!rawNome && !rawLocal && (!idxLogin || !row[idxLogin])) continue;
                     
                     const nomenclatura = rawNome || `CAM_${ip.replace(/\./g, '_')}`;
                     const safeName = nomenclatura.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
                     
-                    ymlOutput += `  ${safeName}:\n    source: rtsp://${login}:${senha}@${ip}:554/cam/realmonitor?channel=1&subtype=0\n\n`;
+                    // CORREÇÃO CRÍTICA: FORÇAR O RTSP TRANSPORT PARA TCP
+                    ymlOutput += `  ${safeName}:\n    source: rtsp://${login}:${senha}@${ip}:554/cam/realmonitor?channel=1&subtype=0\n    rtspTransport: tcp\n\n`;
                     
                     const displayName = rawLocal ? `${nomenclatura} - ${rawLocal}` : nomenclatura;
                     const webrtcUrl = `http://localhost:8889/${safeName}/whep`;
@@ -925,7 +920,7 @@
             const vx = x2 - x1, vy = y2 - y1, wx = px - x1, wy = py - y1;
             const c1 = vx * wx + vy * wy;
             if (c1 <= 0) return Math.hypot(px - x1, py - y1);
-            const c2 = vx * vx + vy * vy;
+            const c2 = vx * vx + vy * wy;
             if (c2 <= c1) return Math.hypot(px - x2, py - y2);
             const b = c1 / c2;
             return Math.hypot(px - (x1 + b * vx), py - (y1 + b * vy));
@@ -1201,7 +1196,7 @@
                 if (cam) {
                     let mediaHtml = (cam.type === 'webcam' || cam.type === 'webrtc') 
                         ? `<video id="media-${cam.id}" autoplay playsinline muted class="w-full h-full object-cover"></video>`
-                        : `<img id="media-${cam.id}" src="${cam.url}" crossorigin="anonymous" class="w-full h-full object-cover" onerror="this.src=''; this.alt='Sinal Bloqueado';">`;
+                        : `<img id="media-${cam.id}" src="${cam.url}" crossorigin="anonymous" class="w-full h-full object-cover" onerror="this.src=''; this.alt='Sinal Perdido ou Bloqueado por CORS';">`;
 
                     const hasLine = !!getTripwire(cam.id);
                     const tripwireBtnBase = hasLine ? 'bg-red-600/80 hover:bg-red-600/90' : 'bg-black/60 hover:bg-black/70';
@@ -1266,7 +1261,6 @@
                     const displaySize = { width: media.clientWidth, height: media.clientHeight };
                     faceapi.matchDimensions(canvas, displaySize);
 
-                    // SCORE THRESHOLD EM 0.4 PARA FACILITAR RECONHECIMENTO AO VIVO
                     const detections = await faceapi.detectAllFaces(media, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.4 })).withFaceLandmarks().withFaceDescriptors();
                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
                     
@@ -1327,7 +1321,7 @@
                 snapshotBase64 = tempCanvas.toDataURL('image/jpeg', 0.6);
             } catch (e) {}
 
-            const time = new Date().toLocaleString('pt-PT');
+            const time = new Date().toLocaleTimeString('pt-PT');
             if (db) {
                 try {
                     const logEntry = { personName: person.name, level: person.level, cameraName: cam.name, time, timestamp: Date.now(), snapshot: snapshotBase64 };
