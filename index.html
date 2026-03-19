@@ -198,15 +198,15 @@
                             </div>
                             <div class="flex flex-col p-4 md:p-6 gap-6">
                                 <div class="w-full flex flex-col items-center">
-                                    <div class="w-48 h-48 md:w-64 md:h-64 bg-black rounded-full overflow-hidden relative border-4 border-gray-700 shadow-lg flex items-center justify-center mb-2">
+                                    <div class="w-48 h-48 md:w-64 md:h-64 bg-black rounded-full overflow-hidden relative border-4 border-gray-700 shadow-lg flex items-center justify-center mb-4">
                                         <video id="register-video" autoplay playsinline muted class="w-full h-full object-cover transform -scale-x-100"></video>
                                         <img id="register-preview" class="w-full h-full object-cover hidden">
                                         <div id="scan-animation" class="absolute inset-0 bg-blue-500/20 hidden">
                                             <div class="w-full h-1 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,1)] animate-[scan_1.5s_infinite]"></div>
                                         </div>
                                     </div>
-                                    
-                                    <!-- NOVO SELETOR DE WEBCAM PARA REGISTRO -->
+
+                                    <!-- SELETOR DE WEBCAM REPOSTO AQUI -->
                                     <div class="w-full max-w-xs mb-4">
                                         <select id="register-cam-selector" onchange="changeRegisterCamera(this.value)" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-gray-400 text-xs outline-none transition-colors appearance-none text-center">
                                             <option value="">A procurar câmaras...</option>
@@ -648,7 +648,7 @@
         }
 
         // ================= NAVEGAÇÃO & SELEÇÃO DE WEBCAM =================
-        // Extrai a lista de webcams ativas para popular o dropdown
+        // Função para carregar as câmaras no Dropdown (Seletor)
         async function loadLocalWebcams() {
             const selector = document.getElementById('register-cam-selector');
             if (!selector) return;
@@ -661,7 +661,6 @@
                 }
                 selector.innerHTML = videoInputs.map(d => `<option value="${d.deviceId}">${d.label || 'Câmara ' + d.deviceId.substring(0, 5)}</option>`).join('');
                 
-                // Se já houver um vídeo a tocar, tenta selecionar o correspondente
                 const currentTrack = window.currentRegisterStream?.getVideoTracks()[0];
                 if (currentTrack) {
                     const currentDevice = videoInputs.find(d => d.label === currentTrack.label);
@@ -672,6 +671,7 @@
             }
         }
 
+        // Função ativada quando o utilizador muda a câmara no dropdown
         window.changeRegisterCamera = async (deviceId) => {
             if (!deviceId) return;
             try {
@@ -711,18 +711,20 @@
             }
 
             if (tab === 'db') {
+                if (window.location.protocol === 'file:') {
+                    showToast("ATENÇÃO: O Chrome pode bloquear a câmara em ficheiros locais (file://). Utilize um servidor local (ex: Live Server).", "warning");
+                }
                 try {
-                    // Pede a câmara padrão (ou a primeira) e depois lista as opções
                     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                     const videoEl = document.getElementById('register-video');
                     videoEl.srcObject = stream;
                     videoEl.play().catch(e => console.warn("Autoplay bloqueado", e));
                     window.currentRegisterStream = stream; 
-                    await loadLocalWebcams();
+                    await loadLocalWebcams(); // Carrega opções no seletor
                 } catch(e) {
                     console.warn("Permissão de câmara negada na aba DB", e);
                     showToast("Permita a câmara no navegador para registar alvos.", "error");
-                    await loadLocalWebcams(); // Mostra a mensagem de erro no dropdown
+                    await loadLocalWebcams();
                 }
                 hydrateFacesControls(); renderFaces();
             } else if (window.currentRegisterStream) {
