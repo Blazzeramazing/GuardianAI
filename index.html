@@ -383,6 +383,7 @@
         ];
 
         let aiLoops = {}; // Guarda os IDs dos intervalos de cada câmera
+        const webrtcConnections = {}; // RTCPeerConnections ativas por cameraId
         const lastDetectionTime = {}; // Cooldown para não dar spam de alarmes
 
         let audioCtx = null;
@@ -492,6 +493,7 @@
                 sidebarCams.classList.add('hidden');
                 sidebarCams.classList.remove('flex');
                 stopAllAILoops();
+                stopAllWebRTCConnections();
             }
 
             if (tab === 'db') {
@@ -623,8 +625,123 @@
             hydrateLogsControls();
         };
 
+        function renderWebRTCFailure(videoEl) {
+            const slot = videoEl?.closest?.('.camera-slot');
+            if (!slot) return;
+            const old = slot.querySelector(`#${videoEl.id}`);
+            if (old) old.remove();
+            const overlay = document.createElement('div');
+            overlay.className = 'absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-gray-200 z-30 gap-2';
+            overlay.innerHTML = `
+                <i data-lucide="wifi-off" class="w-8 h-8 text-red-400"></i>
+                <div class="text-sm font-bold">Falha de Conexão WebRTC</div>
+                <div class="text-xs text-gray-400 font-mono">Verifique WHEP / MediaMTX</div>
+            `;
+            slot.appendChild(overlay);
+            lucide.createIcons();
+        }
+
+        function stopAllWebRTCConnections() {
+            Object.entries(webrtcConnections).forEach(([cameraId, pc]) => {
+                try {
+                    pc.ontrack = null;
+                    pc.oniceconnectionstatechange = null;
+                    pc.onconnectionstatechange = null;
+                    pc.onicecandidate = null;
+                } catch {}
+                try { pc.close(); } catch {}
+                delete webrtcConnections[cameraId];
+            });
+        }
+
+        async function waitForIceGatheringComplete(pc, timeoutMs = 2000) {
+            if (pc.iceGatheringState === 'complete') return;
+            await new Promise((resolve) => {
+                let done = false;
+                const finish = () => {
+                    if (done) return;
+                    done = true;
+                    pc.removeEventListener('icegatheringstatechange', onChange);
+                    resolve();
+                };
+                const onChange = () => {
+                    if (pc.iceGatheringState === 'complete') finish();
+                };
+                pc.addEventListener('icegatheringstatechange', onChange);
+                setTimeout(finish, timeoutMs);
+            });
+        }
+
+        async function startMediaMTXWebRTC(whepUrl, videoEl, cameraId) {
+            if (!whepUrl || !videoEl || !cameraId) return;
+            if (!whepUrl.endsWith('/whep')) throw new Error('whep_url_invalid');
+
+            if (webrtcConnections[cameraId]) {
+                try { webrtcConnections[cameraId].close(); } catch {}
+                delete webrtcConnections[cameraId];
+            }
+
+            const pc = new RTCPeerConnection();
+            webrtcConnections[cameraId] = pc;
+
+            pc.addTransceiver('video', { direction: 'recvonly' });
+            pc.ontrack = (ev) => {
+                const [stream] = ev.streams;
+                if (!stream) return;
+                if (videoEl.srcObject !== stream) videoEl.srcObject = stream;
+                const p = videoEl.play?.();
+                if (p && typeof p.catch === 'function') p.catch(() => {});
+            };
+
+            pc.oniceconnectionstatechange = () => {
+                if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+                    renderWebRTCFailure(videoEl);
+                }
+            };
+
+            try {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                await waitForIceGatheringComplete(pc);
+
+                const offerSdp = pc.localDescription?.sdp;
+                if (!offerSdp) throw new Error('missing_local_sdp');
+
+                const res = await fetch(whepUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/sdp',
+                        'Accept': 'application/sdp'
+                    },
+                    body: offerSdp
+                });
+                if (!res.ok) throw new Error(`whep_http_${res.status}`);
+                const answerSdp = await res.text();
+                await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+
+                await new Promise((resolve, reject) => {
+                    if (videoEl.readyState >= 2) return resolve();
+                    const t = setTimeout(() => resolve(), 2500);
+                    const onReady = () => {
+                        clearTimeout(t);
+                        videoEl.removeEventListener('loadedmetadata', onReady);
+                        resolve();
+                    };
+                    videoEl.addEventListener('loadedmetadata', onReady, { once: true });
+                });
+
+                return true;
+            } catch (e) {
+                renderWebRTCFailure(videoEl);
+                try { pc.close(); } catch {}
+                delete webrtcConnections[cameraId];
+                return false;
+            }
+        }
+
         async function renderGrid() {
             stopAllAILoops(); // Para análises antigas
+            stopAllWebRTCConnections(); // Evita conexões fantasmas
             
             const grid = document.getElementById('video-grid');
             const isMobile = window.matchMedia('(max-width: 767px)').matches;
@@ -648,6 +765,8 @@
                     let mediaHtml = '';
                     if (cam.type === 'webcam') {
                         mediaHtml = `<video id="media-${cam.id}" autoplay playsinline muted class="w-full h-full object-cover"></video>`;
+                    } else if (cam.type === 'webrtc') {
+                        mediaHtml = `<video id="media-${cam.id}" autoplay playsinline muted class="w-full h-full object-cover"></video>`;
                     } else {
                         mediaHtml = `<img id="media-${cam.id}" src="${cam.url}" crossorigin="anonymous" class="w-full h-full object-cover" onerror="this.src=''; this.alt='Sinal Perdido ou Bloqueado por CORS';">`;
                     }
@@ -670,9 +789,15 @@
                         } catch (e) { console.error("Webcam recusada"); }
                     }
 
-                    // Inicia o motor de IA para esta câmera específica
-                    if (isAiReady && faceMatcher && !document.hidden) {
-                        startCameraAI(cam);
+                    if (cam.type === 'webrtc') {
+                        const videoEl = document.getElementById(`media-${cam.id}`);
+                        startMediaMTXWebRTC(cam.url, videoEl, cam.id)
+                            .then((ok) => {
+                                if (ok && isAiReady && faceMatcher && !document.hidden) startCameraAI(cam);
+                            })
+                            .catch(() => {});
+                    } else {
+                        if (isAiReady && faceMatcher && !document.hidden) startCameraAI(cam);
                     }
 
                 } else {
@@ -697,6 +822,7 @@
             // Executa a cada 800ms para poupar CPU
             aiLoops[cam.id] = setInterval(async () => {
                 if (document.hidden || activeTab !== 'live' || !media.clientWidth) return;
+                if (media.tagName === 'VIDEO' && media.readyState < 2) return;
                 
                 try {
                     const displaySize = { width: media.clientWidth, height: media.clientHeight };
