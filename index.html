@@ -209,53 +209,25 @@
                                 <h2 class="text-lg md:text-xl font-bold text-white flex items-center gap-2">
                                     <i data-lucide="scan-face" class="text-blue-500"></i> Registo de Alvos
                                 </h2>
-                                <p class="text-xs md:text-sm text-gray-400 mt-1">Carregue até 3 fotografias (Frente / Lado Direito / Lado Esquerdo) para melhorar o reconhecimento.</p>
+                                <p class="text-xs md:text-sm text-gray-400 mt-1">Carregue múltiplas fotografias para melhorar o reconhecimento.</p>
                             </div>
                             <div class="flex flex-col p-4 md:p-6 gap-6">
                                 <div class="w-full flex flex-col items-center">
                                     
                                     <!-- MUDANÇA: Upload de Imagem em vez de Webcam -->
                                     <div class="w-full max-w-md mb-4 relative">
-                                        <div class="grid grid-cols-3 gap-3">
-                                            <div class="aspect-square bg-black rounded-xl overflow-hidden relative border-2 border-gray-700 shadow flex items-center justify-center">
-                                                <img id="register-preview-0" class="w-full h-full object-cover hidden">
-                                                <div id="upload-placeholder-0" class="text-gray-500 flex flex-col items-center">
-                                                    <i data-lucide="image-plus" class="w-9 h-9 mb-2"></i>
-                                                    <span class="text-[11px]">Frente</span>
-                                                </div>
-                                            </div>
-                                            <div class="aspect-square bg-black rounded-xl overflow-hidden relative border-2 border-gray-700 shadow flex items-center justify-center">
-                                                <img id="register-preview-1" class="w-full h-full object-cover hidden">
-                                                <div id="upload-placeholder-1" class="text-gray-500 flex flex-col items-center">
-                                                    <i data-lucide="image-plus" class="w-9 h-9 mb-2"></i>
-                                                    <span class="text-[11px]">Lado Direito</span>
-                                                </div>
-                                            </div>
-                                            <div class="aspect-square bg-black rounded-xl overflow-hidden relative border-2 border-gray-700 shadow flex items-center justify-center">
-                                                <img id="register-preview-2" class="w-full h-full object-cover hidden">
-                                                <div id="upload-placeholder-2" class="text-gray-500 flex flex-col items-center">
-                                                    <i data-lucide="image-plus" class="w-9 h-9 mb-2"></i>
-                                                    <span class="text-[11px]">Lado Esquerdo</span>
-                                                </div>
-                                            </div>
+                                        <div id="dynamic-photos-container" class="flex flex-wrap justify-center gap-3 w-full mb-4 min-h-[100px] border border-dashed border-gray-700 rounded-xl p-4 bg-black/20">
+                                            <div class="text-xs text-gray-500">Nenhuma foto carregada</div>
                                         </div>
                                         <div id="scan-animation" class="absolute inset-0 bg-blue-500/15 hidden rounded-xl pointer-events-none">
                                             <div class="w-full h-1 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,1)] animate-[scan_1.5s_infinite]"></div>
                                         </div>
                                     </div>
 
-                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full max-w-md mb-4">
-                                        <label class="bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors border border-gray-700">
-                                            <i data-lucide="upload" class="w-4 h-4"></i> Frente
-                                            <input type="file" id="register-upload-0" accept="image/*" class="hidden" onchange="handlePhotoUpload(event, 0)">
-                                        </label>
-                                        <label class="bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors border border-gray-700">
-                                            <i data-lucide="upload" class="w-4 h-4"></i> Lado Dir.
-                                            <input type="file" id="register-upload-1" accept="image/*" class="hidden" onchange="handlePhotoUpload(event, 1)">
-                                        </label>
-                                        <label class="bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors border border-gray-700">
-                                            <i data-lucide="upload" class="w-4 h-4"></i> Lado Esq.
-                                            <input type="file" id="register-upload-2" accept="image/*" class="hidden" onchange="handlePhotoUpload(event, 2)">
+                                    <div class="flex gap-2 w-full max-w-xs mb-4">
+                                        <label class="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors border border-gray-700">
+                                            <i data-lucide="upload" class="w-4 h-4"></i> Carregar Fotos
+                                            <input type="file" id="register-upload-dynamic" accept="image/*" multiple class="hidden" onchange="handleDynamicUpload(event)">
                                         </label>
                                     </div>
 
@@ -873,7 +845,6 @@
         let tempPhoto = null;
         let tempDescriptors = [];
         let tempPhotoUploads = [];
-        const registerPhotoLabels = ['Frente', 'Lado Direito', 'Lado Esquerdo'];
 
         function updateRegisterScanButtonUi() {
             const btn = document.getElementById('btn-scan');
@@ -892,37 +863,65 @@
             updateRegisterScanButtonUi();
         }
 
-        function setRegisterPreview(slotIndex, dataUrl) {
-            const img = document.getElementById(`register-preview-${slotIndex}`);
-            const ph = document.getElementById(`upload-placeholder-${slotIndex}`);
-            if (img) {
-                img.src = dataUrl || '';
-                img.classList.toggle('hidden', !dataUrl);
-            }
-            if (ph) ph.classList.toggle('hidden', !!dataUrl);
-        }
+        window.handleDynamicUpload = async (event) => {
+            const files = Array.from(event?.target?.files || []);
+            if (!files.length) return;
 
-        window.handlePhotoUpload = (event, slotIndex) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-            if (![0, 1, 2].includes(Number(slotIndex))) return;
+            const reads = files.map(file => new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = () => resolve(null);
+                reader.readAsDataURL(file);
+            }));
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const dataUrl = e.target.result;
-                setRegisterPreview(slotIndex, dataUrl);
+            const results = await Promise.all(reads);
+            results.forEach(result => {
+                if (typeof result === 'string' && result) tempPhotoUploads.push({ dataUrl: result });
+            });
 
-                const idx = tempPhotoUploads.findIndex(x => x.slotIndex === slotIndex);
-                if (idx >= 0) tempPhotoUploads[idx] = { slotIndex, dataUrl };
-                else tempPhotoUploads.push({ slotIndex, dataUrl });
+            event.target.value = '';
+            tempDescriptors = [];
+            resetRegisterScanButtonUi();
+            window.renderDynamicPhotos();
+        };
 
-                tempPhoto = tempPhotoUploads[0]?.dataUrl || null;
-                tempDescriptors = [];
-                resetRegisterScanButtonUi();
+        window.renderDynamicPhotos = () => {
+            const container = document.getElementById('dynamic-photos-container');
+            if (!container) return;
+            container.innerHTML = '';
+
+            tempPhotoUploads = tempPhotoUploads.filter(x => x?.dataUrl);
+            if (!tempPhotoUploads.length) {
+                container.innerHTML = `<div class="text-xs text-gray-500">Nenhuma foto carregada</div>`;
+                tempPhoto = null;
                 updateRegisterScanButtonUi();
-                event.target.value = '';
-            };
-            reader.readAsDataURL(file);
+                return;
+            }
+
+            tempPhotoUploads.forEach((item, index) => {
+                const isMain = index === 0;
+                const border = isMain ? 'border-2 border-blue-500' : 'border border-gray-700';
+
+                container.innerHTML += `
+                    <div class="relative w-20 h-20 rounded-lg overflow-hidden ${border} bg-black">
+                        <img src="${item.dataUrl}" class="w-full h-full object-cover" draggable="false">
+                        ${isMain ? `<div class="absolute left-1 top-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-600 text-white">PRINCIPAL</div>` : ``}
+                        <button type="button" onclick="removeDynamicPhoto(${index})" class="absolute right-1 top-1 w-5 h-5 rounded bg-black/70 border border-gray-600 text-white text-xs leading-none flex items-center justify-center">X</button>
+                    </div>
+                `;
+            });
+
+            tempPhoto = tempPhotoUploads[0] ? tempPhotoUploads[0].dataUrl : null;
+            updateRegisterScanButtonUi();
+        };
+
+        window.removeDynamicPhoto = (index) => {
+            const i = Number(index);
+            if (!Number.isFinite(i) || i < 0 || i >= tempPhotoUploads.length) return;
+            tempPhotoUploads.splice(i, 1);
+            tempDescriptors = [];
+            resetRegisterScanButtonUi();
+            window.renderDynamicPhotos();
         };
 
         window.analyzeUploadedPhoto = async () => {
@@ -942,7 +941,8 @@
                 tempDescriptors = [];
                 const failed = [];
 
-                for (const item of photos) {
+                for (let i = 0; i < photos.length; i++) {
+                    const item = photos[i];
                     const img = new Image();
                     img.src = item.dataUrl;
                     await new Promise((resolve, reject) => {
@@ -963,7 +963,7 @@
                         .withFaceDescriptor();
 
                     if (detection?.descriptor?.length) tempDescriptors.push(Array.from(detection.descriptor));
-                    else failed.push(registerPhotoLabels[item.slotIndex] || `Foto ${item.slotIndex + 1}`);
+                    else failed.push(`Foto ${i + 1}`);
                 }
 
                 tempPhoto = tempPhotoUploads[0]?.dataUrl || null;
@@ -1012,13 +1012,9 @@
                 tempPhoto = null;
                 tempDescriptors = [];
                 tempPhotoUploads = [];
-
-                for (let i = 0; i < 3; i++) {
-                    setRegisterPreview(i, null);
-                    const input = document.getElementById(`register-upload-${i}`);
-                    if (input) input.value = '';
-                }
-
+                const upload = document.getElementById('register-upload-dynamic');
+                if (upload) upload.value = '';
+                window.renderDynamicPhotos();
                 resetRegisterScanButtonUi();
             } catch (err) {
                 showToast("Erro ao guardar no Firebase.", "error");
