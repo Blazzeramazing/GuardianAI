@@ -27,7 +27,7 @@
         .alarm-flash { animation: pulseRed 0.8s infinite alternate; }
         @keyframes pulseRed { 0% { background-color: rgba(220, 38, 38, 0.95); box-shadow: inset 0 0 100px rgba(153, 27, 27, 1); } 100% { background-color: rgba(153, 27, 27, 0.95); box-shadow: inset 0 0 20px rgba(220, 38, 38, 1); } }
         
-        .camera-slot { position: relative; }
+        .camera-slot { position: relative; aspect-ratio: 16 / 9; }
         .ai-canvas { position: absolute; pointer-events: none; z-index: 10; }
         .mobile-grid-fix { min-height: 250px; }
 
@@ -209,27 +209,53 @@
                                 <h2 class="text-lg md:text-xl font-bold text-white flex items-center gap-2">
                                     <i data-lucide="scan-face" class="text-blue-500"></i> Registo de Alvos
                                 </h2>
-                                <p class="text-xs md:text-sm text-gray-400 mt-1">Carregue uma fotografia frontal para a IA procurar nas câmaras.</p>
+                                <p class="text-xs md:text-sm text-gray-400 mt-1">Carregue até 3 fotografias (Frente / Lado Direito / Lado Esquerdo) para melhorar o reconhecimento.</p>
                             </div>
                             <div class="flex flex-col p-4 md:p-6 gap-6">
                                 <div class="w-full flex flex-col items-center">
                                     
                                     <!-- MUDANÇA: Upload de Imagem em vez de Webcam -->
-                                    <div class="w-48 h-48 md:w-64 md:h-64 bg-black rounded-xl mb-4 overflow-hidden relative border-4 border-gray-700 shadow-lg flex items-center justify-center">
-                                        <img id="register-preview" class="w-full h-full object-cover hidden">
-                                        <div id="upload-placeholder" class="text-gray-500 flex flex-col items-center">
-                                            <i data-lucide="image-plus" class="w-12 h-12 mb-2"></i>
-                                            <span class="text-xs">Nenhuma foto carregada</span>
+                                    <div class="w-full max-w-md mb-4 relative">
+                                        <div class="grid grid-cols-3 gap-3">
+                                            <div class="aspect-square bg-black rounded-xl overflow-hidden relative border-2 border-gray-700 shadow flex items-center justify-center">
+                                                <img id="register-preview-0" class="w-full h-full object-cover hidden">
+                                                <div id="upload-placeholder-0" class="text-gray-500 flex flex-col items-center">
+                                                    <i data-lucide="image-plus" class="w-9 h-9 mb-2"></i>
+                                                    <span class="text-[11px]">Frente</span>
+                                                </div>
+                                            </div>
+                                            <div class="aspect-square bg-black rounded-xl overflow-hidden relative border-2 border-gray-700 shadow flex items-center justify-center">
+                                                <img id="register-preview-1" class="w-full h-full object-cover hidden">
+                                                <div id="upload-placeholder-1" class="text-gray-500 flex flex-col items-center">
+                                                    <i data-lucide="image-plus" class="w-9 h-9 mb-2"></i>
+                                                    <span class="text-[11px]">Lado Direito</span>
+                                                </div>
+                                            </div>
+                                            <div class="aspect-square bg-black rounded-xl overflow-hidden relative border-2 border-gray-700 shadow flex items-center justify-center">
+                                                <img id="register-preview-2" class="w-full h-full object-cover hidden">
+                                                <div id="upload-placeholder-2" class="text-gray-500 flex flex-col items-center">
+                                                    <i data-lucide="image-plus" class="w-9 h-9 mb-2"></i>
+                                                    <span class="text-[11px]">Lado Esquerdo</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div id="scan-animation" class="absolute inset-0 bg-blue-500/20 hidden">
+                                        <div id="scan-animation" class="absolute inset-0 bg-blue-500/15 hidden rounded-xl pointer-events-none">
                                             <div class="w-full h-1 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,1)] animate-[scan_1.5s_infinite]"></div>
                                         </div>
                                     </div>
 
-                                    <div class="flex gap-2 w-full max-w-xs mb-4">
-                                        <label class="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors border border-gray-700">
-                                            <i data-lucide="upload" class="w-4 h-4"></i> Carregar Foto
-                                            <input type="file" id="register-upload" accept="image/*" class="hidden" onchange="handlePhotoUpload(event)">
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full max-w-md mb-4">
+                                        <label class="bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors border border-gray-700">
+                                            <i data-lucide="upload" class="w-4 h-4"></i> Frente
+                                            <input type="file" id="register-upload-0" accept="image/*" class="hidden" onchange="handlePhotoUpload(event, 0)">
+                                        </label>
+                                        <label class="bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors border border-gray-700">
+                                            <i data-lucide="upload" class="w-4 h-4"></i> Lado Dir.
+                                            <input type="file" id="register-upload-1" accept="image/*" class="hidden" onchange="handlePhotoUpload(event, 1)">
+                                        </label>
+                                        <label class="bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors border border-gray-700">
+                                            <i data-lucide="upload" class="w-4 h-4"></i> Lado Esq.
+                                            <input type="file" id="register-upload-2" accept="image/*" class="hidden" onchange="handlePhotoUpload(event, 2)">
                                         </label>
                                     </div>
 
@@ -373,7 +399,10 @@
                         </div>
 
                         <div class="p-4 border-t border-gray-800 bg-black/50 flex items-center justify-between gap-3 flex-wrap">
-                            <div id="logs-page-indicator" class="text-xs text-gray-400 font-mono">Página 1 de 1</div>
+                            <div class="flex items-center gap-3 flex-wrap">
+                                <div id="logs-page-indicator" class="text-xs text-gray-400 font-mono">Página 1 de 1</div>
+                                <button id="logs-load-more" class="h-9 px-3 rounded-lg bg-gray-900 border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors text-xs">Carregar mais antigas</button>
+                            </div>
                             <div class="flex items-center gap-1.5">
                                 <button id="logs-first" class="p-2 md:px-3 md:py-2 rounded-lg bg-gray-900 border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"><i data-lucide="chevrons-left" class="w-4 h-4 md:hidden"></i><span class="hidden md:inline text-xs">Primeira</span></button>
                                 <button id="logs-prev" class="p-2 md:px-3 md:py-2 rounded-lg bg-gray-900 border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"><i data-lucide="chevron-left" class="w-4 h-4 md:hidden"></i><span class="hidden md:inline text-xs">Anterior</span></button>
@@ -504,7 +533,7 @@
     <!-- JAVASCRIPT PRINCIPAL -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, getDocs, doc, deleteDoc, updateDoc, query, orderBy, limit, startAfter } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // ================= ESTADO GLOBAL =================
@@ -523,7 +552,10 @@
         let maximizedSlotId = null;
         
         let persons = [];
-        let allLogs = []; 
+        let allLogs = [];
+        let logsLive = [];
+        let logsOlder = [];
+        const logsRemoteState = { batchSize: 50, loading: false, hasMore: true, cursorDoc: null };
         let cameras = JSON.parse(localStorage.getItem('vms_cameras')) || [
             { id: 'cam-webcam', name: 'Webcam Local (Testes IA)', type: 'webcam', url: 'local' }
         ];
@@ -574,12 +606,32 @@
                 if (activeTab === 'db') renderFaces();
             });
 
-            const logsQ = query(collection(db, "logs"), orderBy("timestamp", "desc"), limit(500));
+            const logsQ = query(collection(db, "logs"), orderBy("timestamp", "desc"), limit(50));
             onSnapshot(logsQ, (snapshot) => {
-                allLogs = [];
-                snapshot.forEach(doc => allLogs.push({ id: doc.id, ...doc.data() }));
+                const nextLive = [];
+                snapshot.forEach(doc => nextLive.push({ id: doc.id, ...doc.data() }));
+
+                const nextIds = new Set(nextLive.map(x => x.id));
+                if (logsLive.length) {
+                    const dropped = logsLive.filter(x => !nextIds.has(x.id));
+                    if (dropped.length) {
+                        const olderIds = new Set(logsOlder.map(x => x.id));
+                        const toAdd = dropped.filter(x => !olderIds.has(x.id));
+                        if (toAdd.length) logsOlder = [...toAdd, ...logsOlder];
+                    }
+                }
+
+                logsLive = nextLive;
+                if (snapshot.docs.length && (!logsRemoteState.cursorDoc || logsOlder.length === 0)) {
+                    logsRemoteState.cursorDoc = snapshot.docs[snapshot.docs.length - 1];
+                }
+                if (snapshot.docs.length < logsRemoteState.batchSize) logsRemoteState.hasMore = false;
+
+                allLogs = mergeLogsUnique(logsLive, logsOlder);
                 if (activeTab === 'logs') {
                     logsState.page = 1; 
+                    updateLogsLoadMoreUi();
+                    hydrateLogsControls();
                     renderLogs();
                 }
             });
@@ -659,7 +711,7 @@
                     }
                 });
                 lucide.createIcons();
-                if(document.getElementById('btn-scan')) document.getElementById('btn-scan').disabled = false;
+                if (typeof updateRegisterScanButtonUi === 'function') updateRegisterScanButtonUi();
                 
                 updateFaceMatcher();
                 if(!document.hidden && activeTab === 'live') renderGrid(); 
@@ -673,7 +725,13 @@
             if (!isAiReady) { faceMatcher = null; return; }
             if (persons.length === 0) { faceMatcher = null; return; }
             
-            const labeledDescriptors = persons.map(p => new faceapi.LabeledFaceDescriptors(p.id, [new Float32Array(p.descriptor)]));
+            const labeledDescriptors = persons
+                .map(p => {
+                    const raw = Array.isArray(p?.descriptors) && p.descriptors.length ? p.descriptors : (p?.descriptor ? [p.descriptor] : []);
+                    const vecs = raw.filter(d => Array.isArray(d) && d.length).map(d => new Float32Array(d));
+                    return vecs.length ? new faceapi.LabeledFaceDescriptors(p.id, vecs) : null;
+                })
+                .filter(Boolean);
             faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, getAiConfidence());
         }
 
@@ -812,119 +870,156 @@
         };
 
         // ================= BIOMETRIA (CADASTRO POR UPLOAD) =================
-        let tempDescriptor = null;
         let tempPhoto = null;
+        let tempDescriptors = [];
+        let tempPhotoUploads = [];
+        const registerPhotoLabels = ['Frente', 'Lado Direito', 'Lado Esquerdo'];
 
-        window.handlePhotoUpload = (event) => {
-            const file = event.target.files[0];
+        function updateRegisterScanButtonUi() {
+            const btn = document.getElementById('btn-scan');
+            if (!btn) return;
+            const hasPhotos = tempPhotoUploads.some(x => x?.dataUrl);
+            btn.disabled = !isAiReady || !hasPhotos;
+        }
+
+        function resetRegisterScanButtonUi() {
+            const btn = document.getElementById('btn-scan');
+            if (!btn) return;
+            btn.innerHTML = '<i data-lucide="scan-face" class="w-4 h-4"></i> Analisar Biometria';
+            btn.classList.replace('bg-green-600', 'bg-blue-600');
+            btn.classList.replace('hover:bg-green-500', 'hover:bg-blue-500');
+            lucide.createIcons();
+            updateRegisterScanButtonUi();
+        }
+
+        function setRegisterPreview(slotIndex, dataUrl) {
+            const img = document.getElementById(`register-preview-${slotIndex}`);
+            const ph = document.getElementById(`upload-placeholder-${slotIndex}`);
+            if (img) {
+                img.src = dataUrl || '';
+                img.classList.toggle('hidden', !dataUrl);
+            }
+            if (ph) ph.classList.toggle('hidden', !!dataUrl);
+        }
+
+        window.handlePhotoUpload = (event, slotIndex) => {
+            const file = event.target.files?.[0];
             if (!file) return;
+            if (![0, 1, 2].includes(Number(slotIndex))) return;
 
             const reader = new FileReader();
             reader.onload = (e) => {
-                const preview = document.getElementById('register-preview');
-                const placeholder = document.getElementById('upload-placeholder');
-                
-                preview.src = e.target.result;
-                preview.classList.remove('hidden');
-                if(placeholder) placeholder.classList.add('hidden');
-                
-                tempPhoto = e.target.result;
-                tempDescriptor = null;
-                
-                const btn = document.getElementById('btn-scan');
-                btn.disabled = false;
-                btn.innerHTML = '<i data-lucide="scan-face" class="w-4 h-4"></i> Analisar Biometria';
-                btn.classList.replace('bg-green-600', 'bg-blue-600');
-                btn.classList.replace('hover:bg-green-500', 'hover:bg-blue-500');
-                lucide.createIcons();
+                const dataUrl = e.target.result;
+                setRegisterPreview(slotIndex, dataUrl);
+
+                const idx = tempPhotoUploads.findIndex(x => x.slotIndex === slotIndex);
+                if (idx >= 0) tempPhotoUploads[idx] = { slotIndex, dataUrl };
+                else tempPhotoUploads.push({ slotIndex, dataUrl });
+
+                tempPhoto = tempPhotoUploads[0]?.dataUrl || null;
+                tempDescriptors = [];
+                resetRegisterScanButtonUi();
+                updateRegisterScanButtonUi();
+                event.target.value = '';
             };
             reader.readAsDataURL(file);
         };
 
         window.analyzeUploadedPhoto = async () => {
             if (!isAiReady) return showToast("Aguarde a inicialização da IA...", "warning");
-            
-            const preview = document.getElementById('register-preview');
+
             const scanAnim = document.getElementById('scan-animation');
             const btn = document.getElementById('btn-scan');
-            
-            if (!preview.src || preview.src === window.location.href || preview.classList.contains('hidden')) {
-                return showToast("Carregue uma foto primeiro!", "warning");
-            }
+            const photos = tempPhotoUploads.filter(x => x?.dataUrl);
 
-            scanAnim.classList.remove('hidden');
-            btn.disabled = true;
-            showToast("A analisar rosto...", "info");
+            if (!photos.length) return showToast("Carregue pelo menos uma foto primeiro!", "warning");
+
+            if (scanAnim) scanAnim.classList.remove('hidden');
+            if (btn) btn.disabled = true;
+            showToast("A analisar biometria...", "info");
 
             try {
-                const img = new Image();
-                img.src = preview.src;
-                await new Promise((resolve) => { img.onload = resolve; });
+                tempDescriptors = [];
+                const failed = [];
 
-                // NOVO: Pré-processamento HDR também na foto de registo para extrair a melhor biometria
-                const offCanvas = document.createElement('canvas');
-                offCanvas.width = img.width; offCanvas.height = img.height;
-                const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
-                offCtx.filter = 'contrast(1.10) brightness(1.05)';
-                offCtx.drawImage(img, 0, 0, img.width, img.height);
+                for (const item of photos) {
+                    const img = new Image();
+                    img.src = item.dataUrl;
+                    await new Promise((resolve, reject) => {
+                        img.onload = resolve;
+                        img.onerror = reject;
+                    });
 
-                // ATUALIZADO: Usar SSD Mobilenet V1 no canvas processado
-                const detection = await faceapi.detectSingleFace(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })).withFaceLandmarks().withFaceDescriptor();
-                
-                if (detection) {
-                    tempDescriptor = Array.from(detection.descriptor);
-                    
+                    const offCanvas = document.createElement('canvas');
+                    offCanvas.width = img.width;
+                    offCanvas.height = img.height;
+                    const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+                    offCtx.filter = 'contrast(1.05) brightness(1.05)';
+                    offCtx.drawImage(img, 0, 0, img.width, img.height);
+
+                    const detection = await faceapi
+                        .detectSingleFace(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.6, inputSize: 416 }))
+                        .withFaceLandmarks()
+                        .withFaceDescriptor();
+
+                    if (detection?.descriptor?.length) tempDescriptors.push(Array.from(detection.descriptor));
+                    else failed.push(registerPhotoLabels[item.slotIndex] || `Foto ${item.slotIndex + 1}`);
+                }
+
+                tempPhoto = tempPhotoUploads[0]?.dataUrl || null;
+
+                if (!tempDescriptors.length) {
+                    showToast("Nenhum rosto detetado. Tente fotos mais claras.", "error");
+                    if (btn) btn.disabled = false;
+                    return;
+                }
+
+                if (btn) {
                     btn.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4"></i> Biometria Extraída';
                     btn.classList.replace('bg-blue-600', 'bg-green-600');
                     btn.classList.replace('hover:bg-blue-500', 'hover:bg-green-500');
                     lucide.createIcons();
-                    
-                    showToast("Biometria extraída com sucesso!", "success");
-                } else {
-                    showToast("Nenhum rosto detetado na foto. Tente uma foto mais clara.", "error");
-                    btn.disabled = false;
                 }
+
+                if (failed.length) showToast(`Algumas fotos falharam: ${failed.join(', ')}`, "warning");
+                else showToast("Biometria extraída com sucesso!", "success");
             } catch (err) {
                 console.error(err);
                 showToast("Erro ao analisar imagem.", "error");
-                btn.disabled = false;
+                if (btn) btn.disabled = false;
             } finally {
-                scanAnim.classList.add('hidden');
+                if (scanAnim) scanAnim.classList.add('hidden');
             }
         };
 
         window.savePersonToDB = async (e) => {
             e.preventDefault();
             if (!db) return showToast("Base de Dados Offline", "error");
-            if (!tempDescriptor || !tempPhoto) return showToast("Analise a biometria primeiro!", "error");
+            if (!tempDescriptors.length || !tempPhoto) return showToast("Analise a biometria primeiro!", "error");
 
             const person = {
                 name: document.getElementById('person-name').value,
                 level: document.getElementById('person-level').value,
                 photo: tempPhoto,
-                descriptor: tempDescriptor
+                descriptors: tempDescriptors
             };
 
             try {
-                await addDoc(collection(db, "students"), person); 
+                await addDoc(collection(db, "students"), person);
                 showToast("Alvo guardado na base de dados!", "success");
-                
+
                 document.getElementById('db-form').reset();
-                tempDescriptor = null; 
                 tempPhoto = null;
-                
-                const preview = document.getElementById('register-preview');
-                preview.classList.add('hidden');
-                preview.src = "";
-                document.getElementById('upload-placeholder').classList.remove('hidden');
-                document.getElementById('register-upload').value = "";
-                
-                const btn = document.getElementById('btn-scan');
-                btn.innerHTML = '<i data-lucide="scan-face" class="w-4 h-4"></i> Analisar Biometria';
-                btn.classList.replace('bg-green-600', 'bg-blue-600');
-                btn.classList.replace('hover:bg-green-500', 'hover:bg-blue-500');
-                btn.disabled = true;
-                lucide.createIcons();
+                tempDescriptors = [];
+                tempPhotoUploads = [];
+
+                for (let i = 0; i < 3; i++) {
+                    setRegisterPreview(i, null);
+                    const input = document.getElementById(`register-upload-${i}`);
+                    if (input) input.value = '';
+                }
+
+                resetRegisterScanButtonUi();
             } catch (err) {
                 showToast("Erro ao guardar no Firebase.", "error");
             }
@@ -1022,7 +1117,7 @@
             const syncSize = () => {
                 const m = mediaEl || document.getElementById(`media-${cameraId}`);
                 if (!m || !m.clientWidth) return;
-                faceapi.matchDimensions(canvas, { width: m.clientWidth, height: m.clientHeight });
+                syncCanvasToMedia(canvas, m);
             };
 
             let drawing = false;
@@ -1248,6 +1343,10 @@
             if (window.innerWidth < 640) {
                 grid.style.gridTemplateColumns = layout === 1 ? `1fr` : `repeat(2, minmax(0, 1fr))`;
                 grid.style.gridTemplateRows = `auto`;
+            } else if (window.innerWidth >= 1024) {
+                if (layout === 9) { cols = 3; rows = 3; }
+                grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+                grid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
             } else {
                 grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
                 grid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
@@ -1274,8 +1373,8 @@
                     if (maximizedSlotId === cam.id) slot.classList.add('camera-maximized');
 
                     let mediaHtml = (cam.type === 'webcam' || cam.type === 'webrtc') 
-                        ? `<video id="media-${cam.id}" autoplay playsinline muted draggable="false" class="max-w-full max-h-full cursor-pointer"></video>`
-                        : `<img id="media-${cam.id}" src="${cam.url}" crossorigin="anonymous" draggable="false" class="max-w-full max-h-full cursor-pointer" onerror="this.src=''; this.alt='Sinal Perdido ou Bloqueado por CORS';">`;
+                        ? `<video id="media-${cam.id}" autoplay playsinline muted draggable="false" class="w-full h-full object-contain cursor-pointer"></video>`
+                        : `<img id="media-${cam.id}" src="${cam.url}" crossorigin="anonymous" draggable="false" class="w-full h-full object-contain cursor-pointer" onerror="this.src=''; this.alt='Sinal Perdido ou Bloqueado por CORS';">`;
 
                     const hasLine = !!getTripwire(cam.id);
                     const tripwireBtnBase = hasLine ? 'bg-red-600/80 hover:bg-red-600/90' : 'bg-black/60 hover:bg-black/70';
@@ -1297,6 +1396,16 @@
                     
                     setupTripwireCanvas(cam.id, document.getElementById(`media-${cam.id}`));
                     updateTripwireButtonState(cam.id);
+
+                    const mediaElForSync = document.getElementById(`media-${cam.id}`);
+                    if (mediaElForSync) {
+                        if (mediaElForSync.tagName === 'VIDEO') {
+                            mediaElForSync.addEventListener('loadedmetadata', () => scheduleResizeAICanvases(), { once: true });
+                            mediaElForSync.addEventListener('loadeddata', () => scheduleResizeAICanvases(), { once: true });
+                        } else {
+                            mediaElForSync.addEventListener('load', () => scheduleResizeAICanvases(), { once: true });
+                        }
+                    }
 
                     const videoEl = document.getElementById(`media-${cam.id}`);
                     if (cam.type === 'webcam') {
@@ -1328,7 +1437,49 @@
                 }
             }
             lucide.createIcons();
+            scheduleResizeAICanvases();
         }
+
+        function getDisplayedMediaBox(media) {
+            const containerW = media?.clientWidth ?? 0;
+            const containerH = media?.clientHeight ?? 0;
+            if (!containerW || !containerH) return { left: 0, top: 0, width: 0, height: 0 };
+
+            const srcW = media.videoWidth || media.naturalWidth || containerW;
+            const srcH = media.videoHeight || media.naturalHeight || containerH;
+            if (!srcW || !srcH) return { left: 0, top: 0, width: containerW, height: containerH };
+
+            const scale = Math.min(containerW / srcW, containerH / srcH);
+            const width = Math.max(1, Math.round(srcW * scale));
+            const height = Math.max(1, Math.round(srcH * scale));
+            const left = Math.max(0, Math.round((containerW - width) / 2));
+            const top = Math.max(0, Math.round((containerH - height) / 2));
+            return { left, top, width, height };
+        }
+
+        function syncCanvasToMedia(canvas, media) {
+            if (!canvas || !media) return;
+            const box = getDisplayedMediaBox(media);
+            if (!box.width || !box.height) return;
+            canvas.style.left = `${box.left}px`;
+            canvas.style.top = `${box.top}px`;
+            canvas.style.width = `${box.width}px`;
+            canvas.style.height = `${box.height}px`;
+            faceapi.matchDimensions(canvas, { width: box.width, height: box.height });
+        }
+
+        function resizeAICanvases() {
+            if (activeTab !== 'live') return;
+            document.querySelectorAll('.camera-slot').forEach(slot => {
+                const media = slot.querySelector('video, img');
+                const canvas = slot.querySelector('canvas.ai-canvas');
+                if (!media || !canvas || !media.clientWidth) return;
+                syncCanvasToMedia(canvas, media);
+            });
+        }
+
+        const scheduleResizeAICanvases = debounce(() => resizeAICanvases(), 150);
+        window.addEventListener('resize', scheduleResizeAICanvases);
 
         // ================= INTERATIVIDADE DA GRELHA =================
         window.selectSlot = (index) => {
@@ -1400,7 +1551,7 @@
             setTimeout(() => {
                 const media = document.getElementById(`media-${camId}`);
                 const canvas = document.getElementById(`canvas-${camId}`);
-                if(media && canvas && media.clientWidth) faceapi.matchDimensions(canvas, { width: media.clientWidth, height: media.clientHeight });
+                if (media && canvas && media.clientWidth) syncCanvasToMedia(canvas, media);
             }, 300);
         };
 
@@ -1422,6 +1573,7 @@
             // Estado de controlo para a câmara individual
             const loopState = { active: true };
             aiLoops[cam.id] = loopState;
+            let rafPending = false;
 
             async function processFrame() {
                 if (!loopState.active) return;
@@ -1441,32 +1593,32 @@
                 try {
                     const vidWidth = media.videoWidth || media.naturalWidth || media.clientWidth || 640;
                     const vidHeight = media.videoHeight || media.naturalHeight || media.clientHeight || 480;
-                    const displaySize = { width: media.clientWidth, height: media.clientHeight };
-                    faceapi.matchDimensions(canvas, displaySize);
+                    syncCanvasToMedia(canvas, media);
+                    const box = getDisplayedMediaBox(media);
+                    const displaySize = { width: box.width || media.clientWidth, height: box.height || media.clientHeight };
 
                     // APLICAR HDR E CONSTRASTE ANTES DA IA LER
                     offCanvas.width = vidWidth;
                     offCanvas.height = vidHeight;
-                    offCtx.filter = 'contrast(1.15) brightness(1.10)';
+                    offCtx.filter = 'contrast(1.05) brightness(1.05)';
                     offCtx.drawImage(media, 0, 0, vidWidth, vidHeight);
 
                     // ATUALIZADO: Motor SSD Mobilenet lendo do offCanvas tratado
-                    let detections = await faceapi.detectAllFaces(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })).withFaceLandmarks().withFaceDescriptors();
+                    let detections = await faceapi.detectAllFaces(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.6, inputSize: 416 })).withFaceLandmarks().withFaceDescriptors();
                     
                     // NOVO: Filtrar falsos positivos microscópicos (< 40px na imagem original)
-                    detections = detections.filter(d => d.detection.box.width >= 40 && d.detection.box.height >= 40);
+                    detections = detections.filter(d => {
+                        const w = d?.detection?.box?.width ?? 0;
+                        const h = d?.detection?.box?.height ?? 0;
+                        if (w < 40 || h < 40) return false;
+                        if (w > 400) return false;
+                        const ratio = w / h;
+                        if (ratio < 0.6 || ratio > 1.4) return false;
+                        return true;
+                    });
 
                     const resizedDetections = faceapi.resizeResults(detections, displaySize);
-                    
-                    const ctx = canvas.getContext('2d');
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                    drawTripwireOnCanvas(cam.id, canvas);
-
-                    if (resizedDetections.length > 0) {
-                        faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
-                    }
-
+                    const renderBoxes = [];
                     resizedDetections.forEach(det => {
                         let color = '#3b82f6'; let text = 'Desconhecido';
                         let person = null;
@@ -1483,7 +1635,7 @@
                         }
 
                         const box = det.detection.box;
-                        new faceapi.draw.DrawBox(box, { label: text, boxColor: color }).draw(canvas);
+                        renderBoxes.push({ box, label: text, boxColor: color });
 
                         if (person) {
                             const now = Date.now();
@@ -1496,6 +1648,20 @@
                             }
                         }
                     });
+
+                    if (!rafPending) {
+                        rafPending = true;
+                        requestAnimationFrame(() => {
+                            rafPending = false;
+                            const ctx = canvas.getContext('2d');
+                            ctx.clearRect(0, 0, canvas.width, canvas.height);
+                            drawTripwireOnCanvas(cam.id, canvas);
+                            if (resizedDetections.length > 0) {
+                                faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+                            }
+                            renderBoxes.forEach(b => new faceapi.draw.DrawBox(b.box, { label: b.label, boxColor: b.boxColor }).draw(canvas));
+                        });
+                    }
                 } catch (e) {
                     console.warn("Erro no processamento da câmara", cam.id, e);
                 }
@@ -1503,7 +1669,7 @@
                 // CÁLCULO INTELIGENTE DO CPU: 
                 // Mede o tempo gasto na IA. Se demorou 300ms, espera 500ms (para manter ~1 FPS e deixar o PC respirar)
                 const elapsed = Date.now() - startTime;
-                const delay = Math.max(100, 800 - elapsed);
+                const delay = Math.max(30, 250 - elapsed);
                 
                 // Agenda a próxima leitura APENAS se o loop ainda estiver ativo
                 if (loopState.active) {
@@ -1529,10 +1695,15 @@
             let snapshotBase64 = "";
             try {
                 const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = mediaElement.videoWidth || mediaElement.naturalWidth || 640;
-                tempCanvas.height = mediaElement.videoHeight || mediaElement.naturalHeight || 480;
+                const srcW = mediaElement.videoWidth || mediaElement.naturalWidth || 640;
+                const srcH = mediaElement.videoHeight || mediaElement.naturalHeight || 480;
+                const maxW = 320;
+                const maxH = 240;
+                const scale = Math.min(1, maxW / srcW, maxH / srcH);
+                tempCanvas.width = Math.max(1, Math.round(srcW * scale));
+                tempCanvas.height = Math.max(1, Math.round(srcH * scale));
                 tempCanvas.getContext('2d').drawImage(mediaElement, 0, 0, tempCanvas.width, tempCanvas.height);
-                snapshotBase64 = tempCanvas.toDataURL('image/jpeg', 0.6);
+                snapshotBase64 = tempCanvas.toDataURL('image/jpeg', 0.4);
             } catch (e) {}
 
             const time = new Date().toLocaleTimeString('pt-PT');
@@ -1641,6 +1812,62 @@
         }
 
         // ================= LOGS (HISTÓRICO LOCAL) =================
+        function mergeLogsUnique(primary, secondary) {
+            const byId = new Map();
+            primary.forEach(x => { if (x && x.id) byId.set(x.id, x); });
+            secondary.forEach(x => { if (x && x.id && !byId.has(x.id)) byId.set(x.id, x); });
+            return Array.from(byId.values());
+        }
+
+        async function loadMoreOlderLogs() {
+            if (!db) return;
+            if (logsRemoteState.loading) return;
+            if (!logsRemoteState.hasMore) return;
+            if (!logsRemoteState.cursorDoc) return;
+
+            logsRemoteState.loading = true;
+            updateLogsLoadMoreUi();
+
+            try {
+                const q = query(
+                    collection(db, "logs"),
+                    orderBy("timestamp", "desc"),
+                    startAfter(logsRemoteState.cursorDoc),
+                    limit(logsRemoteState.batchSize)
+                );
+                const snap = await getDocs(q);
+                const batch = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+                if (!batch.length) {
+                    logsRemoteState.hasMore = false;
+                } else {
+                    const existing = new Set([...logsLive, ...logsOlder].map(x => x.id));
+                    const uniqueBatch = batch.filter(x => x && x.id && !existing.has(x.id));
+                    if (uniqueBatch.length) logsOlder = [...logsOlder, ...uniqueBatch];
+                    logsRemoteState.cursorDoc = snap.docs[snap.docs.length - 1];
+                    if (snap.docs.length < logsRemoteState.batchSize) logsRemoteState.hasMore = false;
+                }
+
+                allLogs = mergeLogsUnique(logsLive, logsOlder);
+                hydrateLogsControls();
+                renderLogs();
+            } catch (e) {
+                showToast("Erro ao carregar logs mais antigos.", "error");
+            } finally {
+                logsRemoteState.loading = false;
+                updateLogsLoadMoreUi();
+            }
+        }
+
+        function updateLogsLoadMoreUi() {
+            const btn = document.getElementById('logs-load-more');
+            if (!btn) return;
+
+            const canLoad = !!db && !logsRemoteState.loading && logsRemoteState.hasMore && !!logsRemoteState.cursorDoc;
+            setButtonDisabled(btn, !canLoad);
+            btn.innerText = logsRemoteState.loading ? 'A carregar...' : (logsRemoteState.hasMore ? 'Carregar mais antigas' : 'Sem mais antigas');
+        }
+
         function levelBadgeHtml(level) {
             if (level === 'suspect') return '<span class="bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded whitespace-nowrap">Suspeito</span>';
             if (level === 'danger') return '<span class="bg-red-500/20 text-red-400 px-2 py-1 rounded border border-red-500/50 animate-pulse text-xs whitespace-nowrap">Alvo Crítico</span>';
@@ -1742,8 +1969,10 @@
 
             const cameraSelect = document.getElementById('logs-camera-filter');
             if (cameraSelect) {
+                const prevValue = cameraSelect.value || 'all';
                 const camNames = [...new Set(allLogs.map(c => c.cameraName))];
                 cameraSelect.innerHTML = ['all', ...camNames].map(v => `<option value="${escapeHtml(v)}">${v === 'all' ? 'Câmara: Todas' : escapeHtml(v)}</option>`).join('');
+                if ([...cameraSelect.options].some(o => o.value === prevValue)) cameraSelect.value = prevValue;
             }
 
             ['first', 'prev', 'next', 'last'].forEach(action => {
@@ -1759,6 +1988,13 @@
                     });
                 }
             });
+
+            const loadMoreBtn = document.getElementById('logs-load-more');
+            if (loadMoreBtn && !loadMoreBtn.dataset.hydrated) {
+                loadMoreBtn.dataset.hydrated = '1';
+                loadMoreBtn.addEventListener('click', () => loadMoreOlderLogs());
+            }
+            updateLogsLoadMoreUi();
         }
 
         // ================= DB FACES (CADASTRO) =================
