@@ -27,7 +27,7 @@
         .alarm-flash { animation: pulseRed 0.8s infinite alternate; }
         @keyframes pulseRed { 0% { background-color: rgba(220, 38, 38, 0.95); box-shadow: inset 0 0 100px rgba(153, 27, 27, 1); } 100% { background-color: rgba(153, 27, 27, 0.95); box-shadow: inset 0 0 20px rgba(220, 38, 38, 1); } }
         
-        .camera-slot { position: relative; aspect-ratio: 16 / 9; }
+        .camera-slot { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background-color: #000; }
         .ai-canvas { position: absolute; pointer-events: none; z-index: 10; }
         .mobile-grid-fix { min-height: 250px; }
 
@@ -38,6 +38,7 @@
             height: 100vh !important;
             z-index: 250 !important;
             border-radius: 0 !important;
+            background-color: #000 !important;
         }
         .slot-selected {
             box-shadow: 0 0 0 4px #3b82f6 inset !important;
@@ -197,7 +198,7 @@
                         </div>
                     </header>
                     <div class="flex-1 p-1 md:p-2 overflow-y-auto md:overflow-hidden relative bg-black">
-                        <div id="video-grid" class="w-full h-auto md:h-full grid gap-1 grid-cols-2 grid-rows-2 min-h-[50vh]"></div>
+                        <div id="video-grid" class="w-full h-full grid gap-1 md:gap-2"></div>
                     </div>
                 </div>
 
@@ -1269,7 +1270,7 @@
                 const cam = cameras[i];
                 const slot = document.createElement('div');
                 const mobileFix = window.innerWidth < 640 && layout > 1 ? "mobile-grid-fix" : "";
-                slot.className = `camera-slot bg-gray-900 rounded-lg border border-gray-800 overflow-hidden flex items-center justify-center relative transition-all duration-200 ${mobileFix}`;
+                slot.className = `camera-slot bg-black rounded-lg border border-gray-800 overflow-hidden relative transition-all duration-200 ${mobileFix}`;
                 slot.id = cam ? `slot-${cam.id}` : `slot-empty-${i}`;
                 
                 // Eventos de interatividade e Drag & Drop
@@ -1507,7 +1508,7 @@
                     offCtx.drawImage(media, 0, 0, vidWidth, vidHeight);
 
                     // ATUALIZADO: Motor SSD Mobilenet lendo do offCanvas tratado
-                    let detections = await faceapi.detectAllFaces(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.6, inputSize: 320 })).withFaceLandmarks().withFaceDescriptors();
+                    let detections = await faceapi.detectAllFaces(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.6, inputSize: 512 })).withFaceLandmarks().withFaceDescriptors();
                     
                     // NOVO: Filtrar falsos positivos microscópicos (< 40px na imagem original)
                     detections = detections.filter(d => {
@@ -1569,7 +1570,7 @@
                 // CÁLCULO INTELIGENTE DO CPU: 
                 // Mede o tempo gasto na IA. Se demorou 300ms, espera 500ms (para manter ~1 FPS e deixar o PC respirar)
                 const elapsed = Date.now() - startTime;
-                const delay = Math.max(100, 333 - elapsed);
+                const delay = Math.max(30, 100 - elapsed);
                 
                 // Agenda a próxima leitura APENAS se o loop ainda estiver ativo
                 if (loopState.active) {
