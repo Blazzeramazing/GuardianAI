@@ -1542,10 +1542,10 @@
                                         color = '#3b82f6';
                                     } else if (certainty >= 40 && certainty <= 49) {
                                         text = `Analisando: ${matchedPerson.name} (${certainty}%)`;
-                                        color = dbColor;
+                                        color = '#10b981';
                                     } else if (certainty >= 50 && certainty <= 59) {
-                                        text = `Possível: ${matchedPerson.name} (${certainty}%)`;
-                                        color = dbColor;
+                                        text = `Suspeito: ${matchedPerson.name} (${certainty}%)`;
+                                        color = '#eab308';
                                     } else if (certainty >= 60) {
                                         text = `${matchedPerson.name} (${certainty}%)`;
                                         color = dbColor;
