@@ -697,14 +697,22 @@
             if (!isAiReady) { faceMatcher = null; return; }
             if (persons.length === 0) { faceMatcher = null; return; }
             
-            const labeledDescriptors = persons
-                .map(p => {
-                    const raw = Array.isArray(p?.descriptors) && p.descriptors.length ? p.descriptors : (p?.descriptor ? [p.descriptor] : []);
-                    const vecs = raw.map(d => typeof d === 'string' ? JSON.parse(d) : d).filter(d => Array.isArray(d) && d.length).map(d => new Float32Array(d));
-                    return vecs.length ? new faceapi.LabeledFaceDescriptors(p.id, vecs) : null;
-                })
-                .filter(Boolean);
-            faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, getAiConfidence());
+            const labeledDescriptors = [];
+            
+            persons.forEach(p => {
+                const raw = Array.isArray(p?.descriptors) && p.descriptors.length ? p.descriptors : (p?.descriptor ? [p.descriptor] : []);
+                const vecs = raw.map(d => typeof d === 'string' ? JSON.parse(d) : d).filter(d => Array.isArray(d) && d.length).map(d => new Float32Array(d));
+                
+                vecs.forEach(vec => {
+                    labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(p.id, [vec]));
+                });
+            });
+            
+            if (labeledDescriptors.length > 0) {
+                faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, getAiConfidence());
+            } else {
+                faceMatcher = null;
+            }
         }
 
         // ================= NAVEGAÇÃO =================
