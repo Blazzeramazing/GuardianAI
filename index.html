@@ -997,10 +997,36 @@
             if (!db) return showToast("Base de Dados Offline", "error");
             if (!tempDescriptors.length || !tempPhoto) return showToast("Analise a biometria primeiro!", "error");
 
+            let compressedPhoto = tempPhoto;
+            try {
+                const img = new Image();
+                img.src = tempPhoto;
+                await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
+
+                const MAX_WIDTH = 400;
+                const srcW = img.naturalWidth || img.width || 0;
+                const srcH = img.naturalHeight || img.height || 0;
+
+                if (srcW > 0 && srcH > 0) {
+                    const scale = Math.min(1, MAX_WIDTH / srcW);
+                    const targetW = Math.max(1, Math.round(srcW * scale));
+                    const targetH = Math.max(1, Math.round(srcH * scale));
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = targetW;
+                    canvas.height = targetH;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, targetW, targetH);
+                    compressedPhoto = canvas.toDataURL('image/jpeg', 0.5);
+                }
+            } catch (err) {
+                compressedPhoto = tempPhoto;
+            }
+
             const person = {
                 name: document.getElementById('person-name').value,
                 level: document.getElementById('person-level').value,
-                photo: tempPhoto,
+                photo: compressedPhoto,
                 descriptors: tempDescriptors
             };
 
@@ -1017,6 +1043,7 @@
                 window.renderDynamicPhotos();
                 resetRegisterScanButtonUi();
             } catch (err) {
+                console.error("Erro Firebase:", err);
                 showToast("Erro ao guardar no Firebase.", "error");
             }
         };
