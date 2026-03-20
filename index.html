@@ -1535,14 +1535,23 @@
                                 const matchedPerson = persons.find(p => p.id === bestMatch.label);
                                 if (matchedPerson) {
                                     const certainty = Math.max(0, Math.round((1 - bestMatch.distance) * 100));
+                                    const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981';
                                     
-                                    if (bestMatch.distance <= strictThreshold) {
-                                        person = matchedPerson;
-                                        text = `${person.name} (${certainty}%)`;
-                                        color = person.level === 'danger' ? '#ef4444' : person.level === 'suspect' ? '#eab308' : '#10b981';
-                                    } else {
+                                    if (certainty < 40) {
+                                        text = 'Desconhecido';
+                                        color = '#3b82f6';
+                                    } else if (certainty >= 40 && certainty <= 49) {
+                                        text = `Analisando: ${matchedPerson.name} (${certainty}%)`;
+                                        color = dbColor;
+                                    } else if (certainty >= 50 && certainty <= 59) {
                                         text = `Possível: ${matchedPerson.name} (${certainty}%)`;
-                                        color = '#eab308';
+                                        color = dbColor;
+                                    } else if (certainty >= 60) {
+                                        text = `${matchedPerson.name} (${certainty}%)`;
+                                        color = dbColor;
+                                        if (bestMatch.distance <= strictThreshold) {
+                                            person = matchedPerson;
+                                        }
                                     }
                                 }
                             }
