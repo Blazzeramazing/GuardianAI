@@ -704,7 +704,7 @@
             });
             
             if (labeledDescriptors.length > 0) {
-                faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, getAiConfidence());
+                faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, getAiConfidence() + 0.20);
             } else {
                 faceMatcher = null;
             }
@@ -1528,13 +1528,23 @@
                         let person = null;
 
                         if (faceMatcher) {
+                            const strictThreshold = getAiConfidence();
                             const bestMatch = faceMatcher.findBestMatch(det.descriptor);
-                            const isKnown = bestMatch.label !== 'unknown';
-                            person = isKnown ? persons.find(p => p.id === bestMatch.label) : null;
                             
-                            if (person) {
-                                text = person.name;
-                                color = person.level === 'danger' ? '#ef4444' : person.level === 'suspect' ? '#eab308' : '#10b981';
+                            if (bestMatch.label !== 'unknown') {
+                                const matchedPerson = persons.find(p => p.id === bestMatch.label);
+                                if (matchedPerson) {
+                                    const certainty = Math.max(0, Math.round((1 - bestMatch.distance) * 100));
+                                    
+                                    if (bestMatch.distance <= strictThreshold) {
+                                        person = matchedPerson;
+                                        text = `${person.name} (${certainty}%)`;
+                                        color = person.level === 'danger' ? '#ef4444' : person.level === 'suspect' ? '#eab308' : '#10b981';
+                                    } else {
+                                        text = `Possível: ${matchedPerson.name} (${certainty}%)`;
+                                        color = '#eab308';
+                                    }
+                                }
                             }
                         }
 
