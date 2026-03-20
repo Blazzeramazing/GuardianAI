@@ -700,7 +700,7 @@
             const labeledDescriptors = persons
                 .map(p => {
                     const raw = Array.isArray(p?.descriptors) && p.descriptors.length ? p.descriptors : (p?.descriptor ? [p.descriptor] : []);
-                    const vecs = raw.filter(d => Array.isArray(d) && d.length).map(d => new Float32Array(d));
+                    const vecs = raw.map(d => typeof d === 'string' ? JSON.parse(d) : d).filter(d => Array.isArray(d) && d.length).map(d => new Float32Array(d));
                     return vecs.length ? new faceapi.LabeledFaceDescriptors(p.id, vecs) : null;
                 })
                 .filter(Boolean);
@@ -1027,7 +1027,7 @@
                 name: document.getElementById('person-name').value,
                 level: document.getElementById('person-level').value,
                 photo: compressedPhoto,
-                descriptors: tempDescriptors
+                descriptors: tempDescriptors.map(d => JSON.stringify(d))
             };
 
             try {
