@@ -543,12 +543,6 @@
         let isVisibilityPaused = document.hidden;
         let isMuted = localStorage.getItem('vms_mute') === '1';
 
-        // TRIPEWIRE STATE
-        let tripwires = {};
-        const tripwireDrawState = {};
-        const tripwireDraft = {};
-        const lastTripwireSide = {};
-
         const facesState = { search: '', level: 'all', pageSize: 12, page: 1, loading: false };
         const logsState = { search: '', camera: 'all', level: 'all', period: '7d', pageSize: 25, page: 1, totalPages: 1, totalCount: 0, loading: false };
 
@@ -1091,154 +1085,6 @@
             }
         };
 
-        // ================= TRIPWIRE (LINHA VIRTUAL) =================
-        function loadTripwires() {
-            try {
-                const raw = localStorage.getItem('vms_tripwires');
-                tripwires = raw ? JSON.parse(raw) : {};
-            } catch { tripwires = {}; }
-        }
-
-        function saveTripwires() {
-            try { localStorage.setItem('vms_tripwires', JSON.stringify(tripwires)); } catch {}
-        }
-
-        function getTripwire(cameraId) {
-            const v = tripwires?.[cameraId];
-            if (!v || ![v.x1, v.y1, v.x2, v.y2].every(n => typeof n === 'number' && Number.isFinite(n))) return null;
-            return v;
-        }
-
-        function setTripwire(cameraId, value) {
-            tripwires[cameraId] = value; saveTripwires();
-        }
-
-        function clamp01(n) { return Math.min(1, Math.max(0, n)); }
-
-        function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
-            const vx = x2 - x1, vy = y2 - y1, wx = px - x1, wy = py - y1;
-            const c1 = vx * wx + vy * wy;
-            if (c1 <= 0) return Math.hypot(px - x1, py - y1);
-            const c2 = vx * vx + vy * wy;
-            if (c2 <= c1) return Math.hypot(px - x2, py - y2);
-            const b = c1 / c2;
-            return Math.hypot(px - (x1 + b * vx), py - (y1 + b * vy));
-        }
-
-        function sideOfLine(px, py, x1, y1, x2, y2) {
-            const v = (x2 - x1) * (py - y1) - (y2 - y1) * (px - x1);
-            return v === 0 ? 0 : (v > 0 ? 1 : -1);
-        }
-
-        function drawTripwireOnCanvas(cameraId, canvas, { includeDraft = true } = {}) {
-            const ctx = canvas.getContext('2d');
-            const toDraw = (includeDraft ? tripwireDraft[cameraId] : null) || getTripwire(cameraId);
-            if (!toDraw) return;
-            const x1 = (toDraw.x1 ?? 0) * canvas.width, y1 = (toDraw.y1 ?? 0) * canvas.height;
-            const x2 = (toDraw.x2 ?? 0) * canvas.width, y2 = (toDraw.y2 ?? 0) * canvas.height;
-            ctx.save();
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = '#ef4444'; 
-            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-            ctx.restore();
-        }
-
-        function updateTripwireButtonState(cameraId) {
-            const btn = document.getElementById(`tripwire-btn-${cameraId}`);
-            if (!btn) return;
-            const hasLine = !!getTripwire(cameraId);
-            const isDrawing = !!tripwireDrawState[cameraId];
-            btn.className = `h-8 w-8 md:h-9 md:w-9 rounded text-white flex items-center justify-center backdrop-blur-sm transition-colors ${isDrawing ? 'bg-red-700 animate-pulse' : (hasLine ? 'bg-red-600/80 hover:bg-red-600/90' : 'bg-black/60 hover:bg-black/70')}`;
-        }
-
-        function setTripwireDrawing(cameraId, enabled) {
-            Object.keys(tripwireDrawState).forEach(id => tripwireDrawState[id] = false);
-            tripwireDrawState[cameraId] = !!enabled;
-            cameras.forEach(c => {
-                updateTripwireButtonState(c.id);
-                const canvas = document.getElementById(`canvas-${c.id}`);
-                if (!canvas) return;
-                const active = !!tripwireDrawState[c.id];
-                canvas.style.pointerEvents = active ? 'auto' : 'none';
-                canvas.style.cursor = active ? 'crosshair' : 'default';
-            });
-        }
-
-        window.toggleTripwireDraw = (cameraId) => {
-            const next = !tripwireDrawState[cameraId];
-            setTripwireDrawing(cameraId, next);
-            if (next) showToast("Desenhe a linha virtual no vídeo (clique e arraste).", "info");
-        };
-
-        function setupTripwireCanvas(cameraId, mediaEl) {
-            const canvas = document.getElementById(`canvas-${cameraId}`);
-            if (!canvas || canvas.dataset.tripwireBound === '1') return;
-            canvas.dataset.tripwireBound = '1';
-
-            const getRelPoint = (ev) => {
-                const rect = canvas.getBoundingClientRect();
-                return { x: clamp01((ev.clientX - rect.left) / rect.width), y: clamp01((ev.clientY - rect.top) / rect.height) };
-            };
-
-            const syncSize = () => {
-                const m = mediaEl || document.getElementById(`media-${cameraId}`);
-                if (!m || !m.clientWidth) return;
-                syncCanvasToMedia(canvas, m);
-            };
-
-            let drawing = false;
-
-            canvas.addEventListener('pointerdown', (ev) => {
-                if (!tripwireDrawState[cameraId]) return;
-                syncSize(); drawing = true; canvas.setPointerCapture(ev.pointerId);
-                const p = getRelPoint(ev);
-                tripwireDraft[cameraId] = { x1: p.x, y1: p.y, x2: p.x, y2: p.y };
-                updateTripwireButtonState(cameraId);
-            });
-
-            canvas.addEventListener('pointermove', (ev) => {
-                if (!drawing || !tripwireDrawState[cameraId]) return;
-                const d = tripwireDraft[cameraId];
-                if (!d) return;
-                const p = getRelPoint(ev);
-                d.x2 = p.x; d.y2 = p.y;
-                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-                drawTripwireOnCanvas(cameraId, canvas);
-            });
-
-            const finish = () => {
-                if (!drawing) return;
-                drawing = false;
-                const d = tripwireDraft[cameraId];
-                if (d) setTripwire(cameraId, { x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2 });
-                delete tripwireDraft[cameraId];
-                setTripwireDrawing(cameraId, false);
-                showToast("Linha virtual guardada para esta câmara.", "success");
-                updateTripwireButtonState(cameraId);
-            };
-
-            canvas.addEventListener('pointerup', finish);
-            canvas.addEventListener('pointercancel', finish);
-        }
-
-        function shouldTriggerTripwire(cameraId, personId, box, canvas) {
-            const line = getTripwire(cameraId);
-            if (!line) return true; 
-            const x1 = line.x1 * canvas.width, y1 = line.y1 * canvas.height;
-            const x2 = line.x2 * canvas.width, y2 = line.y2 * canvas.height;
-            const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
-            const dist = pointToSegmentDistance(cx, cy, x1, y1, x2, y2);
-            const threshold = Math.max(10, Math.min(canvas.width, canvas.height) * 0.05); 
-            const side = sideOfLine(cx, cy, x1, y1, x2, y2);
-
-            lastTripwireSide[cameraId] = lastTripwireSide[cameraId] || {};
-            const prev = lastTripwireSide[cameraId][personId];
-            lastTripwireSide[cameraId][personId] = side;
-
-            const crossed = prev != null && prev !== 0 && side !== 0 && prev !== side && dist <= threshold * 3;
-            return dist <= threshold || crossed;
-        }
-
         // ================= WEBRTC & CÂMARAS =================
         function renderWebRTCFailure(videoEl, errorMsg = 'Falha WebRTC') {
             const slot = videoEl?.closest?.('.camera-slot');
@@ -1442,9 +1288,6 @@
                         ? `<video id="media-${cam.id}" autoplay playsinline muted draggable="false" class="w-full h-full object-contain cursor-pointer"></video>`
                         : `<img id="media-${cam.id}" src="${cam.url}" crossorigin="anonymous" draggable="false" class="w-full h-full object-contain cursor-pointer" onerror="this.src=''; this.alt='Sinal Perdido ou Bloqueado por CORS';">`;
 
-                    const hasLine = !!getTripwire(cam.id);
-                    const tripwireBtnBase = hasLine ? 'bg-red-600/80 hover:bg-red-600/90' : 'bg-black/60 hover:bg-black/70';
-
                     slot.innerHTML = `
                         ${mediaHtml}
                         <canvas id="canvas-${cam.id}" class="ai-canvas"></canvas>
@@ -1452,16 +1295,10 @@
                             <div class="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></div> <span class="truncate">${escapeHtml(cam.name)}</span>
                         </div>
                         <div class="absolute top-2 right-2 z-20 flex items-center gap-1">
-                            <button id="tripwire-btn-${cam.id}" onclick="toggleTripwireDraw('${cam.id}')" class="h-8 w-8 md:h-9 md:w-9 rounded ${tripwireBtnBase} text-white flex items-center justify-center backdrop-blur-sm transition-colors" title="Desenhar Linha Virtual">
-                                <i data-lucide="pencil-line" class="w-4 h-4"></i>
-                            </button>
                             <div class="bg-blue-600/80 px-1.5 py-0.5 rounded text-[10px] text-white"><i data-lucide="brain" class="w-3 h-3 inline"></i> ON</div>
                         </div>
                     `;
                     grid.appendChild(slot);
-                    
-                    setupTripwireCanvas(cam.id, document.getElementById(`media-${cam.id}`));
-                    updateTripwireButtonState(cam.id);
 
                     const mediaElForSync = document.getElementById(`media-${cam.id}`);
                     if (mediaElForSync) {
@@ -1706,9 +1543,7 @@
                         if (person) {
                             const now = Date.now();
                             const lastTime = lastDetectionTime[person.id] || 0;
-                            const allowDetect = shouldTriggerTripwire(cam.id, person.id, box, canvas);
-
-                            if (allowDetect && now - lastTime > 20000) {
+                            if (now - lastTime > 20000) {
                                 lastDetectionTime[person.id] = now;
                                 processDetection(person, cam, media);
                             }
@@ -1721,7 +1556,6 @@
                             rafPending = false;
                             const ctx = canvas.getContext('2d');
                             ctx.clearRect(0, 0, canvas.width, canvas.height);
-                            drawTripwireOnCanvas(cam.id, canvas);
                             if (resizedDetections.length > 0) {
                                 faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
                             }
@@ -2197,7 +2031,6 @@
         }, 1000);
 
         function bootApp() {
-            loadTripwires();
             if (![1, 4, 9].includes(layout)) layout = 4;
             [1, 4, 9].forEach(n => {
                 const btn = document.getElementById(`btn-layout-${n}`);
