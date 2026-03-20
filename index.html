@@ -1507,7 +1507,7 @@
                     offCtx.drawImage(media, 0, 0, vidWidth, vidHeight);
 
                     // ATUALIZADO: Motor SSD Mobilenet lendo do offCanvas tratado
-                    let detections = await faceapi.detectAllFaces(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.6, inputSize: 416 })).withFaceLandmarks().withFaceDescriptors();
+                    let detections = await faceapi.detectAllFaces(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.6, inputSize: 320 })).withFaceLandmarks().withFaceDescriptors();
                     
                     // NOVO: Filtrar falsos positivos microscópicos (< 40px na imagem original)
                     detections = detections.filter(d => {
@@ -1569,7 +1569,7 @@
                 // CÁLCULO INTELIGENTE DO CPU: 
                 // Mede o tempo gasto na IA. Se demorou 300ms, espera 500ms (para manter ~1 FPS e deixar o PC respirar)
                 const elapsed = Date.now() - startTime;
-                const delay = Math.max(30, 250 - elapsed);
+                const delay = Math.max(100, 333 - elapsed);
                 
                 // Agenda a próxima leitura APENAS se o loop ainda estiver ativo
                 if (loopState.active) {
