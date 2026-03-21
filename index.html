@@ -11,7 +11,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- Biblioteca Human (Substitui o face-api.js) -->
+    <!-- Human -->
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/human@3.2.2/dist/human.js"></script>
 
     <style>
@@ -28,7 +28,7 @@
         @keyframes pulseRed { 0% { background-color: rgba(220, 38, 38, 0.95); box-shadow: inset 0 0 100px rgba(153, 27, 27, 1); } 100% { background-color: rgba(153, 27, 27, 0.95); box-shadow: inset 0 0 20px rgba(220, 38, 38, 1); } }
         
         .camera-slot { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background-color: #000; }
-        .ai-canvas { position: absolute; pointer-events: none; z-index: 10; }
+        .ai-canvas { position: absolute; pointer-events: none; z-index: 10; inset: 0; width: 100%; height: 100%; }
         .mobile-grid-fix { min-height: 250px; }
 
         .camera-maximized {
@@ -79,13 +79,13 @@
         </div>
     </div>
 
-    <!-- APP SHELL -->
+    <!-- APP SHELL (Oculto até iniciar sessão) -->
     <div id="app-shell" class="hidden flex-1 flex flex-col overflow-hidden w-full h-full">
 
         <!-- OVERLAY DO MENU MOBILE -->
         <div id="sidebar-overlay" onclick="closeSidebarDrawer()" class="fixed inset-0 bg-black/70 z-40 hidden md:hidden backdrop-blur-sm transition-opacity"></div>
 
-        <!-- PAINEL TÁTICO DE ALARME -->
+        <!-- PAINEL TÁTICO DE ALARME (ECRÃ INTEIRO) -->
         <div id="tactical-alarm-panel" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/80 backdrop-blur-md pointer-events-auto p-4">
             <div class="alarm-flash border-4 border-red-500 rounded-2xl p-6 md:p-8 max-w-2xl w-full text-center flex flex-col items-center max-h-[90vh] overflow-y-auto">
                 <i data-lucide="siren" class="w-16 h-16 md:w-20 md:h-20 text-white mb-2 animate-bounce"></i>
@@ -214,6 +214,8 @@
                             </div>
                             <div class="flex flex-col p-4 md:p-6 gap-6">
                                 <div class="w-full flex flex-col items-center">
+                                    
+                                    <!-- MUDANÇA: Upload de Imagem em vez de Webcam -->
                                     <div class="w-full max-w-md mb-4 relative">
                                         <div id="dynamic-photos-container" class="flex flex-wrap justify-center gap-3 w-full mb-4 min-h-[100px] border border-dashed border-gray-700 rounded-xl p-4 bg-black/20">
                                             <div class="text-xs text-gray-500">Nenhuma foto carregada</div>
@@ -513,20 +515,28 @@
         let currentUser = null;
         let hasBootedApp = false;
         
-        // --- NOVO: Configuração Human ---
-        let human = null;
-        let humanFaceDB = []; 
-        const humanConfig = { 
-            backend: 'webgl', 
-            modelBasePath: 'https://cdn.jsdelivr.net/npm/@vladmandic/human@3.2.2/models/', 
-            filter: { equalization: true }, 
-            face: { enabled: true, detector: { rotation: true, return: true }, mesh: { enabled: false }, iris: { enabled: false }, description: { enabled: true }, emotion: { enabled: false } }, 
-            body: { enabled: false }, hand: { enabled: false }, object: { enabled: false } 
-        };
-
         let isAiReady = false;
         let activeTab = 'live';
         let layout = Number(localStorage.getItem('vms_layout')) || 4;
+        let faceMatcher = null;
+        let human = null;
+        let humanFaceDB = [];
+        const humanConfig = {
+            // Removemos o 'backend' para ele auto-detetar o melhor (WASM ou WebGL)
+            modelBasePath: 'https://vladmandic.github.io/human/models/', // CDN Oficial e Seguro
+            filter: { equalization: true },
+            face: {
+                enabled: true,
+                detector: { rotation: true, return: true },
+                mesh: { enabled: false },
+                iris: { enabled: false },
+                description: { enabled: true },
+                emotion: { enabled: false }
+            },
+            body: { enabled: false },
+            hand: { enabled: false },
+            object: { enabled: false }
+        };
         
         let selectedSlotIndex = null;
         let draggedSlotIndex = null;
@@ -670,11 +680,13 @@
 
         async function initAI() {
             try {
-                // FASE 1: Substituir inicialização para o Human
-                human = new Human(humanConfig); 
-                await human.load(); 
-                await human.warmup();
+                const HumanCtor = (typeof Human === 'function') ? Human : (Human?.Human || Human?.default);
+                if (!HumanCtor) throw new Error('Human indisponível');
 
+                human = new HumanCtor(humanConfig);
+                await human.load();
+                await human.warmup();
+                
                 isAiReady = true;
                 const statusElems = [document.getElementById('ai-status-desktop'), document.getElementById('ai-status-mobile')];
                 statusElems.forEach(el => {
@@ -694,22 +706,15 @@
         }
 
         function updateFaceMatcher() {
-            // FASE 3A: Povoar humanFaceDB
-            if (!isAiReady || !human) { humanFaceDB = []; return; }
             humanFaceDB = [];
-            
             persons.forEach(p => {
                 const raw = Array.isArray(p?.descriptors) && p.descriptors.length ? p.descriptors : (p?.descriptor ? [p.descriptor] : []);
-                const vecs = raw.map(d => typeof d === 'string' ? JSON.parse(d) : d).filter(d => Array.isArray(d) && d.length).map(d => new Float32Array(d));
-                
-                vecs.forEach(vec => {
-                    humanFaceDB.push({
-                        id: p.id,
-                        name: p.name,
-                        level: p.level,
-                        photo: p.photo,
-                        descriptor: vec
-                    });
+                raw.forEach(d => {
+                    try {
+                        const parsed = typeof d === 'string' ? JSON.parse(d) : d;
+                        if (!Array.isArray(parsed) || parsed.length === 0) return;
+                        humanFaceDB.push({ id: p.id, name: p.name, level: p.level, descriptor: new Float32Array(parsed) });
+                    } catch (e) {}
                 });
             });
         }
@@ -951,7 +956,7 @@
         };
 
         window.analyzeUploadedPhoto = async () => {
-            if (!isAiReady || !human) return showToast("Aguarde a inicialização da IA...", "warning");
+            if (!isAiReady) return showToast("Aguarde a inicialização da IA...", "warning");
 
             const scanAnim = document.getElementById('scan-animation');
             const btn = document.getElementById('btn-scan');
@@ -988,10 +993,9 @@
                         const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
                         offCtx.drawImage(img, 0, 0, img.width, img.height);
 
-                        // FASE 2: Deteção usando biblioteca Human
                         const result = await human.detect(offCanvas);
 
-                        if (result?.face?.length > 0 && result.face[0].embedding) {
+                        if (result?.face?.length > 0 && result.face[0]?.embedding?.length) {
                             tempDescriptors.push(Array.from(result.face[0].embedding));
                             tempPhotoUploads[i].status = 'success';
                         } else {
@@ -1275,6 +1279,7 @@
                 slot.className = `camera-slot bg-black rounded-lg border border-gray-800 overflow-hidden relative transition-all duration-200 ${mobileFix}`;
                 slot.id = cam ? `slot-${cam.id}` : `slot-empty-${i}`;
                 
+                // Eventos de interatividade e Drag & Drop
                 slot.draggable = true;
                 slot.setAttribute('ondragstart', `handleDragStart(event, ${i})`);
                 slot.setAttribute('ondragover', `handleDragOver(event)`);
@@ -1315,6 +1320,7 @@
                     const videoEl = document.getElementById(`media-${cam.id}`);
                     if (cam.type === 'webcam') {
                         try { 
+                            // FORÇADO: Solicita à webcam a melhor resolução possível (FullHD) em vez de VGA(640x480)
                             const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } } }); 
                             const stillActive = document.getElementById(`media-${cam.id}`);
                             if (stillActive) {
@@ -1358,25 +1364,25 @@
             const height = Math.max(1, Math.round(srcH * scale));
             const left = Math.max(0, Math.round((containerW - width) / 2));
             const top = Math.max(0, Math.round((containerH - height) / 2));
-            return { left, top, width, height, srcW, srcH };
+            return { left, top, width, height };
         }
 
-        // FASE 3B (Correção Crítica): Alinhamento da resolução interna do Canvas com as coordenadas do Human
         function syncCanvasToMedia(canvas, media) {
             if (!canvas || !media) return;
             const box = getDisplayedMediaBox(media);
             if (!box.width || !box.height) return;
             
-            // Define o tamanho visível no CSS
+            // Posiciona o canvas exatamente por cima da área de vídeo ativo
             canvas.style.left = `${box.left}px`;
             canvas.style.top = `${box.top}px`;
             canvas.style.width = `${box.width}px`;
             canvas.style.height = `${box.height}px`;
-
-            // Define a resolução interna do Canvas (MUITO IMPORTANTE!)
-            // Sem isto, a API nativa desenha as caixas num plano de 300x150, fora de vista!
-            if (canvas.width !== box.srcW) canvas.width = box.srcW;
-            if (canvas.height !== box.srcH) canvas.height = box.srcH;
+            canvas.style.right = 'auto';
+            canvas.style.bottom = 'auto';
+            
+            // IMPORTANTE: Garante que a resolução interna do canvas suporta o desenho
+            if (canvas.width !== box.width) canvas.width = box.width;
+            if (canvas.height !== box.height) canvas.height = box.height;
         }
 
         function resizeAICanvases() {
@@ -1477,150 +1483,152 @@
             const canvas = document.getElementById(`canvas-${cam.id}`);
             if (!media || !canvas) return;
 
-            const offCanvas = document.createElement('canvas');
-            const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
-
+            // Estado de controlo para a câmara individual
             const loopState = { active: true };
             aiLoops[cam.id] = loopState;
             let rafPending = false;
 
-            async function processFrame() {
-                if (!loopState.active) return;
-                
-                if (document.hidden || activeTab !== 'live' || !media.clientWidth) {
-                    setTimeout(processFrame, 1000);
-                    return;
-                }
-                if (media.tagName === 'VIDEO' && media.readyState < 2) {
-                    setTimeout(processFrame, 500);
-                    return;
-                }
-                
-                const startTime = Date.now();
-                
-                try {
-                    const vidWidth = media.videoWidth || media.naturalWidth || media.clientWidth || 640;
-                    const vidHeight = media.videoHeight || media.naturalHeight || media.clientHeight || 480;
-                    syncCanvasToMedia(canvas, media);
-
-                    offCanvas.width = vidWidth;
-                    offCanvas.height = vidHeight;
-                    offCtx.filter = 'contrast(1.05) brightness(1.05)';
-                    offCtx.drawImage(media, 0, 0, vidWidth, vidHeight);
-
-                    // FASE 3B: Detetar caras usando Human
-                    let result = await human.detect(offCanvas);
-                    let faces = result.face || [];
-
-                    // Filtrar falsos positivos microscópicos
-                    faces = faces.filter(f => {
-                        const [x, y, w, h] = f.box;
-                        if (w < 40 || h < 40) return false;
-                        if (w > 400) return false;
-                        const ratio = w / h;
-                        if (ratio < 0.6 || ratio > 1.4) return false;
-                        return true;
-                    });
-
-                    const renderBoxes = [];
-
-                    faces.forEach(face => {
-                        let color = '#3b82f6'; 
-                        let text = 'Desconhecido';
-                        let matchedPerson = null;
-                        let bestSimilarity = 0;
-
-                        if (humanFaceDB.length > 0 && face.embedding) {
-                            // Encontrar a melhor correspondência no humanFaceDB
-                            for (const dbFace of humanFaceDB) {
-                                const sim = human.similarity(face.embedding, dbFace.descriptor);
-                                if (sim > bestSimilarity) {
-                                    bestSimilarity = sim;
-                                    matchedPerson = dbFace;
-                                }
-                            }
-
-                            // Limiares adaptados para a biblioteca Human (Similarity vai de 0 a 1)
-                            // O slider "getAiConfidence()" (0.1 a 0.9) controla a tolerância. 
-                            // Quanto mais estrito, maior deve ser a similaridade exigida.
-                            const baseTolerance = getAiConfidence(); // Ex: 0.40
-                            // Se o slider for 0.4, precisamos de > 0.6 para considerar um Match forte.
-                            const requiredMatchSim = 1.0 - baseTolerance; 
-                            
-                            const certainty = Math.round(bestSimilarity * 100);
-
-                            if (matchedPerson && bestSimilarity > 0.45) { // Similaridade básica para ser pelo menos um Suspeito de longe
-                                const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981';
-                                
-                                if (bestSimilarity < requiredMatchSim - 0.1) {
-                                    text = `Analisando: ${matchedPerson.name} (${certainty}%)`;
-                                    color = '#10b981';
-                                } else if (bestSimilarity >= requiredMatchSim - 0.1 && bestSimilarity < requiredMatchSim) {
-                                    text = `Suspeito: ${matchedPerson.name} (${certainty}%)`;
-                                    color = '#eab308';
-                                } else if (bestSimilarity >= requiredMatchSim) {
-                                    text = `${matchedPerson.name} (${certainty}%)`;
-                                    color = dbColor;
-                                    
-                                    // Disparar Alarme e Log
-                                    const now = Date.now();
-                                    const lastTime = lastDetectionTime[matchedPerson.id] || 0;
-                                    if (now - lastTime > 20000) {
-                                        lastDetectionTime[matchedPerson.id] = now;
-                                        processDetection(matchedPerson, cam, media);
-                                    }
-                                }
-                            }
-                        }
-
-                        renderBoxes.push({ box: face.box, label: text, boxColor: color });
-                    });
-
-                    // Renderização Nativa do HTML5 Canvas
-                    if (!rafPending) {
-                        rafPending = true;
-                        requestAnimationFrame(() => {
-                            rafPending = false;
-                            const ctx = canvas.getContext('2d');
-                            ctx.clearRect(0, 0, canvas.width, canvas.height);
-                            
-                            renderBoxes.forEach(b => {
-                                const [x, y, w, h] = b.box;
-                                
-                                // Desenhar a caixa
-                                ctx.strokeStyle = b.boxColor;
-                                ctx.lineWidth = 3;
-                                ctx.strokeRect(x, y, w, h);
-                                
-                                // Fundo para o texto
-                                ctx.fillStyle = b.boxColor;
-                                ctx.fillRect(x, y - 22, ctx.measureText(b.label).width + 10, 22);
-
-                                // Desenhar o Texto
-                                ctx.fillStyle = "#ffffff";
-                                ctx.font = "bold 14px sans-serif";
-                                ctx.fillText(b.label, x + 5, y - 6);
-                            });
-                        });
-                    }
-                } catch (e) {
-                    console.warn("Erro no processamento da câmara", cam.id, e);
-                }
-
-                const elapsed = Date.now() - startTime;
-                const delay = Math.max(30, 100 - elapsed);
-                
-                if (loopState.active) {
-                    setTimeout(processFrame, delay);
-                }
-            }
+            async function processFrame() { 
+                 if (!loopState.active) return; 
+                 
+                 if (document.hidden || activeTab !== 'live' || !media.clientWidth) { 
+                     setTimeout(processFrame, 1000); 
+                     return; 
+                 } 
+                 if (media.tagName === 'VIDEO' && media.readyState < 2) { 
+                     setTimeout(processFrame, 500); 
+                     return; 
+                 } 
+                 if (!human) { 
+                     setTimeout(processFrame, 1000); 
+                     return; 
+                 } 
+                 
+                 const startTime = Date.now(); 
+                 
+                 try { 
+                     syncCanvasToMedia(canvas, media); 
+                     
+                     // IA lê diretamente da tag de media 
+                     const result = await human.detect(media); 
+                     const faces = Array.isArray(result?.face) ? result.face : []; 
+ 
+                     const ctx = canvas.getContext('2d'); 
+                     ctx.clearRect(0, 0, canvas.width, canvas.height); 
+                     
+                     // --- RADAR VISUAL DO SISTEMA --- 
+                     ctx.fillStyle = faces.length > 0 ? '#10b981' : '#f59e0b'; 
+                     ctx.beginPath(); 
+                     ctx.arc(15, 15, 6, 0, 2 * Math.PI); 
+                     ctx.fill(); 
+                     ctx.font = '12px ui-monospace, monospace'; 
+                     ctx.fillStyle = '#fff'; 
+                     ctx.textBaseline = 'top'; 
+                     ctx.fillText(`IA Ativa | Alvos no radar: ${faces.length}`, 25, 10); 
+                     // -------------------------------- 
+                     
+                     const matchThreshold = 0.50; 
+                     const sureThreshold = Math.max(0.65, Math.min(0.90, 1 - getAiConfidence())); 
+                     
+                     faces.forEach((face, index) => { 
+                         // A SOLUÇÃO: Usar boxRaw (0.0 a 1.0) multiplicado pelo tamanho EXATO do Canvas 
+                         const boxRaw = face.boxRaw || [0, 0, 0, 0]; 
+                         const x = boxRaw[0] * canvas.width; 
+                         const y = boxRaw[1] * canvas.height; 
+                         const w = boxRaw[2] * canvas.width; 
+                         const h = boxRaw[3] * canvas.height; 
+                         
+                         // --- DEBUG DE MATEMÁTICA --- 
+                         ctx.fillStyle = '#fde047'; // Amarelo 
+                         ctx.fillText(`[Box ${index}] x:${Math.round(x)} w:${Math.round(w)}px`, 25, 28 + (index * 15)); 
+                         // --------------------------- 
+ 
+                         // Ignora apenas se for verdadeiramente microscópico no ecrã (ruído) 
+                         if (w < 15 || h < 15) return; 
+ 
+                         let color = '#3b82f6'; // Azul padrão (Desconhecido) 
+                         let text = 'Desconhecido'; 
+                         let person = null; 
+ 
+                         const embedding = face.embedding; 
+                         
+                         if (embedding && embedding.length > 0 && humanFaceDB.length > 0) { 
+                             let bestSim = 0; 
+                             let bestDb = null; 
+                             
+                             for (let j = 0; j < humanFaceDB.length; j++) { 
+                                 const dbFace = humanFaceDB[j]; 
+                                  
+                                 // BLINDAGEM: Previne crash comparando arrays de tamanhos diferentes (ex: 1024 vs 128) 
+                                 if (!dbFace.descriptor || embedding.length !== dbFace.descriptor.length) continue; 
+                                  
+                                 try { 
+                                     const sim = human.similarity(embedding, dbFace.descriptor); 
+                                     if (sim > bestSim) { 
+                                         bestSim = sim; 
+                                         bestDb = dbFace; 
+                                     } 
+                                 } catch(err) { 
+                                     // Se a matemática falhar, apenas salta este rosto da DB sem crashar o loop de vídeo 
+                                 } 
+                             } 
+ 
+                             if (bestDb && bestSim >= matchThreshold) { 
+                                 const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb; 
+                                 const certainty = Math.max(0, Math.min(100, Math.round(bestSim * 100))); 
+                                 const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981'; 
+ 
+                                 if (bestSim < sureThreshold) { 
+                                     text = `Analisando: ${matchedPerson.name} (${certainty}%)`; 
+                                     color = '#eab308'; 
+                                 } else { 
+                                     text = `${matchedPerson.name} (${certainty}%)`; 
+                                     color = dbColor; 
+                                     person = matchedPerson; 
+                                 } 
+                             } 
+                         } 
+ 
+                         // DESENHO DO QUADRADO COM AS COORDENADAS CERTAS 
+                         ctx.lineWidth = 3; 
+                         ctx.strokeStyle = color; 
+                         ctx.strokeRect(x, y, w, h); 
+                         
+                         ctx.fillStyle = color; 
+                         ctx.font = '14px ui-monospace, monospace'; 
+                         ctx.textBaseline = 'bottom'; 
+                         ctx.fillText(text, x, Math.max(14, y - 5)); 
+ 
+                         // Alarme 
+                         if (person) { 
+                             const now = Date.now(); 
+                             const lastTime = lastDetectionTime[person.id] || 0; 
+                             if (now - lastTime > 20000) { 
+                                 lastDetectionTime[person.id] = now; 
+                                 processDetection(person, cam, media); 
+                             } 
+                         } 
+                     }); 
+ 
+                 } catch (e) { 
+                     console.warn("Erro no processamento da câmara", cam.id, e); 
+                 } 
+ 
+                 const elapsed = Date.now() - startTime; 
+                 const delay = Math.max(30, 100 - elapsed); 
+                 
+                 if (loopState.active) { 
+                     setTimeout(processFrame, delay); 
+                 } 
+             }
             
+            // Dá o arranque ao loop assíncrono desta câmara específica
             processFrame();
         }
 
         function resumeAILoopsIfNeeded() {
             if (document.hidden || activeTab !== 'live') return;
-            if (!isAiReady || !human) return; 
+            if (!isAiReady) return; // Alterado
             for (let i = 0; i < layout; i++) {
                 const cam = cameras[i];
                 if (!cam) continue;
