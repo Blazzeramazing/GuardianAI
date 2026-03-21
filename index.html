@@ -1377,6 +1377,8 @@
             canvas.style.top = `${box.top}px`;
             canvas.style.width = `${box.width}px`;
             canvas.style.height = `${box.height}px`;
+            canvas.style.right = 'auto';
+            canvas.style.bottom = 'auto';
             
             // IMPORTANTE: Garante que a resolução interna do canvas suporta o desenho
             if (canvas.width !== box.width) canvas.width = box.width;
@@ -1507,41 +1509,63 @@
                  try { 
                      syncCanvasToMedia(canvas, media); 
                      
-                     // IA lê diretamente da tag de media (salta o offCanvas problemático) 
-                     const result = await human.detect(media); 
-                     const faces = Array.isArray(result?.face) ? result.face : []; 
- 
-                     // Limpar o ecrã transparente de desenho 
                      const ctx = canvas.getContext('2d'); 
+                     if (!ctx) throw new Error('Canvas 2D indisponível'); 
                      ctx.clearRect(0, 0, canvas.width, canvas.height); 
-                     // --- DEBUG VISUAL: Ponto Verde se o loop estiver vivo --- 
-                     ctx.fillStyle = faces.length > 0 ? 'rgba(0, 255, 0, 0.8)' : 'rgba(255, 165, 0, 0.8)'; 
+ 
+                     let faces = []; 
+                     let detectError = null; 
+                     try { 
+                         const result = await human.detect(media); 
+                         faces = Array.isArray(result?.face) ? result.face : []; 
+                     } catch (e) { 
+                         detectError = e; 
+                     } 
+ 
+                     ctx.fillStyle = detectError ? 'rgba(255, 0, 0, 0.8)' : (faces.length > 0 ? 'rgba(0, 255, 0, 0.8)' : 'rgba(255, 165, 0, 0.8)'); 
                      ctx.beginPath(); 
                      ctx.arc(15, 15, 6, 0, 2 * Math.PI); 
                      ctx.fill(); 
                      ctx.font = '10px monospace'; 
                      ctx.fillStyle = '#fff'; 
                      ctx.fillText(`IA Ativa | Faces: ${faces.length}`, 25, 20); 
-                     // -------------------------------------------------------- 
+                     if (detectError) ctx.fillText('IA Erro (ver consola)', 25, 32); 
                      
                      const matchThreshold = 0.50; 
                      const sureThreshold = Math.max(0.65, Math.min(0.90, 1 - getAiConfidence())); 
                      
                      faces.forEach(face => { 
-                         // Usar boxRaw (0 a 1) garante escala perfeita para qualquer tamanho de ecrã! 
-                         const x = face.boxRaw[0] * canvas.width; 
-                         const y = face.boxRaw[1] * canvas.height; 
-                         const w = face.boxRaw[2] * canvas.width; 
-                         const h = face.boxRaw[3] * canvas.height; 
-                         
-                         // Ignora falsos positivos menores que 15 pixéis relativos ao ecrã visual 
-                         if (w < 15 || h < 15) return; 
- 
                          let color = '#3b82f6'; // Azul (Desconhecido) 
                          let text = 'Desconhecido'; 
                          let person = null; 
- 
+                         
                          const embedding = face.embedding; 
+                         if (!embedding || embedding.length === 0) return; 
+ 
+                         let x = 0; 
+                         let y = 0; 
+                         let w = 0; 
+                         let h = 0; 
+                         const boxRaw = face.boxRaw; 
+                         if (Array.isArray(boxRaw) && boxRaw.length >= 4 && boxRaw.every(n => Number.isFinite(n))) { 
+                             x = boxRaw[0] * canvas.width; 
+                             y = boxRaw[1] * canvas.height; 
+                             w = boxRaw[2] * canvas.width; 
+                             h = boxRaw[3] * canvas.height; 
+                         } else { 
+                             const box = face.box; 
+                             if (!Array.isArray(box) || box.length < 4 || !box.slice(0, 4).every(n => Number.isFinite(n))) return; 
+                             const vidW = media.videoWidth || media.naturalWidth || canvas.width; 
+                             const vidH = media.videoHeight || media.naturalHeight || canvas.height; 
+                             const scaleX = canvas.width / (vidW || 1); 
+                             const scaleY = canvas.height / (vidH || 1); 
+                             x = box[0] * scaleX; 
+                             y = box[1] * scaleY; 
+                             w = box[2] * scaleX; 
+                             h = box[3] * scaleY; 
+                         } 
+ 
+                         if (w < 15 || h < 15) return; 
                          
                          if (embedding && embedding.length > 0 && humanFaceDB.length > 0) { 
                              let bestSim = 0; 
