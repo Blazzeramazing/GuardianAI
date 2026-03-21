@@ -522,8 +522,8 @@
         let human = null;
         let humanFaceDB = [];
         const humanConfig = {
-            backend: 'webgl',
-            modelBasePath: 'https://cdn.jsdelivr.net/npm/@vladmandic/human@3.2.2/models/',
+            // Removemos o 'backend' para ele auto-detetar o melhor (WASM ou WebGL)
+            modelBasePath: 'https://vladmandic.github.io/human/models/', // CDN Oficial e Seguro
             filter: { equalization: true },
             face: {
                 enabled: true,
@@ -1510,6 +1510,15 @@
                      // Limpar o ecrã transparente de desenho 
                      const ctx = canvas.getContext('2d'); 
                      ctx.clearRect(0, 0, canvas.width, canvas.height); 
+                     // --- DEBUG VISUAL: Ponto Verde se o loop estiver vivo --- 
+                     ctx.fillStyle = faces.length > 0 ? 'rgba(0, 255, 0, 0.8)' : 'rgba(255, 165, 0, 0.8)'; 
+                     ctx.beginPath(); 
+                     ctx.arc(15, 15, 6, 0, 2 * Math.PI); 
+                     ctx.fill(); 
+                     ctx.font = '10px monospace'; 
+                     ctx.fillStyle = '#fff'; 
+                     ctx.fillText(`IA Ativa | Faces: ${faces.length}`, 25, 20); 
+                     // -------------------------------------------------------- 
                      
                      const matchThreshold = 0.50; 
                      const sureThreshold = Math.max(0.65, Math.min(0.90, 1 - getAiConfidence())); 
