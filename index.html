@@ -1267,7 +1267,7 @@
                 </li>`).join(''); 
                  
             if (filteredCams.length === 0) { 
-                list.innerHTML = `<li class="text-xs text-gray-500 text-center py-4">Nenhuma câmara encontrada.</li>`; 
+                list.innerHTML = `<li class="text-xs text-gray-500 text-center py-4">Nenhuma câmara.</li>`; 
             } 
              
             lucide.createIcons(); 
@@ -1522,37 +1522,26 @@
             } 
  
             async function processFrame() { 
-                 if (!loopState.active) return; 
+                  if (!loopState.active) return; 
                   
-                 if (document.hidden || activeTab !== 'live' || !media.clientWidth) { 
-                     setTimeout(processFrame, 1000); 
-                     return; 
-                 } 
-                 if (media.tagName === 'VIDEO' && media.readyState < 2) { 
-                     setTimeout(processFrame, 500); 
-                     return; 
-                 } 
-                 if (!human) { 
-                     setTimeout(processFrame, 1000); 
-                     return; 
-                 } 
+                  if (document.hidden || activeTab !== 'live' || !media.clientWidth) { setTimeout(processFrame, 1000); return; } 
+                  if (media.tagName === 'VIDEO' && media.readyState < 2) { setTimeout(processFrame, 500); return; } 
+                  if (!human) { setTimeout(processFrame, 1000); return; } 
                   
-                 const startTime = Date.now(); 
+                  const startTime = Date.now(); 
                   
-                 try { 
-                     syncCanvasToMedia(canvas, media); 
-                      
-                     const result = await human.detect(media); 
-                     const faces = Array.isArray(result?.face) ? result.face : []; 
+                  try { 
+                      syncCanvasToMedia(canvas, media); 
+                      const result = await human.detect(media); 
+                      const faces = Array.isArray(result?.face) ? result.face : []; 
  
-                     const ctx = canvas.getContext('2d'); 
-                     ctx.clearRect(0, 0, canvas.width, canvas.height); 
+                      const ctx = canvas.getContext('2d'); 
+                      ctx.clearRect(0, 0, canvas.width, canvas.height); 
                       
-                     // Limiares de Reconhecimento ajustados para a nova matemática 
-                     const matchThreshold = 0.40; 
-                     const sureThreshold = Math.max(0.50, Math.min(0.85, 1 - getAiConfidence() + 0.1)); 
+                      // LÊ A EXIGÊNCIA DO SLIDER DA ABA 'DEFINIÇÕES' 
+                      const userThreshold = getAiConfidence(); 
                       
-                     faces.forEach((face) => { 
+                      faces.forEach((face) => { 
                           const boxRaw = face.boxRaw || [0, 0, 0, 0]; 
                           const x = boxRaw[0] * canvas.width; 
                           const y = boxRaw[1] * canvas.height; 
@@ -1561,7 +1550,7 @@
                           
                           if (w < 15 || h < 15) return; 
  
-                          let color = '#3b82f6'; // Azul 
+                          let color = '#3b82f6'; 
                           let text = 'Desconhecido'; 
                           let person = null; 
  
@@ -1574,34 +1563,34 @@
                                   const dbFace = humanFaceDB[j]; 
                                   if (!dbFace.descriptor || embedding.length !== dbFace.descriptor.length) continue; 
                                   const sim = calcSimilarity(embedding, dbFace.descriptor); 
-                                  if (sim > bestSim) { 
-                                      bestSim = sim; 
-                                      bestDb = dbFace; 
-                                  } 
+                                  if (sim > bestSim) { bestSim = sim; bestDb = dbFace; } 
                               } 
                           } 
  
-                          // O Valor do Slider da UI dita a lei (0.10 a 0.90) 
-                          const userThreshold = getAiConfidence(); 
                           const maxSimPct = Math.round(bestSim * 100); 
                           
+                          // LÓGICA DE RECONHECIMENTO ADAPTÁVEL 
                           if (bestDb && bestSim >= userThreshold) { 
-                              // RECONHECIMENTO CONFIRMADO 
                               const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb; 
                               const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981'; 
-                              text = `${matchedPerson.name} (${maxSimPct}%)`; 
-                              color = dbColor; 
-                              person = matchedPerson; 
-                          } else if (bestDb && bestSim >= (userThreshold - 0.15)) { 
-                              // ZONA DE AVISO: A IA acha que é a pessoa, mas o slider está muito exigente 
-                              text = `Analisando... (${maxSimPct}%)`; 
+                              
+                              // Se ultrapassou o limite mas por muito pouco (ex: limite 0.65, leitura 0.66) 
+                              if (bestSim < userThreshold + 0.05) { 
+                                  text = `A confirmar: ${matchedPerson.name} (${maxSimPct}%)`; 
+                                  color = '#eab308'; 
+                              } else { 
+                                  text = `${matchedPerson.name} (${maxSimPct}%)`; 
+                                  color = dbColor; 
+                                  person = matchedPerson; 
+                              } 
+                          } else if (bestDb && bestSim >= (userThreshold - 0.10)) { 
+                              text = `A analisar... (${maxSimPct}%)`; 
                               color = '#eab308'; 
                           } else { 
-                              // DESCONHECIDO COM DEBUG: Mostra o quão parecido o estranho é com o melhor da base de dados 
-                              text = maxSimPct > 5 ? `Desconhecido (Max: ${maxSimPct}%)` : `Desconhecido`; 
+                              text = maxSimPct > 10 ? `Desconhecido (Max: ${maxSimPct}%)` : `Desconhecido`; 
                           } 
  
-                          // Renderização Profissional Limpa 
+                          // UI PROFISSIONAL LIMPA 
                           ctx.lineWidth = 3; 
                           ctx.strokeStyle = color; 
                           ctx.strokeRect(x, y, w, h); 
@@ -1616,7 +1605,6 @@
                           ctx.fillStyle = color; 
                           ctx.fillText(text, x + 4, Math.max(16, y - 4)); 
  
-                          // Alarme 
                           if (person) { 
                               const now = Date.now(); 
                               const lastTime = lastDetectionTime[person.id] || 0; 
@@ -1625,19 +1613,12 @@
                                   processDetection(person, cam, media); 
                               } 
                           } 
-                      });
+                      }); 
+                  } catch (e) {} 
  
-                 } catch (e) { 
-                     console.warn("Erro no processamento da câmara", cam.id, e); 
-                 } 
- 
-                 const elapsed = Date.now() - startTime; 
-                 const delay = Math.max(30, 100 - elapsed); 
-                  
-                 if (loopState.active) { 
-                     setTimeout(processFrame, delay); 
-                 } 
-            } 
+                  const elapsed = Date.now() - startTime; 
+                  if (loopState.active) { setTimeout(processFrame, Math.max(30, 100 - elapsed)); } 
+             }
              
             processFrame(); 
         }
