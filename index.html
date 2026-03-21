@@ -529,20 +529,20 @@
         let humanFaceDB = [];
         const humanConfig = {
             modelBasePath: 'https://vladmandic.github.io/human/models/',
-            filter: { equalization: true }, // HDR ativo para sombras e fundos de corredor
+            filter: { equalization: false }, // DESLIGADO: Remove o ruído/sombras que criam "fantasmas"
             face: {
                 enabled: true,
                 detector: {
                     rotation: true,
                     return: true,
-                    minConfidence: 0.2, // BAIXADO: Permite detetar rostos mais longe/menores
-                    maxDetected: 20
+                    minConfidence: 0.60, // SÓ HUMANOS: Exige 60% de certeza do detetor
+                    maxDetected: 10
                 },
                 mesh: { enabled: false },
                 iris: { enabled: false },
                 description: {
                     enabled: true,
-                    minConfidence: 0.1 // Força a extração biométrica mesmo em rostos distantes
+                    minConfidence: 0.60 // SÓ ROSTOS NÍTIDOS: Para extrair biometria
                 },
                 emotion: { enabled: false }
             },
@@ -688,7 +688,8 @@
         // ================= IA & CONFIGURAÇÕES =================
         function getAiConfidence() {
             const v = Number(localStorage.getItem('vms_ai_confidence'));
-            return Number.isFinite(v) && v > 0 ? Math.min(0.9, Math.max(0.1, v)) : 0.40;
+            // O default passa a ser 0.65 (65%), o ideal para Similaridade de Cosseno
+            return Number.isFinite(v) && v > 0 ? Math.min(0.9, Math.max(0.1, v)) : 0.65;
         }
 
         async function initAI() {
@@ -1509,18 +1510,6 @@
             const loopState = { active: true }; 
             aiLoops[cam.id] = loopState; 
              
-            // --- MATEMÁTICA PURA: Similaridade de Cosseno (Falha Zero) --- 
-            function calcSimilarity(vecA, vecB) { 
-                let dot = 0, normA = 0, normB = 0; 
-                for (let i = 0; i < vecA.length; i++) { 
-                    dot += vecA[i] * vecB[i]; 
-                    normA += vecA[i] * vecA[i]; 
-                    normB += vecB[i] * vecB[i]; 
-                } 
-                if (normA === 0 || normB === 0) return 0; 
-                return dot / (Math.sqrt(normA) * Math.sqrt(normB)); 
-            } 
- 
             async function processFrame() { 
                   if (!loopState.active) return; 
                   
@@ -1538,7 +1527,6 @@
                       const ctx = canvas.getContext('2d'); 
                       ctx.clearRect(0, 0, canvas.width, canvas.height); 
                       
-                      // LÊ A EXIGÊNCIA DO SLIDER DA ABA 'DEFINIÇÕES' 
                       const userThreshold = getAiConfidence(); 
                       
                       faces.forEach((face) => { 
@@ -1548,7 +1536,12 @@
                           const w = boxRaw[2] * canvas.width; 
                           const h = boxRaw[3] * canvas.height; 
                           
-                          if (w < 15 || h < 15) return; 
+                          // Filtra mosquitos e ruído 
+                          if (w < 35 || h < 35) return; 
+                          
+                          // Filtra objetos inanimados nas sombras 
+                          const score = face.boxScore || face.score || 0; 
+                          if (score < 0.55) return; 
  
                           let color = '#3b82f6'; 
                           let text = 'Desconhecido'; 
@@ -1558,39 +1551,50 @@
                           let bestSim = 0; 
                           let bestDb = null; 
                           
-                          if (embedding && embedding.length > 0 && humanFaceDB.length > 0) { 
-                              for (let j = 0; j < humanFaceDB.length; j++) { 
-                                  const dbFace = humanFaceDB[j]; 
-                                  if (!dbFace.descriptor || embedding.length !== dbFace.descriptor.length) continue; 
-                                  const sim = calcSimilarity(embedding, dbFace.descriptor); 
-                                  if (sim > bestSim) { bestSim = sim; bestDb = dbFace; } 
+                          // Só reconhece de perto 
+                          if (w >= 60 && h >= 60) { 
+                              if (embedding && embedding.length > 0 && humanFaceDB.length > 0) { 
+                                  for (let j = 0; j < humanFaceDB.length; j++) { 
+                                      const dbFace = humanFaceDB[j]; 
+                                      if (!dbFace.descriptor || embedding.length !== dbFace.descriptor.length) continue; 
+                                      
+                                      // MATEMÁTICA NATIVA DA BIBLIOTECA (0 a 1) 
+                                      try { 
+                                          const matchResult = human.match.similarity(embedding, dbFace.descriptor); 
+                                          // Lida com o facto da API devolver às vezes o número direto ou um object { similarity } 
+                                          const sim = typeof matchResult === 'number' ? matchResult : (matchResult?.similarity || 0); 
+                                          
+                                          if (sim > bestSim) { bestSim = sim; bestDb = dbFace; } 
+                                      } catch(e) {} 
+                                  } 
                               } 
-                          } 
  
-                          const maxSimPct = Math.round(bestSim * 100); 
-                          
-                          // LÓGICA DE RECONHECIMENTO ADAPTÁVEL 
-                          if (bestDb && bestSim >= userThreshold) { 
-                              const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb; 
-                              const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981'; 
+                              const maxSimPct = Math.round(bestSim * 100); 
                               
-                              // Se ultrapassou o limite mas por muito pouco (ex: limite 0.65, leitura 0.66) 
-                              if (bestSim < userThreshold + 0.05) { 
-                                  text = `A confirmar: ${matchedPerson.name} (${maxSimPct}%)`; 
+                              if (bestDb && bestSim >= userThreshold) { 
+                                  const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb; 
+                                  const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981'; 
+                                  
+                                  if (bestSim < userThreshold + 0.04) { 
+                                      text = `A confirmar: ${matchedPerson.name} (${maxSimPct}%)`; 
+                                      color = '#eab308'; 
+                                  } else { 
+                                      text = `${matchedPerson.name} (${maxSimPct}%)`; 
+                                      color = dbColor; 
+                                      person = matchedPerson; 
+                                  } 
+                              } else if (bestDb && bestSim >= (userThreshold - 0.10)) { 
+                                  text = `A analisar...`; 
                                   color = '#eab308'; 
                               } else { 
-                                  text = `${matchedPerson.name} (${maxSimPct}%)`; 
-                                  color = dbColor; 
-                                  person = matchedPerson; 
+                                  text = `Desconhecido`; 
                               } 
-                          } else if (bestDb && bestSim >= (userThreshold - 0.10)) { 
-                              text = `A analisar... (${maxSimPct}%)`; 
-                              color = '#eab308'; 
                           } else { 
-                              text = maxSimPct > 10 ? `Desconhecido (Max: ${maxSimPct}%)` : `Desconhecido`; 
+                              text = 'Rosto distante'; 
+                              color = '#9ca3af'; 
                           } 
  
-                          // UI PROFISSIONAL LIMPA 
+                          // Renderização 
                           ctx.lineWidth = 3; 
                           ctx.strokeStyle = color; 
                           ctx.strokeRect(x, y, w, h); 
@@ -1618,10 +1622,10 @@
  
                   const elapsed = Date.now() - startTime; 
                   if (loopState.active) { setTimeout(processFrame, Math.max(30, 100 - elapsed)); } 
-             }
-             
-            processFrame(); 
-        }
+             } 
+              
+             processFrame(); 
+         }
 
         function resumeAILoopsIfNeeded() {
             if (document.hidden || activeTab !== 'live') return;
