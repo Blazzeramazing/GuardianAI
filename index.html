@@ -1508,7 +1508,7 @@
                     offCtx.drawImage(media, 0, 0, vidWidth, vidHeight);
 
                     // ATUALIZADO: Motor SSD Mobilenet lendo do offCanvas tratado
-                    let detections = await faceapi.detectAllFaces(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.6, inputSize: 512 })).withFaceLandmarks().withFaceDescriptors();
+                    let detections = await faceapi.detectAllFaces(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.6, inputSize: 608 })).withFaceLandmarks().withFaceDescriptors();
                     
                     // NOVO: Filtrar falsos positivos microscópicos (< 40px na imagem original)
                     detections = detections.filter(d => {
