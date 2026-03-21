@@ -164,15 +164,21 @@
                     </button>
                 </div>
 
-                <!-- Lista de Câmaras -->
-                <div class="p-4 flex-1 overflow-y-auto relative hidden flex-col" id="sidebar-cameras">
-                    <div class="flex items-center justify-between mb-4 sticky top-0 bg-gray-900 z-10 pb-2">
-                        <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500">Dispositivos</h2>
-                        <button onclick="openAddCameraModal()" class="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow transition-colors" title="Adicionar Câmara">
-                            <i data-lucide="plus" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                    <ul id="camera-list" class="space-y-2 pb-6"></ul>
+                <!-- Lista de Câmaras --> 
+                <div class="p-4 flex-1 overflow-y-auto relative hidden flex-col" id="sidebar-cameras"> 
+                    <div class="flex flex-col gap-3 mb-4 sticky top-0 bg-gray-900 z-10 pb-2 border-b border-gray-800"> 
+                        <div class="flex items-center justify-between"> 
+                            <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500">Dispositivos</h2> 
+                            <button onclick="openAddCameraModal()" class="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow transition-colors" title="Adicionar Câmara"> 
+                                <i data-lucide="plus" class="w-4 h-4"></i> 
+                            </button> 
+                        </div> 
+                        <div class="relative"> 
+                            <i data-lucide="search" class="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2"></i> 
+                            <input type="text" id="sidebar-cam-search" placeholder="Procurar câmara..." class="w-full bg-gray-950 border border-gray-800 rounded-lg pl-9 pr-3 py-2.5 text-white text-sm focus:border-blue-500 outline-none transition-colors" oninput="renderSidebarCameras()"> 
+                        </div> 
+                    </div> 
+                    <ul id="camera-list" class="space-y-2 pb-6"></ul> 
                 </div>
 
                 <div class="p-2 border-t border-gray-800 bg-gray-950 mt-auto">
@@ -522,15 +528,22 @@
         let human = null;
         let humanFaceDB = [];
         const humanConfig = {
-            // Removemos o 'backend' para ele auto-detetar o melhor (WASM ou WebGL)
-            modelBasePath: 'https://vladmandic.github.io/human/models/', // CDN Oficial e Seguro
-            filter: { equalization: true },
+            modelBasePath: 'https://vladmandic.github.io/human/models/',
+            filter: { equalization: true }, // HDR ativo para sombras e fundos de corredor
             face: {
                 enabled: true,
-                detector: { rotation: true, return: true },
+                detector: {
+                    rotation: true,
+                    return: true,
+                    minConfidence: 0.2, // BAIXADO: Permite detetar rostos mais longe/menores
+                    maxDetected: 20
+                },
                 mesh: { enabled: false },
                 iris: { enabled: false },
-                description: { enabled: true },
+                description: {
+                    enabled: true,
+                    minConfidence: 0.1 // Força a extração biométrica mesmo em rostos distantes
+                },
                 emotion: { enabled: false }
             },
             body: { enabled: false },
@@ -1237,17 +1250,27 @@
             });
         }
 
-        function renderSidebarCameras() {
-            const list = document.getElementById('camera-list');
-            list.innerHTML = cameras.filter(c => c !== null).map(cam => `
-                <li class="flex items-center justify-between p-3 md:p-2 bg-gray-950 border border-gray-800 rounded-lg md:rounded">
-                    <div class="flex items-center gap-3 md:gap-2 truncate cursor-pointer hover:text-blue-400 flex-1 transition-colors" onclick="handleSidebarCameraClick('${cam.id}')" title="Atribuir à grelha selecionada">
-                        <i data-lucide="video" class="w-5 h-5 md:w-4 md:h-4 text-gray-500 shrink-0"></i>
-                        <span class="text-sm truncate">${escapeHtml(cam.name)}</span>
-                    </div>
-                    <button onclick="removeCamera('${cam.id}')" class="p-1.5 text-gray-600 hover:text-red-500"><i data-lucide="trash-2" class="w-5 h-5 md:w-4 md:h-4"></i></button>
-                </li>`).join('');
-            lucide.createIcons();
+        function renderSidebarCameras() { 
+            const list = document.getElementById('camera-list'); 
+            const searchInput = document.getElementById('sidebar-cam-search'); 
+            const query = searchInput ? searchInput.value.toLowerCase() : ''; 
+             
+            const filteredCams = cameras.filter(c => c !== null && c.name.toLowerCase().includes(query)); 
+             
+            list.innerHTML = filteredCams.map(cam => ` 
+                <li class="flex items-center justify-between p-3 md:p-2 bg-gray-950 border border-gray-800 rounded-lg md:rounded"> 
+                    <div class="flex items-center gap-3 md:gap-2 truncate cursor-pointer hover:text-blue-400 flex-1 transition-colors" onclick="handleSidebarCameraClick('${cam.id}')" title="Atribuir à grelha selecionada"> 
+                        <i data-lucide="video" class="w-5 h-5 md:w-4 md:h-4 text-gray-500 shrink-0"></i> 
+                        <span class="text-sm truncate">${escapeHtml(cam.name)}</span> 
+                    </div> 
+                    <button onclick="removeCamera('${cam.id}')" class="p-1.5 text-gray-600 hover:text-red-500"><i data-lucide="trash-2" class="w-5 h-5 md:w-4 md:h-4"></i></button> 
+                </li>`).join(''); 
+                 
+            if (filteredCams.length === 0) { 
+                list.innerHTML = `<li class="text-xs text-gray-500 text-center py-4">Nenhuma câmara encontrada.</li>`; 
+            } 
+             
+            lucide.createIcons(); 
         }
 
         async function renderGrid() {
@@ -1530,79 +1553,79 @@
                      const sureThreshold = Math.max(0.50, Math.min(0.85, 1 - getAiConfidence() + 0.1)); 
                       
                      faces.forEach((face) => { 
-                         const boxRaw = face.boxRaw || [0, 0, 0, 0]; 
-                         const x = boxRaw[0] * canvas.width; 
-                         const y = boxRaw[1] * canvas.height; 
-                         const w = boxRaw[2] * canvas.width; 
-                         const h = boxRaw[3] * canvas.height; 
+                          const boxRaw = face.boxRaw || [0, 0, 0, 0]; 
+                          const x = boxRaw[0] * canvas.width; 
+                          const y = boxRaw[1] * canvas.height; 
+                          const w = boxRaw[2] * canvas.width; 
+                          const h = boxRaw[3] * canvas.height; 
                           
-                         if (w < 15 || h < 15) return; 
+                          if (w < 15 || h < 15) return; 
  
-                         let color = '#3b82f6'; // Azul 
-                         let text = 'Desconhecido'; 
-                         let person = null; 
+                          let color = '#3b82f6'; // Azul 
+                          let text = 'Desconhecido'; 
+                          let person = null; 
  
-                         const embedding = face.embedding; 
+                          const embedding = face.embedding; 
+                          let bestSim = 0; 
+                          let bestDb = null; 
                           
-                         if (embedding && embedding.length > 0 && humanFaceDB.length > 0) { 
-                             let bestSim = 0; 
-                             let bestDb = null; 
-                              
-                             for (let j = 0; j < humanFaceDB.length; j++) { 
-                                 const dbFace = humanFaceDB[j]; 
-                                  
-                                 if (!dbFace.descriptor || embedding.length !== dbFace.descriptor.length) continue; 
-                                  
-                                 // Matemática nativa - Sem erros de biblioteca! 
-                                 const sim = calcSimilarity(embedding, dbFace.descriptor); 
-                                  
-                                 if (sim > bestSim) { 
-                                     bestSim = sim; 
-                                     bestDb = dbFace; 
-                                 } 
-                             } 
+                          if (embedding && embedding.length > 0 && humanFaceDB.length > 0) { 
+                              for (let j = 0; j < humanFaceDB.length; j++) { 
+                                  const dbFace = humanFaceDB[j]; 
+                                  if (!dbFace.descriptor || embedding.length !== dbFace.descriptor.length) continue; 
+                                  const sim = calcSimilarity(embedding, dbFace.descriptor); 
+                                  if (sim > bestSim) { 
+                                      bestSim = sim; 
+                                      bestDb = dbFace; 
+                                  } 
+                              } 
+                          } 
  
-                             if (bestDb && bestSim >= matchThreshold) { 
-                                 const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb; 
-                                 const certainty = Math.max(0, Math.min(100, Math.round(bestSim * 100))); 
-                                 const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981'; 
- 
-                                 if (bestSim < sureThreshold) { 
-                                     text = `Analisando: ${matchedPerson.name} (${certainty}%)`; 
-                                     color = '#eab308'; 
-                                 } else { 
-                                     text = `${matchedPerson.name} (${certainty}%)`; 
-                                     color = dbColor; 
-                                     person = matchedPerson; 
-                                 } 
-                             } 
-                         } 
- 
-                         // Renderização Profissional Limpa 
-                         ctx.lineWidth = 3; 
-                         ctx.strokeStyle = color; 
-                         ctx.strokeRect(x, y, w, h); 
+                          // O Valor do Slider da UI dita a lei (0.10 a 0.90) 
+                          const userThreshold = getAiConfidence(); 
+                          const maxSimPct = Math.round(bestSim * 100); 
                           
-                         ctx.font = '14px ui-monospace, monospace'; 
-                         ctx.textBaseline = 'bottom'; 
-                          
-                         const textWidth = ctx.measureText(text).width; 
-                         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; 
-                         ctx.fillRect(x, Math.max(0, y - 22), textWidth + 8, 22); 
-                          
-                         ctx.fillStyle = color; 
-                         ctx.fillText(text, x + 4, Math.max(16, y - 4)); 
+                          if (bestDb && bestSim >= userThreshold) { 
+                              // RECONHECIMENTO CONFIRMADO 
+                              const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb; 
+                              const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981'; 
+                              text = `${matchedPerson.name} (${maxSimPct}%)`; 
+                              color = dbColor; 
+                              person = matchedPerson; 
+                          } else if (bestDb && bestSim >= (userThreshold - 0.15)) { 
+                              // ZONA DE AVISO: A IA acha que é a pessoa, mas o slider está muito exigente 
+                              text = `Analisando... (${maxSimPct}%)`; 
+                              color = '#eab308'; 
+                          } else { 
+                              // DESCONHECIDO COM DEBUG: Mostra o quão parecido o estranho é com o melhor da base de dados 
+                              text = maxSimPct > 5 ? `Desconhecido (Max: ${maxSimPct}%)` : `Desconhecido`; 
+                          } 
  
-                         // Alarme 
-                         if (person) { 
-                             const now = Date.now(); 
-                             const lastTime = lastDetectionTime[person.id] || 0; 
-                             if (now - lastTime > 20000) { 
-                                 lastDetectionTime[person.id] = now; 
-                                 processDetection(person, cam, media); 
-                             } 
-                         } 
-                     }); 
+                          // Renderização Profissional Limpa 
+                          ctx.lineWidth = 3; 
+                          ctx.strokeStyle = color; 
+                          ctx.strokeRect(x, y, w, h); 
+                          
+                          ctx.font = '14px ui-monospace, monospace'; 
+                          ctx.textBaseline = 'bottom'; 
+                          
+                          const textWidth = ctx.measureText(text).width; 
+                          ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; 
+                          ctx.fillRect(x, Math.max(0, y - 22), textWidth + 8, 22); 
+                          
+                          ctx.fillStyle = color; 
+                          ctx.fillText(text, x + 4, Math.max(16, y - 4)); 
+ 
+                          // Alarme 
+                          if (person) { 
+                              const now = Date.now(); 
+                              const lastTime = lastDetectionTime[person.id] || 0; 
+                              if (now - lastTime > 20000) { 
+                                  lastDetectionTime[person.id] = now; 
+                                  processDetection(person, cam, media); 
+                              } 
+                          } 
+                      });
  
                  } catch (e) { 
                      console.warn("Erro no processamento da câmara", cam.id, e); 
