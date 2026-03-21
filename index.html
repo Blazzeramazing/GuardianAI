@@ -11,8 +11,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- Face API -->
-    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
+    <!-- Human -->
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/human@3.2.2/dist/human.js"></script>
 
     <style>
         .toast-enter { animation: slideIn 0.3s ease-out forwards; }
@@ -519,6 +519,24 @@
         let activeTab = 'live';
         let layout = Number(localStorage.getItem('vms_layout')) || 4;
         let faceMatcher = null;
+        let human = null;
+        let humanFaceDB = [];
+        const humanConfig = {
+            backend: 'webgl',
+            modelBasePath: 'https://cdn.jsdelivr.net/npm/@vladmandic/human@3.2.2/models/',
+            filter: { equalization: true },
+            face: {
+                enabled: true,
+                detector: { rotation: true, return: true },
+                mesh: { enabled: false },
+                iris: { enabled: false },
+                description: { enabled: true },
+                emotion: { enabled: false }
+            },
+            body: { enabled: false },
+            hand: { enabled: false },
+            object: { enabled: false }
+        };
         
         let selectedSlotIndex = null;
         let draggedSlotIndex = null;
@@ -662,12 +680,12 @@
 
         async function initAI() {
             try {
-                const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/';
-                
-                // SUBSTITUÍDO: Mudámos do TinyFaceDetector para o SSD Mobilenet V1 (muito superior para distâncias)
-                await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
-                await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-                await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+                const HumanCtor = (typeof Human === 'function') ? Human : (Human?.Human || Human?.default);
+                if (!HumanCtor) throw new Error('Human indisponível');
+
+                human = new HumanCtor(humanConfig);
+                await human.load();
+                await human.warmup();
                 
                 isAiReady = true;
                 const statusElems = [document.getElementById('ai-status-desktop'), document.getElementById('ai-status-mobile')];
@@ -688,26 +706,17 @@
         }
 
         function updateFaceMatcher() {
-            // Removido o bloqueio se a base de dados estiver vazia. A IA corre na mesma!
-            if (!isAiReady) { faceMatcher = null; return; }
-            if (persons.length === 0) { faceMatcher = null; return; }
-            
-            const labeledDescriptors = [];
-            
+            humanFaceDB = [];
             persons.forEach(p => {
                 const raw = Array.isArray(p?.descriptors) && p.descriptors.length ? p.descriptors : (p?.descriptor ? [p.descriptor] : []);
-                const vecs = raw.map(d => typeof d === 'string' ? JSON.parse(d) : d).filter(d => Array.isArray(d) && d.length).map(d => new Float32Array(d));
-                
-                vecs.forEach(vec => {
-                    labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(p.id, [vec]));
+                raw.forEach(d => {
+                    try {
+                        const parsed = typeof d === 'string' ? JSON.parse(d) : d;
+                        if (!Array.isArray(parsed) || parsed.length === 0) return;
+                        humanFaceDB.push({ id: p.id, name: p.name, level: p.level, descriptor: new Float32Array(parsed) });
+                    } catch (e) {}
                 });
             });
-            
-            if (labeledDescriptors.length > 0) {
-                faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, getAiConfidence() + 0.20);
-            } else {
-                faceMatcher = null;
-            }
         }
 
         // ================= NAVEGAÇÃO =================
@@ -984,13 +993,10 @@
                         const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
                         offCtx.drawImage(img, 0, 0, img.width, img.height);
 
-                        const detection = await faceapi
-                            .detectSingleFace(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5, inputSize: 608 }))
-                            .withFaceLandmarks()
-                            .withFaceDescriptor();
+                        const result = await human.detect(offCanvas);
 
-                        if (detection?.descriptor?.length) {
-                            tempDescriptors.push(Array.from(detection.descriptor));
+                        if (result?.face?.length > 0 && result.face[0]?.embedding?.length) {
+                            tempDescriptors.push(Array.from(result.face[0].embedding));
                             tempPhotoUploads[i].status = 'success';
                         } else {
                             tempPhotoUploads[i].status = 'error';
@@ -1369,7 +1375,8 @@
             canvas.style.top = `${box.top}px`;
             canvas.style.width = `${box.width}px`;
             canvas.style.height = `${box.height}px`;
-            faceapi.matchDimensions(canvas, { width: box.width, height: box.height });
+            canvas.width = box.width;
+            canvas.height = box.height;
         }
 
         function resizeAICanvases() {
@@ -1491,6 +1498,10 @@
                     setTimeout(processFrame, 500);
                     return;
                 }
+                if (!human) {
+                    setTimeout(processFrame, 1000);
+                    return;
+                }
                 
                 const startTime = Date.now();
                 
@@ -1500,6 +1511,8 @@
                     syncCanvasToMedia(canvas, media);
                     const box = getDisplayedMediaBox(media);
                     const displaySize = { width: box.width || media.clientWidth, height: box.height || media.clientHeight };
+                    const scaleX = (displaySize.width || 1) / (vidWidth || 1);
+                    const scaleY = (displaySize.height || 1) / (vidHeight || 1);
 
                     // APLICAR HDR E CONSTRASTE ANTES DA IA LER
                     offCanvas.width = vidWidth;
@@ -1507,58 +1520,67 @@
                     offCtx.filter = 'contrast(1.05) brightness(1.05)';
                     offCtx.drawImage(media, 0, 0, vidWidth, vidHeight);
 
-                    // ATUALIZADO: Motor SSD Mobilenet lendo do offCanvas tratado
-                    let detections = await faceapi.detectAllFaces(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.6, inputSize: 608 })).withFaceLandmarks().withFaceDescriptors();
-                    
-                    // NOVO: Filtrar falsos positivos microscópicos (< 40px na imagem original)
-                    detections = detections.filter(d => {
-                        const w = d?.detection?.box?.width ?? 0;
-                        const h = d?.detection?.box?.height ?? 0;
-                        if (w < 40 || h < 40) return false;
-                        if (w > 400) return false;
-                        const ratio = w / h;
-                        if (ratio < 0.6 || ratio > 1.4) return false;
-                        return true;
-                    });
-
-                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
                     const renderBoxes = [];
-                    resizedDetections.forEach(det => {
-                        let color = '#3b82f6'; let text = 'Desconhecido';
-                        let person = null;
+                    const result = await human.detect(offCanvas);
+                    const faces = Array.isArray(result?.face) ? result.face : [];
 
-                        if (faceMatcher) {
-                            const strictThreshold = getAiConfidence();
-                            const bestMatch = faceMatcher.findBestMatch(det.descriptor);
-                            
-                            if (bestMatch.label !== 'unknown') {
-                                const matchedPerson = persons.find(p => p.id === bestMatch.label);
-                                if (matchedPerson) {
-                                    const certainty = Math.max(0, Math.round((1 - bestMatch.distance) * 100));
-                                    const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981';
-                                    
-                                    if (certainty < 40) {
-                                        text = 'Desconhecido';
-                                        color = '#3b82f6';
-                                    } else if (certainty >= 40 && certainty <= 49) {
-                                        text = `Analisando: ${matchedPerson.name} (${certainty}%)`;
-                                        color = '#10b981';
-                                    } else if (certainty >= 50 && certainty <= 59) {
-                                        text = `Suspeito: ${matchedPerson.name} (${certainty}%)`;
-                                        color = '#eab308';
-                                    } else if (certainty >= 60) {
-                                        text = `${matchedPerson.name} (${certainty}%)`;
-                                        color = dbColor;
-                                        if (bestMatch.distance <= strictThreshold) {
-                                            person = matchedPerson;
-                                        }
-                                    }
-                                }
+                    const matchThreshold = 0.50;
+                    const sureThreshold = Math.max(0.65, Math.min(0.90, 1 - getAiConfidence()));
+
+                    const normalizeBox = (b) => {
+                        if (Array.isArray(b) && b.length >= 4) return [b[0], b[1], b[2], b[3]];
+                        const x = b?.x ?? b?.left ?? 0;
+                        const y = b?.y ?? b?.top ?? 0;
+                        const w = b?.width ?? b?.w ?? 0;
+                        const h = b?.height ?? b?.h ?? 0;
+                        return [x, y, w, h];
+                    };
+
+                    faces.forEach(face => {
+                        const embedding = face?.embedding;
+                        if (!embedding?.length) return;
+
+                        const [bx, by, bw, bh] = normalizeBox(face.box);
+                        if (bw < 40 || bh < 40) return;
+                        if (bw > 400) return;
+                        const ratio = bw / bh;
+                        if (ratio < 0.6 || ratio > 1.4) return;
+
+                        let bestSim = 0;
+                        let bestDb = null;
+                        for (let j = 0; j < humanFaceDB.length; j++) {
+                            const dbFace = humanFaceDB[j];
+                            const sim = human.similarity(embedding, dbFace.descriptor);
+                            if (sim > bestSim) {
+                                bestSim = sim;
+                                bestDb = dbFace;
                             }
                         }
 
-                        const box = det.detection.box;
-                        renderBoxes.push({ box, label: text, boxColor: color });
+                        let color = '#3b82f6';
+                        let text = 'Desconhecido';
+                        let person = null;
+
+                        if (bestDb && bestSim >= matchThreshold) {
+                            const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb;
+                            const certainty = Math.max(0, Math.min(100, Math.round(bestSim * 100)));
+                            const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981';
+
+                            if (bestSim < sureThreshold) {
+                                text = `Suspeito: ${matchedPerson.name} (${certainty}%)`;
+                                color = '#eab308';
+                            } else {
+                                text = `${matchedPerson.name} (${certainty}%)`;
+                                color = dbColor;
+                                person = persons.find(p => p.id === bestDb.id) || null;
+                            }
+                        }
+
+                        const x = bx * scaleX;
+                        const y = by * scaleY;
+                        const w = bw * scaleX;
+                        const h = bh * scaleY;
+                        renderBoxes.push({ x, y, w, h, label: text, boxColor: color });
 
                         if (person) {
                             const now = Date.now();
@@ -1576,10 +1598,18 @@
                             rafPending = false;
                             const ctx = canvas.getContext('2d');
                             ctx.clearRect(0, 0, canvas.width, canvas.height);
-                            if (resizedDetections.length > 0) {
-                                faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
-                            }
-                            renderBoxes.forEach(b => new faceapi.draw.DrawBox(b.box, { label: b.label, boxColor: b.boxColor }).draw(canvas));
+                            ctx.lineWidth = 2;
+                            ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+                            ctx.textBaseline = 'bottom';
+                            renderBoxes.forEach(b => {
+                                const x = Math.max(0, b.x);
+                                const y = Math.max(0, b.y);
+                                ctx.strokeStyle = b.boxColor;
+                                ctx.fillStyle = b.boxColor;
+                                ctx.strokeRect(x, y, b.w, b.h);
+                                const textY = Math.max(12, y - 5);
+                                ctx.fillText(b.label, x, textY);
+                            });
                         });
                     }
                 } catch (e) {
