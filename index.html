@@ -1509,44 +1509,25 @@
                  try { 
                      syncCanvasToMedia(canvas, media); 
                      
-                     // IA lê diretamente da tag de media 
                      const result = await human.detect(media); 
                      const faces = Array.isArray(result?.face) ? result.face : []; 
  
                      const ctx = canvas.getContext('2d'); 
                      ctx.clearRect(0, 0, canvas.width, canvas.height); 
                      
-                     // --- RADAR VISUAL DO SISTEMA --- 
-                     ctx.fillStyle = faces.length > 0 ? '#10b981' : '#f59e0b'; 
-                     ctx.beginPath(); 
-                     ctx.arc(15, 15, 6, 0, 2 * Math.PI); 
-                     ctx.fill(); 
-                     ctx.font = '12px ui-monospace, monospace'; 
-                     ctx.fillStyle = '#fff'; 
-                     ctx.textBaseline = 'top'; 
-                     ctx.fillText(`IA Ativa | Alvos no radar: ${faces.length}`, 25, 10); 
-                     // -------------------------------- 
-                     
                      const matchThreshold = 0.50; 
                      const sureThreshold = Math.max(0.65, Math.min(0.90, 1 - getAiConfidence())); 
                      
-                     faces.forEach((face, index) => { 
-                         // A SOLUÇÃO: Usar boxRaw (0.0 a 1.0) multiplicado pelo tamanho EXATO do Canvas 
+                     faces.forEach((face) => { 
                          const boxRaw = face.boxRaw || [0, 0, 0, 0]; 
                          const x = boxRaw[0] * canvas.width; 
                          const y = boxRaw[1] * canvas.height; 
                          const w = boxRaw[2] * canvas.width; 
                          const h = boxRaw[3] * canvas.height; 
                          
-                         // --- DEBUG DE MATEMÁTICA --- 
-                         ctx.fillStyle = '#fde047'; // Amarelo 
-                         ctx.fillText(`[Box ${index}] x:${Math.round(x)} w:${Math.round(w)}px`, 25, 28 + (index * 15)); 
-                         // --------------------------- 
- 
-                         // Ignora apenas se for verdadeiramente microscópico no ecrã (ruído) 
                          if (w < 15 || h < 15) return; 
  
-                         let color = '#3b82f6'; // Azul padrão (Desconhecido) 
+                         let color = '#3b82f6'; // Azul 
                          let text = 'Desconhecido'; 
                          let person = null; 
  
@@ -1558,19 +1539,19 @@
                              
                              for (let j = 0; j < humanFaceDB.length; j++) { 
                                  const dbFace = humanFaceDB[j]; 
-                                  
-                                 // BLINDAGEM: Previne crash comparando arrays de tamanhos diferentes (ex: 1024 vs 128) 
+                                 
                                  if (!dbFace.descriptor || embedding.length !== dbFace.descriptor.length) continue; 
-                                  
+                                 
                                  try { 
-                                     const sim = human.similarity(embedding, dbFace.descriptor); 
+                                     // A CORREÇÃO MÁGICA: Trata o retorno se for Objeto ou Número 
+                                     const simResult = human.similarity(embedding, dbFace.descriptor); 
+                                     const sim = typeof simResult === 'number' ? simResult : (simResult?.similarity || 0); 
+                                     
                                      if (sim > bestSim) { 
                                          bestSim = sim; 
                                          bestDb = dbFace; 
                                      } 
-                                 } catch(err) { 
-                                     // Se a matemática falhar, apenas salta este rosto da DB sem crashar o loop de vídeo 
-                                 } 
+                                 } catch(err) {} 
                              } 
  
                              if (bestDb && bestSim >= matchThreshold) { 
@@ -1589,17 +1570,23 @@
                              } 
                          } 
  
-                         // DESENHO DO QUADRADO COM AS COORDENADAS CERTAS 
+                         // Renderização Profissional 
                          ctx.lineWidth = 3; 
                          ctx.strokeStyle = color; 
                          ctx.strokeRect(x, y, w, h); 
                          
-                         ctx.fillStyle = color; 
                          ctx.font = '14px ui-monospace, monospace'; 
                          ctx.textBaseline = 'bottom'; 
-                         ctx.fillText(text, x, Math.max(14, y - 5)); 
+                         
+                         // Fundo escuro semi-transparente para o texto 
+                         const textWidth = ctx.measureText(text).width; 
+                         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; 
+                         ctx.fillRect(x, Math.max(0, y - 22), textWidth + 8, 22); 
+                         
+                         // Desenho do Texto 
+                         ctx.fillStyle = color; 
+                         ctx.fillText(text, x + 4, Math.max(16, y - 4)); 
  
-                         // Alarme 
                          if (person) { 
                              const now = Date.now(); 
                              const lastTime = lastDetectionTime[person.id] || 0; 
@@ -1610,9 +1597,9 @@
                          } 
                      }); 
  
-                 } catch (e) { 
-                     console.warn("Erro no processamento da câmara", cam.id, e); 
-                 } 
+                } catch (e) { 
+                    console.warn("Erro no processamento da câmara", cam.id, e); 
+                } 
  
                  const elapsed = Date.now() - startTime; 
                  const delay = Math.max(30, 100 - elapsed); 
