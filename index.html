@@ -1477,20 +1477,30 @@
             aiLoops = {};
         }
 
-        function startCameraAI(cam) {
-            if (aiLoops[cam.id]) return;
-            const media = document.getElementById(`media-${cam.id}`);
-            const canvas = document.getElementById(`canvas-${cam.id}`);
-            if (!media || !canvas) return;
-
-            // Estado de controlo para a câmara individual
-            const loopState = { active: true };
-            aiLoops[cam.id] = loopState;
-            let rafPending = false;
-
+        function startCameraAI(cam) { 
+            if (aiLoops[cam.id]) return; 
+            const media = document.getElementById(`media-${cam.id}`); 
+            const canvas = document.getElementById(`canvas-${cam.id}`); 
+            if (!media || !canvas) return; 
+ 
+            const loopState = { active: true }; 
+            aiLoops[cam.id] = loopState; 
+             
+            // --- MATEMÁTICA PURA: Similaridade de Cosseno (Falha Zero) --- 
+            function calcSimilarity(vecA, vecB) { 
+                let dot = 0, normA = 0, normB = 0; 
+                for (let i = 0; i < vecA.length; i++) { 
+                    dot += vecA[i] * vecB[i]; 
+                    normA += vecA[i] * vecA[i]; 
+                    normB += vecB[i] * vecB[i]; 
+                } 
+                if (normA === 0 || normB === 0) return 0; 
+                return dot / (Math.sqrt(normA) * Math.sqrt(normB)); 
+            } 
+ 
             async function processFrame() { 
                  if (!loopState.active) return; 
-                 
+                  
                  if (document.hidden || activeTab !== 'live' || !media.clientWidth) { 
                      setTimeout(processFrame, 1000); 
                      return; 
@@ -1503,28 +1513,29 @@
                      setTimeout(processFrame, 1000); 
                      return; 
                  } 
-                 
+                  
                  const startTime = Date.now(); 
-                 
+                  
                  try { 
                      syncCanvasToMedia(canvas, media); 
-                     
+                      
                      const result = await human.detect(media); 
                      const faces = Array.isArray(result?.face) ? result.face : []; 
  
                      const ctx = canvas.getContext('2d'); 
                      ctx.clearRect(0, 0, canvas.width, canvas.height); 
-                     
-                     const matchThreshold = 0.50; 
-                     const sureThreshold = Math.max(0.65, Math.min(0.90, 1 - getAiConfidence())); 
-                     
+                      
+                     // Limiares de Reconhecimento ajustados para a nova matemática 
+                     const matchThreshold = 0.40; 
+                     const sureThreshold = Math.max(0.50, Math.min(0.85, 1 - getAiConfidence() + 0.1)); 
+                      
                      faces.forEach((face) => { 
                          const boxRaw = face.boxRaw || [0, 0, 0, 0]; 
                          const x = boxRaw[0] * canvas.width; 
                          const y = boxRaw[1] * canvas.height; 
                          const w = boxRaw[2] * canvas.width; 
                          const h = boxRaw[3] * canvas.height; 
-                         
+                          
                          if (w < 15 || h < 15) return; 
  
                          let color = '#3b82f6'; // Azul 
@@ -1532,26 +1543,23 @@
                          let person = null; 
  
                          const embedding = face.embedding; 
-                         
+                          
                          if (embedding && embedding.length > 0 && humanFaceDB.length > 0) { 
                              let bestSim = 0; 
                              let bestDb = null; 
-                             
+                              
                              for (let j = 0; j < humanFaceDB.length; j++) { 
                                  const dbFace = humanFaceDB[j]; 
-                                 
+                                  
                                  if (!dbFace.descriptor || embedding.length !== dbFace.descriptor.length) continue; 
-                                 
-                                 try { 
-                                     // A CORREÇÃO MÁGICA: Trata o retorno se for Objeto ou Número 
-                                     const simResult = human.similarity(embedding, dbFace.descriptor); 
-                                     const sim = typeof simResult === 'number' ? simResult : (simResult?.similarity || 0); 
-                                     
-                                     if (sim > bestSim) { 
-                                         bestSim = sim; 
-                                         bestDb = dbFace; 
-                                     } 
-                                 } catch(err) {} 
+                                  
+                                 // Matemática nativa - Sem erros de biblioteca! 
+                                 const sim = calcSimilarity(embedding, dbFace.descriptor); 
+                                  
+                                 if (sim > bestSim) { 
+                                     bestSim = sim; 
+                                     bestDb = dbFace; 
+                                 } 
                              } 
  
                              if (bestDb && bestSim >= matchThreshold) { 
@@ -1570,23 +1578,22 @@
                              } 
                          } 
  
-                         // Renderização Profissional 
+                         // Renderização Profissional Limpa 
                          ctx.lineWidth = 3; 
                          ctx.strokeStyle = color; 
                          ctx.strokeRect(x, y, w, h); 
-                         
+                          
                          ctx.font = '14px ui-monospace, monospace'; 
                          ctx.textBaseline = 'bottom'; 
-                         
-                         // Fundo escuro semi-transparente para o texto 
+                          
                          const textWidth = ctx.measureText(text).width; 
                          ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; 
                          ctx.fillRect(x, Math.max(0, y - 22), textWidth + 8, 22); 
-                         
-                         // Desenho do Texto 
+                          
                          ctx.fillStyle = color; 
                          ctx.fillText(text, x + 4, Math.max(16, y - 4)); 
  
+                         // Alarme 
                          if (person) { 
                              const now = Date.now(); 
                              const lastTime = lastDetectionTime[person.id] || 0; 
@@ -1597,20 +1604,19 @@
                          } 
                      }); 
  
-                } catch (e) { 
-                    console.warn("Erro no processamento da câmara", cam.id, e); 
-                } 
+                 } catch (e) { 
+                     console.warn("Erro no processamento da câmara", cam.id, e); 
+                 } 
  
                  const elapsed = Date.now() - startTime; 
                  const delay = Math.max(30, 100 - elapsed); 
-                 
+                  
                  if (loopState.active) { 
                      setTimeout(processFrame, delay); 
                  } 
-             }
-            
-            // Dá o arranque ao loop assíncrono desta câmara específica
-            processFrame();
+            } 
+             
+            processFrame(); 
         }
 
         function resumeAILoopsIfNeeded() {
