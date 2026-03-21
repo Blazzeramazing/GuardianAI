@@ -1523,21 +1523,15 @@
                      const matchThreshold = 0.50; 
                      const sureThreshold = Math.max(0.65, Math.min(0.90, 1 - getAiConfidence())); 
                      
-                     // Cálculo da escala para desenhar as caixas corretamente 
-                     const vidW = media.videoWidth || media.naturalWidth || media.clientWidth; 
-                     const vidH = media.videoHeight || media.naturalHeight || media.clientHeight; 
-                     const scaleX = canvas.width / (vidW || 1); 
-                     const scaleY = canvas.height / (vidH || 1); 
- 
                      faces.forEach(face => { 
-                         // A biblioteca Human devolve a box em [x, y, width, height] 
-                         const bx = face.box[0]; 
-                         const by = face.box[1]; 
-                         const bw = face.box[2]; 
-                         const bh = face.box[3]; 
+                         // Usar boxRaw (0 a 1) garante escala perfeita para qualquer tamanho de ecrã! 
+                         const x = face.boxRaw[0] * canvas.width; 
+                         const y = face.boxRaw[1] * canvas.height; 
+                         const w = face.boxRaw[2] * canvas.width; 
+                         const h = face.boxRaw[3] * canvas.height; 
                          
-                         // Filtro brando: ignora falsos positivos muito pequenos 
-                         if (bw < 20 || bh < 20) return; 
+                         // Ignora falsos positivos menores que 15 pixéis relativos ao ecrã visual 
+                         if (w < 15 || h < 15) return; 
  
                          let color = '#3b82f6'; // Azul (Desconhecido) 
                          let text = 'Desconhecido'; 
@@ -1574,12 +1568,7 @@
                              } 
                          } 
  
-                         // Desenhar no Canvas Visível 
-                         const x = bx * scaleX; 
-                         const y = by * scaleY; 
-                         const w = bw * scaleX; 
-                         const h = bh * scaleY; 
- 
+                         // Desenha a caixa perfeitamente escalada 
                          ctx.lineWidth = 2; 
                          ctx.strokeStyle = color; 
                          ctx.strokeRect(x, y, w, h); 
