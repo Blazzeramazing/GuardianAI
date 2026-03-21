@@ -1477,155 +1477,131 @@
             const canvas = document.getElementById(`canvas-${cam.id}`);
             if (!media || !canvas) return;
 
-            // NOVO: Criar canvas virtual para Pré-processamento (HDR Computacional)
-            const offCanvas = document.createElement('canvas');
-            const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
-
             // Estado de controlo para a câmara individual
             const loopState = { active: true };
             aiLoops[cam.id] = loopState;
             let rafPending = false;
 
-            async function processFrame() {
-                if (!loopState.active) return;
-                
-                // Se a tab estiver oculta ou o vídeo não estiver pronto, repousa um pouco e tenta de novo
-                if (document.hidden || activeTab !== 'live' || !media.clientWidth) {
-                    setTimeout(processFrame, 1000);
-                    return;
-                }
-                if (media.tagName === 'VIDEO' && media.readyState < 2) {
-                    setTimeout(processFrame, 500);
-                    return;
-                }
-                if (!human) {
-                    setTimeout(processFrame, 1000);
-                    return;
-                }
-                
-                const startTime = Date.now();
-                
-                try {
-                    const vidWidth = media.videoWidth || media.naturalWidth || media.clientWidth || 640;
-                    const vidHeight = media.videoHeight || media.naturalHeight || media.clientHeight || 480;
-                    syncCanvasToMedia(canvas, media);
-                    const box = getDisplayedMediaBox(media);
-                    const displaySize = { width: box.width || media.clientWidth, height: box.height || media.clientHeight };
-                    const scaleX = (displaySize.width || 1) / (vidWidth || 1);
-                    const scaleY = (displaySize.height || 1) / (vidHeight || 1);
-
-                    // APLICAR HDR E CONSTRASTE ANTES DA IA LER
-                    offCanvas.width = vidWidth;
-                    offCanvas.height = vidHeight;
-                    offCtx.filter = 'contrast(1.05) brightness(1.05)';
-                    offCtx.drawImage(media, 0, 0, vidWidth, vidHeight);
-
-                    const renderBoxes = [];
-                    const result = await human.detect(offCanvas);
-                    const faces = Array.isArray(result?.face) ? result.face : [];
-
-                    const matchThreshold = 0.50;
-                    const sureThreshold = Math.max(0.65, Math.min(0.90, 1 - getAiConfidence()));
-
-                    const normalizeBox = (b) => {
-                        if (Array.isArray(b) && b.length >= 4) return [b[0], b[1], b[2], b[3]];
-                        const x = b?.x ?? b?.left ?? 0;
-                        const y = b?.y ?? b?.top ?? 0;
-                        const w = b?.width ?? b?.w ?? 0;
-                        const h = b?.height ?? b?.h ?? 0;
-                        return [x, y, w, h];
-                    };
-
-                    faces.forEach(face => {
-                        const embedding = face?.embedding;
-                        if (!embedding?.length) return;
-
-                        const [bx, by, bw, bh] = normalizeBox(face.box);
-                        if (bw < 40 || bh < 40) return;
-                        if (bw > 400) return;
-                        const ratio = bw / bh;
-                        if (ratio < 0.6 || ratio > 1.4) return;
-
-                        let bestSim = 0;
-                        let bestDb = null;
-                        for (let j = 0; j < humanFaceDB.length; j++) {
-                            const dbFace = humanFaceDB[j];
-                            const sim = human.similarity(embedding, dbFace.descriptor);
-                            if (sim > bestSim) {
-                                bestSim = sim;
-                                bestDb = dbFace;
-                            }
-                        }
-
-                        let color = '#3b82f6';
-                        let text = 'Desconhecido';
-                        let person = null;
-
-                        if (bestDb && bestSim >= matchThreshold) {
-                            const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb;
-                            const certainty = Math.max(0, Math.min(100, Math.round(bestSim * 100)));
-                            const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981';
-
-                            if (bestSim < sureThreshold) {
-                                text = `Suspeito: ${matchedPerson.name} (${certainty}%)`;
-                                color = '#eab308';
-                            } else {
-                                text = `${matchedPerson.name} (${certainty}%)`;
-                                color = dbColor;
-                                person = persons.find(p => p.id === bestDb.id) || null;
-                            }
-                        }
-
-                        const x = bx * scaleX;
-                        const y = by * scaleY;
-                        const w = bw * scaleX;
-                        const h = bh * scaleY;
-                        renderBoxes.push({ x, y, w, h, label: text, boxColor: color });
-
-                        if (person) {
-                            const now = Date.now();
-                            const lastTime = lastDetectionTime[person.id] || 0;
-                            if (now - lastTime > 20000) {
-                                lastDetectionTime[person.id] = now;
-                                processDetection(person, cam, media);
-                            }
-                        }
-                    });
-
-                    if (!rafPending) {
-                        rafPending = true;
-                        requestAnimationFrame(() => {
-                            rafPending = false;
-                            const ctx = canvas.getContext('2d');
-                            ctx.clearRect(0, 0, canvas.width, canvas.height);
-                            ctx.lineWidth = 2;
-                            ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
-                            ctx.textBaseline = 'bottom';
-                            renderBoxes.forEach(b => {
-                                const x = Math.max(0, b.x);
-                                const y = Math.max(0, b.y);
-                                ctx.strokeStyle = b.boxColor;
-                                ctx.fillStyle = b.boxColor;
-                                ctx.strokeRect(x, y, b.w, b.h);
-                                const textY = Math.max(12, y - 5);
-                                ctx.fillText(b.label, x, textY);
-                            });
-                        });
-                    }
-                } catch (e) {
-                    console.warn("Erro no processamento da câmara", cam.id, e);
-                }
-
-                // CÁLCULO INTELIGENTE DO CPU: 
-                // Mede o tempo gasto na IA. Se demorou 300ms, espera 500ms (para manter ~1 FPS e deixar o PC respirar)
-                const elapsed = Date.now() - startTime;
-                const delay = Math.max(30, 100 - elapsed);
-                
-                // Agenda a próxima leitura APENAS se o loop ainda estiver ativo
-                if (loopState.active) {
-                    setTimeout(processFrame, delay);
-                }
-            }
+            async function processFrame() { 
+                 if (!loopState.active) return; 
+                 
+                 if (document.hidden || activeTab !== 'live' || !media.clientWidth) { 
+                     setTimeout(processFrame, 1000); 
+                     return; 
+                 } 
+                 if (media.tagName === 'VIDEO' && media.readyState < 2) { 
+                     setTimeout(processFrame, 500); 
+                     return; 
+                 } 
+                 if (!human) { 
+                     setTimeout(processFrame, 1000); 
+                     return; 
+                 } 
+                 
+                 const startTime = Date.now(); 
+                 
+                 try { 
+                     syncCanvasToMedia(canvas, media); 
+                     
+                     // IA lê diretamente da tag de media (salta o offCanvas problemático) 
+                     const result = await human.detect(media); 
+                     const faces = Array.isArray(result?.face) ? result.face : []; 
+ 
+                     // Limpar o ecrã transparente de desenho 
+                     const ctx = canvas.getContext('2d'); 
+                     ctx.clearRect(0, 0, canvas.width, canvas.height); 
+                     
+                     const matchThreshold = 0.50; 
+                     const sureThreshold = Math.max(0.65, Math.min(0.90, 1 - getAiConfidence())); 
+                     
+                     // Cálculo da escala para desenhar as caixas corretamente 
+                     const vidW = media.videoWidth || media.naturalWidth || media.clientWidth; 
+                     const vidH = media.videoHeight || media.naturalHeight || media.clientHeight; 
+                     const scaleX = canvas.width / (vidW || 1); 
+                     const scaleY = canvas.height / (vidH || 1); 
+ 
+                     faces.forEach(face => { 
+                         // A biblioteca Human devolve a box em [x, y, width, height] 
+                         const bx = face.box[0]; 
+                         const by = face.box[1]; 
+                         const bw = face.box[2]; 
+                         const bh = face.box[3]; 
+                         
+                         // Filtro brando: ignora falsos positivos muito pequenos 
+                         if (bw < 20 || bh < 20) return; 
+ 
+                         let color = '#3b82f6'; // Azul (Desconhecido) 
+                         let text = 'Desconhecido'; 
+                         let person = null; 
+ 
+                         const embedding = face.embedding; 
+                         
+                         if (embedding && embedding.length > 0 && humanFaceDB.length > 0) { 
+                             let bestSim = 0; 
+                             let bestDb = null; 
+                             
+                             for (let j = 0; j < humanFaceDB.length; j++) { 
+                                 const dbFace = humanFaceDB[j]; 
+                                 const sim = human.similarity(embedding, dbFace.descriptor); 
+                                 if (sim > bestSim) { 
+                                     bestSim = sim; 
+                                     bestDb = dbFace; 
+                                 } 
+                             } 
+ 
+                             if (bestDb && bestSim >= matchThreshold) { 
+                                 const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb; 
+                                 const certainty = Math.max(0, Math.min(100, Math.round(bestSim * 100))); 
+                                 const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981'; 
+ 
+                                 if (bestSim < sureThreshold) { 
+                                     text = `Analisando: ${matchedPerson.name} (${certainty}%)`; 
+                                     color = '#eab308'; // Amarelo 
+                                 } else { 
+                                     text = `${matchedPerson.name} (${certainty}%)`; 
+                                     color = dbColor; 
+                                     person = matchedPerson; 
+                                 } 
+                             } 
+                         } 
+ 
+                         // Desenhar no Canvas Visível 
+                         const x = bx * scaleX; 
+                         const y = by * scaleY; 
+                         const w = bw * scaleX; 
+                         const h = bh * scaleY; 
+ 
+                         ctx.lineWidth = 2; 
+                         ctx.strokeStyle = color; 
+                         ctx.strokeRect(x, y, w, h); 
+                         
+                         ctx.fillStyle = color; 
+                         ctx.font = '14px ui-monospace, monospace'; 
+                         ctx.textBaseline = 'bottom'; 
+                         ctx.fillText(text, x, Math.max(14, y - 5)); 
+ 
+                         // Lógica de Alarme 
+                         if (person) { 
+                             const now = Date.now(); 
+                             const lastTime = lastDetectionTime[person.id] || 0; 
+                             if (now - lastTime > 20000) { 
+                                 lastDetectionTime[person.id] = now; 
+                                 processDetection(person, cam, media); 
+                             } 
+                         } 
+                     }); 
+ 
+                 } catch (e) { 
+                     console.warn("Erro no processamento da câmara", cam.id, e); 
+                 } 
+ 
+                 const elapsed = Date.now() - startTime; 
+                 const delay = Math.max(30, 100 - elapsed); 
+                 
+                 if (loopState.active) { 
+                     setTimeout(processFrame, delay); 
+                 } 
+             }
             
             // Dá o arranque ao loop assíncrono desta câmara específica
             processFrame();
