@@ -985,7 +985,7 @@
                         offCtx.drawImage(img, 0, 0, img.width, img.height);
 
                         const detection = await faceapi
-                            .detectSingleFace(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5, inputSize: 416 }))
+                            .detectSingleFace(offCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5, inputSize: 512 }))
                             .withFaceLandmarks()
                             .withFaceDescriptor();
 
