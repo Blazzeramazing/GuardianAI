@@ -403,6 +403,27 @@
                         </div>
 
                         <div class="p-4 md:p-6 space-y-6 overflow-y-auto custom-scrollbar" style="max-height: calc(100vh - 150px);">
+                            <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 mb-6"> 
+                                <div class="flex items-center gap-2 mb-4"> 
+                                    <i data-lucide="zap" class="text-yellow-500 w-5 h-5"></i> 
+                                    <h3 class="text-white font-bold text-sm uppercase tracking-widest">Perfis Rápidos de Distância</h3> 
+                                </div> 
+                                <p class="text-xs text-gray-500 mb-4">Ajuste todos os sensores matemáticos instantaneamente para o cenário principal desta câmara.</p> 
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3"> 
+                                    <button onclick="applyDistanceProfile(1)" class="bg-gray-900 hover:bg-green-900/40 border border-gray-700 hover:border-green-500 text-gray-300 py-3 rounded-lg flex flex-col items-center justify-center gap-1 transition-all group"> 
+                                        <span class="font-black text-lg text-white group-hover:text-green-400">1 Metro</span> 
+                                        <span class="text-[10px] uppercase tracking-wider text-gray-500 group-hover:text-green-500/70">Alta Segurança</span> 
+                                    </button> 
+                                    <button onclick="applyDistanceProfile(3)" class="bg-gray-900 hover:bg-blue-900/40 border border-gray-700 hover:border-blue-500 text-gray-300 py-3 rounded-lg flex flex-col items-center justify-center gap-1 transition-all group"> 
+                                        <span class="font-black text-lg text-white group-hover:text-blue-400">3 Metros</span> 
+                                        <span class="text-[10px] uppercase tracking-wider text-gray-500 group-hover:text-blue-500/70">Equilibrado</span> 
+                                    </button> 
+                                    <button onclick="applyDistanceProfile(5)" class="bg-gray-900 hover:bg-purple-900/40 border border-gray-700 hover:border-purple-500 text-gray-300 py-3 rounded-lg flex flex-col items-center justify-center gap-1 transition-all group"> 
+                                        <span class="font-black text-lg text-white group-hover:text-purple-400">5 Metros</span> 
+                                        <span class="text-[10px] uppercase tracking-wider text-gray-500 group-hover:text-purple-500/70">Longo Alcance</span> 
+                                    </button> 
+                                </div> 
+                            </div>
                             
                             <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 space-y-6"> 
                                 <h3 class="text-white font-bold text-sm uppercase tracking-widest border-b border-gray-800 pb-2 mb-4 text-blue-500">Motor Neural (Deteção)</h3> 
@@ -2507,6 +2528,42 @@
                     } 
                 }, 1000); 
             } 
+        };
+
+        window.applyDistanceProfile = (distance) => { 
+            let profile = {}; 
+             
+            if (distance === 1) { 
+                profile = { 'vms_min_face_size': 180, 'vms_det_conf': 0.70, 'vms_ext_conf': 0.70, 'vms_ai_confidence': 0.75, 'vms_base_humana': 0.50, 'vms_max_modelo': 0.85, 'vms_liveness_conf': 0.60 }; 
+            } else if (distance === 3) { 
+                profile = { 'vms_min_face_size': 110, 'vms_det_conf': 0.55, 'vms_ext_conf': 0.55, 'vms_ai_confidence': 0.65, 'vms_base_humana': 0.45, 'vms_max_modelo': 0.75, 'vms_liveness_conf': 0.45 }; 
+            } else if (distance === 5) { 
+                profile = { 'vms_min_face_size': 50, 'vms_det_conf': 0.40, 'vms_ext_conf': 0.40, 'vms_ai_confidence': 0.55, 'vms_base_humana': 0.35, 'vms_max_modelo': 0.65, 'vms_liveness_conf': 0.30 }; 
+            } 
+ 
+            const sliderMap = { 
+                'vms_min_face_size': 'slider-min-size', 
+                'vms_det_conf': 'slider-det-conf', 
+                'vms_ext_conf': 'slider-ext-conf', 
+                'vms_ai_confidence': 'slider-ai-conf', 
+                'vms_base_humana': 'slider-base-humana', 
+                'vms_max_modelo': 'slider-max-modelo', 
+                'vms_liveness_conf': 'slider-liveness' 
+            }; 
+ 
+            for (const [key, val] of Object.entries(profile)) { 
+                const slider = document.getElementById(sliderMap[key]); 
+                if (slider) { 
+                    slider.value = val; 
+                    slider.dispatchEvent(new Event('input')); 
+                } else { 
+                    localStorage.setItem(key, String(val)); 
+                } 
+            } 
+             
+            document.getElementById('slider-det-conf')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); 
+             
+            showToast(`Perfil Tático [${distance} Metro(s)] carregado com sucesso!`, "success"); 
         };
 
         setInterval(() => {
