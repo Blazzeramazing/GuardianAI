@@ -452,6 +452,20 @@
                                 </div> 
                             </div> 
 
+                            <div class="bg-blue-900/10 border border-blue-500/30 rounded-xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-[0_0_15px_rgba(59,130,246,0.1)]"> 
+                                <div class="flex-1"> 
+                                    <div class="text-sm font-semibold text-white flex items-center gap-2 mb-1"> 
+                                        <i data-lucide="scan" class="w-4 h-4 text-blue-400"></i> Smart Auto-Tune 
+                                    </div> 
+                                    <div class="text-xs text-gray-400 leading-relaxed"> 
+                                        Posicione-se no local exato onde quer ser reconhecido. A IA irá escanear o ambiente, medir a sua distância em pixéis e calibrar os sensores matemáticos em 5 segundos. 
+                                    </div> 
+                                </div> 
+                                <button onclick="startAutoCalibration()" class="w-full sm:w-auto shrink-0 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold py-3 px-6 rounded-lg shadow-lg flex items-center justify-center gap-2 transition-colors active:scale-95 border border-blue-400/50"> 
+                                    <i data-lucide="crosshair" class="w-4 h-4"></i> Iniciar Calibração 
+                                </button> 
+                            </div>
+
                             <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 flex flex-col gap-4"> 
                                 <div class="flex items-center justify-between gap-4 flex-wrap"> 
                                     <div class="min-w-0"> 
@@ -2131,6 +2145,98 @@
             setTimeout(() => { if(c.lastChild) c.lastChild.remove(); }, 4000);
         }
 
+        window.startAutoCalibration = () => { 
+            const overlay = document.getElementById('calibration-overlay'); 
+            const counterEl = document.getElementById('calibration-counter'); 
+            if (!overlay || !counterEl) return; 
+ 
+            // Procura a primeira câmara ativa no grid 
+            let activeVideo = null; 
+            let activeCanvas = null; 
+            for (let i = 0; i < layout; i++) { 
+                const cam = cameras[i]; 
+                if (cam) { 
+                    const v = document.getElementById(`media-${cam.id}`); 
+                    if (v && v.readyState >= 2) { 
+                        activeVideo = v; 
+                        activeCanvas = document.getElementById(`canvas-${cam.id}`); 
+                        break; 
+                    } 
+                } 
+            } 
+ 
+            if (!activeVideo || !isAiReady) { 
+                return showToast("Erro: Ligue uma câmara primeiro para calibrar.", "error"); 
+            } 
+ 
+            // Força o salto para a aba de vídeo ao vivo 
+            switchTab('live'); 
+             
+            overlay.classList.remove('hidden'); 
+            overlay.classList.add('flex'); 
+             
+            let count = 5; 
+            counterEl.innerText = count; 
+             
+            const timer = setInterval(async () => { 
+                count--; 
+                if (count > 0) { 
+                    counterEl.innerText = count; 
+                    playBeep(); // Beep sonoro de aviso 
+                } else { 
+                    clearInterval(timer); 
+                    counterEl.innerText = "IA"; 
+                     
+                    try { 
+                        // Sincroniza e Dispara o tiro matemático 
+                        syncCanvasToMedia(activeCanvas, activeVideo); 
+                        const result = await human.detect(activeVideo); 
+                        const faces = Array.isArray(result?.face) ? result.face : []; 
+                         
+                        if (faces.length === 0) { 
+                            showToast("Falha: Nenhum rosto detetado. Melhore a luz ou posicione-se melhor.", "error"); 
+                        } else { 
+                            // Pega no maior rosto encontrado 
+                            faces.sort((a, b) => (b.boxRaw[2] * b.boxRaw[3]) - (a.boxRaw[2] * a.boxRaw[3])); 
+                            const target = faces[0]; 
+                             
+                            const w = target.boxRaw[2] * activeCanvas.width; 
+                            const h = target.boxRaw[3] * activeCanvas.height; 
+                            const score = target.boxScore || target.score || 0; 
+                             
+                            // CALIBRAÇÃO MATEMÁTICA 
+                            // Dá 15% de folga na qualidade visual 
+                            let newConf = Math.max(0.40, Math.floor((score - 0.15) * 100) / 100); 
+                            // Dá 10% de folga no tamanho físico (para o utilizador não ter de estar imóvel) 
+                            let newSize = Math.max(40, Math.floor(Math.min(w, h) * 0.90)); 
+                            newSize = Math.floor(newSize / 5) * 5; // Arredonda para ficar bonito (ex: 110, 115) 
+                             
+                            // Dispara as atualizações da UI como se o humano tivesse arrastado 
+                            const detSlider = document.getElementById('slider-det-conf'); 
+                            const extSlider = document.getElementById('slider-ext-conf'); 
+                            const sizeSlider = document.getElementById('slider-min-size'); 
+                             
+                            if (detSlider) { detSlider.value = newConf; detSlider.dispatchEvent(new Event('input')); } 
+                            if (extSlider) { extSlider.value = newConf; extSlider.dispatchEvent(new Event('input')); } 
+                            if (sizeSlider) { sizeSlider.value = newSize; sizeSlider.dispatchEvent(new Event('input')); } 
+                             
+                            showToast(`Calibração Efetuada! Distância: ${newSize}px | Confiança Visual: ${newConf}`, "success"); 
+                             
+                            // Regressa à aba Definições para o utilizador ver a magia 
+                            setTimeout(() => switchTab('settings'), 800); 
+                        } 
+                    } catch(e) { 
+                        showToast("Erro durante o scan da IA.", "error"); 
+                    } 
+                     
+                    setTimeout(() => { 
+                        overlay.classList.add('hidden'); 
+                        overlay.classList.remove('flex'); 
+                    }, 1000); 
+                } 
+            }, 1000); 
+        };
+
         setInterval(() => {
             document.querySelectorAll('.vms-clock').forEach(el => el.innerText = new Date().toLocaleTimeString('pt-PT', { hour12: false }));
         }, 1000);
@@ -2149,5 +2255,16 @@
         }
 
     </script>
+    <div id="calibration-overlay" class="fixed inset-0 z-[250] hidden items-center justify-center bg-black/90 backdrop-blur-md transition-opacity"> 
+        <div class="text-center flex flex-col items-center"> 
+            <div class="relative flex items-center justify-center w-32 h-32 mb-6"> 
+                <div class="absolute inset-0 border-4 border-blue-500 rounded-full animate-ping opacity-50"></div> 
+                <div class="absolute inset-2 border-4 border-blue-400 rounded-full animate-spin border-t-transparent"></div> 
+                <span id="calibration-counter" class="text-5xl font-black text-white z-10 font-mono">5</span> 
+            </div> 
+            <h2 class="text-2xl font-bold text-white uppercase tracking-widest mb-2">A Mapear Biometria</h2> 
+            <p class="text-blue-400 font-mono text-sm tracking-wide">Olhe diretamente para a lente da câmara principal...</p> 
+        </div> 
+    </div>
 </body>
 </html>
