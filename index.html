@@ -1666,6 +1666,51 @@
                           if (sampleCanvas.height !== canvas.height) sampleCanvas.height = canvas.height;
                           try { sampleCtx.drawImage(media, 0, 0, sampleCanvas.width, sampleCanvas.height); } catch(e) {}
                       }
+ 
+                      // === RADAR SEMÂNTICO DE LONGA DISTÂNCIA (Independente de Rostos) === 
+                      const radarGen = localStorage.getItem('vms_radar_gender') || 'all'; 
+                      const radarCol = localStorage.getItem('vms_radar_color') || 'all'; 
+                       
+                      bodies.forEach(b => { 
+                          const box = b.boxRaw; 
+                          if (!box || box.length < 4) return; 
+                          const bx = box[0] * canvas.width; 
+                          const by = box[1] * canvas.height; 
+                          const bw = box[2] * canvas.width; 
+                          const bh = box[3] * canvas.height; 
+                           
+                          if (bw < 30 || bh < 50) return; 
+                           
+                          let bodyCol = ""; 
+                          if (sampleCtx) bodyCol = getClothingColor(sampleCtx, box, sampleCanvas.width, sampleCanvas.height); 
+                           
+                          let faceGender = 'all'; 
+                          const myFace = faces.find(f => { 
+                              const fbox = f?.boxRaw; 
+                              if (!fbox || fbox.length < 4) return false; 
+                              const fx = fbox[0] * canvas.width; 
+                              const fw = fbox[2] * canvas.width; 
+                              return fx >= bx - 50 && fx <= bx + bw + 50; 
+                          }); 
+                          if (myFace && myFace.genderScore > 0.5) { 
+                              faceGender = myFace.gender === 'male' ? 'Homem' : 'Mulher'; 
+                          } 
+ 
+                          let isTarget = false; 
+                          if (radarGen !== 'all' || radarCol !== 'all') { 
+                              let matchCol = radarCol === 'all' || bodyCol === radarCol; 
+                              let matchGen = radarGen === 'all' || faceGender === radarGen; 
+                              isTarget = matchCol && matchGen; 
+                          } 
+ 
+                          if (isTarget) { 
+                              ctx.lineWidth = 3; ctx.strokeStyle = '#f97316'; ctx.strokeRect(bx, by, bw, bh); 
+                              ctx.fillStyle = 'rgba(249, 115, 22, 0.15)'; ctx.fillRect(bx, by, bw, bh); 
+                              ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(bx, Math.max(0, by - 22), 160, 22); 
+                              ctx.fillStyle = '#f97316'; ctx.font = 'bold 12px ui-monospace, monospace'; 
+                              ctx.fillText(`⚠️ ALVO: ${bodyCol} ${faceGender !== 'all' ? faceGender : ''}`, bx + 4, Math.max(16, by - 4)); 
+                          } 
+                      });
                       
                       const userThreshold = getAiConfidence(); 
                       
@@ -1694,126 +1739,110 @@
                               return; 
                           } 
  
-                          // === 2. ANÁLISE DEMOGRÁFICA E CORES (Executa sempre para alimentar o Radar) === 
-                          const rawAge = face.age ? Math.round(face.age) : '?'; 
-                          const rawGender = face.gender === 'male' ? 'Homem' : (face.gender === 'female' ? 'Mulher' : 'Pessoa'); 
+                          // === 2. ANÁLISE DEMOGRÁFICA E CORES === 
+                          let demoText = ''; 
+                          let colorText = ''; 
                            
-                          let rawBodyColor = ""; 
-                          const myBody = bodies.find(b => { 
-                              const box = b?.boxRaw; 
-                              if (!Array.isArray(box) || box.length < 4) return false; 
-                              const bx = box[0] * canvas.width; 
-                              const bw = box[2] * canvas.width; 
-                              return x >= bx - 60 && x <= bx + bw + 60; 
-                          }); 
-                          if (myBody && sampleCtx) rawBodyColor = getClothingColor(sampleCtx, myBody.boxRaw, sampleCanvas.width, sampleCanvas.height); 
- 
-                          // Textos para o ecrã condicionados pelo Toggle 
-                          let demoText = showContext ? ` (${rawGender}, ~${rawAge}y)` : ''; 
-                          let colorText = showContext && rawBodyColor ? ` [${rawBodyColor}]` : ''; 
- 
-                          // === 3. MOTOR DE BUSCA SEMÂNTICA (RADAR LONGA DISTÂNCIA) === 
-                          const radarGen = localStorage.getItem('vms_radar_gender') || 'all'; 
-                          const radarCol = localStorage.getItem('vms_radar_color') || 'all'; 
-                           
-                          let isSemanticTarget = false; 
-                          if (radarGen !== 'all' || radarCol !== 'all') { 
-                              let matchGen = radarGen === 'all' || rawGender === radarGen; 
-                              let matchCol = radarCol === 'all' || rawBodyColor === radarCol; 
-                              if (matchGen && matchCol) isSemanticTarget = true; 
+                          if (showContext) { 
+                              const age = face.age ? Math.round(face.age) : '?'; 
+                              const rawGender = (face.genderScore && face.genderScore > 0.5) ? (face.gender === 'male' ? 'Homem' : 'Mulher') : 'Pessoa'; 
+                              demoText = ` (${rawGender}, ~${age}y)`; 
+                               
+                              let bodyColor = ""; 
+                              const myBody = bodies.find(b => { 
+                                  const box = b?.boxRaw; 
+                                  if (!Array.isArray(box) || box.length < 4) return false; 
+                                  const bx = box[0] * canvas.width; 
+                                  const bw = box[2] * canvas.width; 
+                                  return x >= bx - 60 && x <= bx + bw + 60; 
+                              }); 
+                              if (myBody && sampleCtx) bodyColor = getClothingColor(sampleCtx, myBody.boxRaw, sampleCanvas.width, sampleCanvas.height); 
+                              colorText = bodyColor ? ` [${bodyColor}]` : ''; 
                           } 
- 
-                          let color = '#3b82f6'; 
-                          let text = 'Desconhecido'; 
-                          let person = null; 
- 
-                          const embedding = face.embedding; 
-                          let bestSim = 0; 
-                          let bestDb = null; 
+  
+                          let color = '#3b82f6';  
+                          let text = 'Desconhecido';  
+                          let person = null;  
+  
+                          const embedding = face.embedding;  
+                          let bestSim = 0;  
+                          let bestDb = null;  
                            
-                          // === 4. BIOMETRIA FACIAL STRICTA (< 5 METROS) === 
-                          const TAMANHO_MINIMO_RECONHECIMENTO = getMinFaceSize(); 
-                          if (w >= TAMANHO_MINIMO_RECONHECIMENTO && h >= TAMANHO_MINIMO_RECONHECIMENTO) { 
-                              if (embedding && embedding.length > 0 && humanFaceDB.length > 0) { 
-                                  for (let j = 0; j < humanFaceDB.length; j++) { 
-                                      const dbFace = humanFaceDB[j]; 
-                                      if (!dbFace.descriptor || embedding.length !== dbFace.descriptor.length) continue; 
-                                      try { 
-                                          const matchResult = human.match.similarity(embedding, dbFace.descriptor); 
-                                          const sim = typeof matchResult === 'number' ? matchResult : (matchResult?.similarity || 0); 
-                                          if (sim > bestSim) { bestSim = sim; bestDb = dbFace; } 
-                                      } catch(e) {} 
-                                  } 
-                              } 
+                          // === GEOFENCING DE 2 METROS ===  
+                          const TAMANHO_MINIMO_RECONHECIMENTO = getMinFaceSize();  
  
-                              const BASE_HUMANA = getBaseHumana(); 
-                              const MAX_MODELO = getMaxModelo(); 
+                          if (w >= TAMANHO_MINIMO_RECONHECIMENTO && h >= TAMANHO_MINIMO_RECONHECIMENTO) {  
+                              if (embedding && embedding.length > 0 && humanFaceDB.length > 0) {  
+                                  for (let j = 0; j < humanFaceDB.length; j++) {  
+                                      const dbFace = humanFaceDB[j];  
+                                      if (!dbFace.descriptor || embedding.length !== dbFace.descriptor.length) continue;  
+                                      try {  
+                                          const matchResult = human.match.similarity(embedding, dbFace.descriptor);  
+                                          const sim = typeof matchResult === 'number' ? matchResult : (matchResult?.similarity || 0);  
+                                          if (sim > bestSim) { bestSim = sim; bestDb = dbFace; }  
+                                      } catch(e) {}  
+                                  }  
+                              }  
+  
+                              const BASE_HUMANA = getBaseHumana();  
+                              const MAX_MODELO = getMaxModelo();  
                                
-                              let certezaBiometrica = 0; 
-                              if (bestSim > BASE_HUMANA) { 
-                                  certezaBiometrica = (bestSim - BASE_HUMANA) / (MAX_MODELO - BASE_HUMANA); 
-                                  certezaBiometrica = Math.max(0, Math.min(1, certezaBiometrica)); 
-                              } 
+                              let certezaBiometrica = 0;  
+                              if (bestSim > BASE_HUMANA) {  
+                                  certezaBiometrica = (bestSim - BASE_HUMANA) / (MAX_MODELO - BASE_HUMANA);  
+                                  certezaBiometrica = Math.max(0, Math.min(1, certezaBiometrica));  
+                              }  
                                
-                              const pctUnica = Math.round(certezaBiometrica * 100); 
-                              const rawUserThreshold = getAiConfidence(); 
+                              const pctUnica = Math.round(certezaBiometrica * 100);  
+                              const rawUserThreshold = getAiConfidence();  
                                
-                              let limiteReal = 0; 
-                              if (rawUserThreshold > BASE_HUMANA) { 
-                                  limiteReal = (rawUserThreshold - BASE_HUMANA) / (MAX_MODELO - BASE_HUMANA); 
-                                  limiteReal = Math.max(0, Math.min(1, limiteReal)); 
-                              } 
- 
-                              // === BUFFER DE HISTERESE TEMPORAL === 
-                              let isConfirmed = false; 
+                              let limiteReal = 0;  
+                              if (rawUserThreshold > BASE_HUMANA) {  
+                                  limiteReal = (rawUserThreshold - BASE_HUMANA) / (MAX_MODELO - BASE_HUMANA);  
+                                  limiteReal = Math.max(0, Math.min(1, limiteReal));  
+                              }  
+  
+                              // === BUFFER DE HISTERESE TEMPORAL ===  
+                              let isConfirmed = false;  
                                
-                              if (bestDb) { 
-                                  const id = bestDb.id; 
-                                  if (!identityTracker[id]) identityTracker[id] = { hits: 0, lastConfirmed: 0, lastPct: 0 }; 
-                                  const track = identityTracker[id]; 
- 
-                                  if (certezaBiometrica >= limiteReal && pctUnica > 0) { 
-                                      track.hits = Math.min(10, track.hits + 1); 
-                                      track.lastConfirmed = Date.now(); 
-                                      track.lastPct = pctUnica; 
-                                  } else { 
-                                      track.hits = Math.max(0, track.hits - 1); 
-                                  } 
- 
-                                  const timeSinceConfirm = Date.now() - track.lastConfirmed; 
-                                  if (track.hits >= 3 || (track.hits > 0 && timeSinceConfirm < 1000)) { 
-                                      isConfirmed = true; 
-                                  } 
-                              } 
- 
-                              if (isConfirmed && bestDb) { 
-                                  const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb; 
-                                  const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981'; 
-                                  const displayPct = identityTracker[bestDb.id].lastPct; 
-                                  text = `${matchedPerson.name} (${displayPct}%)${colorText}`; 
-                                  color = dbColor; 
-                                  person = matchedPerson; 
-                              } else if (bestDb && pctUnica > 5) { 
-                                  text = `A analisar...`; 
-                                  color = '#3b82f6'; 
-                              } else if (isSemanticTarget) { 
-                                  // CAIU NO RADAR SEMÂNTICO (Livre de distância, mas não bateu biometria) 
-                                  text = `⚠️ ALVO BUSCA: ${rawGender}${colorText}`; 
-                                  color = '#f97316'; // Laranja Radar 
-                              } else { 
-                                  text = `Desconhecido${demoText}${colorText}`; 
-                                  color = '#3b82f6'; 
-                              } 
-                          } else { 
-                              // ROSTO FORA DA ZONA DE GEOFENCING (Mais de 5 metros) 
-                              if (isSemanticTarget) { 
-                                  text = `⚠️ ALVO BUSCA: ${rawGender}${colorText}`; 
-                                  color = '#f97316'; // Laranja Radar ativo a longa distância! 
-                              } else { 
-                                  text = `Sem Biometria (>5m)${demoText}${colorText}`; 
-                                  color = '#9ca3af'; // Cinzento (Inativo) 
-                              } 
-                          } 
+                              if (bestDb) {  
+                                  const id = bestDb.id;  
+                                  if (!identityTracker[id]) identityTracker[id] = { hits: 0, lastConfirmed: 0, lastPct: 0 };  
+                                  const track = identityTracker[id];  
+  
+                                  if (certezaBiometrica >= limiteReal && pctUnica > 0) {  
+                                      track.hits = Math.min(10, track.hits + 1);  
+                                      track.lastConfirmed = Date.now();  
+                                      track.lastPct = pctUnica;  
+                                  } else {  
+                                      track.hits = Math.max(0, track.hits - 1);  
+                                  }  
+  
+                                  const timeSinceConfirm = Date.now() - track.lastConfirmed;  
+                                  if (track.hits >= 3 || (track.hits > 0 && timeSinceConfirm < 1000)) {  
+                                      isConfirmed = true;  
+                                  }  
+                              }  
+  
+                              if (isConfirmed && bestDb) {  
+                                   const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb;  
+                                   const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981';  
+                                   const displayPct = identityTracker[bestDb.id].lastPct;  
+                                   text = `${matchedPerson.name} (${displayPct}%)${colorText}`;  
+                                   color = dbColor;  
+                                   person = matchedPerson;  
+                              } else if (bestDb && pctUnica > 5) {  
+                                   text = `A analisar...`;  
+                                   color = '#3b82f6';  
+                              } else {  
+                                   text = `Desconhecido${demoText}${colorText}`;  
+                                   color = '#3b82f6';  
+                              }  
+                          } else {  
+                              // ROSTO FORA DA ZONA DE GEOFENCING (>5m) 
+                              text = `Biometria Inativa${demoText}${colorText}`;  
+                              color = '#9ca3af'; // Cinzento (Inativo)  
+                          }
  
                           // Renderização Profissional Limpa 
                           ctx.lineWidth = 3; 
