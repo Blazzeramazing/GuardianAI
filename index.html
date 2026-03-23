@@ -418,6 +418,11 @@
                                     <p class="text-xs text-gray-500 mb-2">Exigência de nitidez para tentar extrair a biometria 3D.</p> 
                                     <input id="slider-ext-conf" type="range" min="0.1" max="0.9" step="0.05" class="w-full accent-blue-500"> 
                                 </div> 
+                                <div class="pt-2 border-t border-gray-800"> 
+                                    <div class="flex justify-between gap-4 mb-2"><div class="text-sm font-semibold text-white">Filtro Anti-Fraude (Liveness)</div><div id="val-liveness" class="text-xs font-mono text-blue-300 bg-blue-900/20 px-2 py-1 rounded border border-blue-900/40">0.45</div></div> 
+                                    <p class="text-xs text-gray-500 mb-2">Exigência de reflexo e profundidade 3D. Aumente se o sistema for enganado por fotos de telemóvel.</p> 
+                                    <input id="slider-liveness" type="range" min="0.1" max="0.9" step="0.05" class="w-full accent-blue-500"> 
+                                </div>
                             </div> 
 
                             <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 space-y-6"> 
@@ -434,6 +439,16 @@
                                     <p class="text-xs text-gray-500 mb-2">Percentagem de semelhança necessária para disparar um alerta verde/vermelho.</p> 
                                     <input id="slider-ai-conf" type="range" min="0.1" max="0.9" step="0.05" class="w-full accent-purple-500"> 
                                 </div> 
+                                <div class="flex items-center justify-between gap-4 pt-2 border-t border-gray-800"> 
+                                    <div class="min-w-0"> 
+                                        <div class="text-sm font-semibold text-white">Análise de Contexto Visual</div> 
+                                        <div class="text-xs text-gray-500">Exibir Idade, Género e Cor da Roupa na monitorização.</div> 
+                                    </div> 
+                                    <label class="relative inline-flex items-center cursor-pointer"> 
+                                        <input type="checkbox" id="toggle-context-ui" class="sr-only peer" onchange="toggleContext()"> 
+                                        <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div> 
+                                    </label> 
+                                </div>
                             </div> 
 
                             <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 space-y-6"> 
@@ -732,6 +747,13 @@
         function getExtractConf() { const v = Number(localStorage.getItem('vms_ext_conf')); return Number.isFinite(v) && v > 0 ? Math.min(0.9, Math.max(0.1, v)) : 0.60; }
         function getBaseHumana() { const v = Number(localStorage.getItem('vms_base_humana')); return Number.isFinite(v) && v > 0 ? Math.min(0.8, Math.max(0.1, v)) : 0.45; }
         function getMaxModelo() { const v = Number(localStorage.getItem('vms_max_modelo')); return Number.isFinite(v) && v > 0 ? Math.min(1.0, Math.max(0.5, v)) : 0.75; }
+        function getLivenessConf() { const v = Number(localStorage.getItem('vms_liveness_conf')); return Number.isFinite(v) && v > 0 ? Math.min(0.9, Math.max(0.1, v)) : 0.45; }
+        let showContext = localStorage.getItem('vms_show_context') !== '0';
+        window.toggleContext = () => {
+            showContext = !showContext;
+            localStorage.setItem('vms_show_context', showContext ? '1' : '0');
+            showToast(showContext ? "Análise de Contexto Ativada." : "Análise de Contexto Ocultada.", "info");
+        };
 
         async function initAI() {
             try {
@@ -1636,7 +1658,8 @@
  
                           // === 1. LIVENESS DETECTION (ANTI-FRAUDE) === 
                           const isReal = face.real !== undefined ? face.real : 1.0; 
-                          if (isReal < 0.45) { 
+                          const livenessLimit = getLivenessConf(); // Lê do Slider em tempo real 
+                          if (isReal < livenessLimit) { 
                               ctx.lineWidth = 4; ctx.strokeStyle = '#ef4444'; ctx.strokeRect(x, y, w, h); 
                               ctx.fillStyle = '#ef4444'; ctx.fillRect(x, Math.max(0, y - 22), 150, 22); 
                               ctx.fillStyle = 'white'; ctx.font = 'bold 12px ui-monospace, monospace'; 
@@ -1644,22 +1667,26 @@
                               return; 
                           } 
  
-                          // === 2. ANÁLISE DEMOGRÁFICA === 
-                          const age = face.age ? Math.round(face.age) : '?'; 
-                          const gender = face.gender === 'male' ? 'Homem' : (face.gender === 'female' ? 'Mulher' : 'Pessoa'); 
-                          const demoText = `${gender}, ~${age}y`; 
- 
-                          // === 3. CORES DA ROUPA (Associa Corpo à Cara) === 
-                          let bodyColor = ""; 
-                          const myBody = bodies.find(b => { 
-                              const box = b?.boxRaw;
-                              if (!Array.isArray(box) || box.length < 4) return false;
-                              const bx = box[0] * canvas.width; 
-                              const bw = box[2] * canvas.width; 
-                              return x >= bx - 60 && x <= bx + bw + 60; 
-                          }); 
-                          if (myBody && sampleCtx) bodyColor = getClothingColor(sampleCtx, myBody.boxRaw, sampleCanvas.width, sampleCanvas.height); 
-                          const colorText = bodyColor ? ` [${bodyColor}]` : ''; 
+                          // === 2. ANÁLISE DEMOGRÁFICA E CORES (Condicionada ao Toggle) === 
+                          let demoText = ''; 
+                          let colorText = ''; 
+                          
+                          if (showContext) { 
+                              const age = face.age ? Math.round(face.age) : '?'; 
+                              const gender = face.gender === 'male' ? 'Homem' : (face.gender === 'female' ? 'Mulher' : 'Pessoa'); 
+                              demoText = ` (${gender}, ~${age}y)`; 
+                              
+                              let bodyColor = ""; 
+                              const myBody = bodies.find(b => { 
+                                  const box = b?.boxRaw; 
+                                  if (!Array.isArray(box) || box.length < 4) return false; 
+                                  const bx = box[0] * canvas.width; 
+                                  const bw = box[2] * canvas.width; 
+                                  return x >= bx - 60 && x <= bx + bw + 60; 
+                              }); 
+                              if (myBody && sampleCtx) bodyColor = getClothingColor(sampleCtx, myBody.boxRaw, sampleCanvas.width, sampleCanvas.height); 
+                              colorText = bodyColor ? ` [${bodyColor}]` : ''; 
+                          } 
  
                           let color = '#3b82f6'; 
                           let text = 'Desconhecido'; 
@@ -1749,7 +1776,7 @@
                                    text = `A analisar...`; 
                                    color = '#3b82f6'; 
                                } else { 
-                                   text = `Desconhecido (${demoText})${colorText}`; 
+                                   text = `Desconhecido${demoText}${colorText}`; 
                                    color = '#3b82f6'; 
                                }
                           } else { 
@@ -1929,6 +1956,9 @@
             setupSlider('slider-ai-conf', 'val-ai-conf', 'vms_ai_confidence', getAiConfidence);
             setupSlider('slider-base-humana', 'val-base-humana', 'vms_base_humana', getBaseHumana);
             setupSlider('slider-max-modelo', 'val-max-modelo', 'vms_max_modelo', getMaxModelo);
+            setupSlider('slider-liveness', 'val-liveness', 'vms_liveness_conf', getLivenessConf);
+            const contextToggle = document.getElementById('toggle-context-ui'); 
+            if (contextToggle) contextToggle.checked = showContext;
             updateMuteButton();
         }
 
