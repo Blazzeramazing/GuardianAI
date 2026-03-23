@@ -2145,96 +2145,111 @@
             setTimeout(() => { if(c.lastChild) c.lastChild.remove(); }, 4000);
         }
 
-        window.startAutoCalibration = () => { 
+        window.startAutoCalibration = async () => { 
+            if (!isAiReady) return showToast("Aguarde a inicialização da IA primeiro.", "error"); 
+ 
+            // 1. Muda para a aba de monitorização para ACORDAR as câmaras 
+            switchTab('live'); 
+ 
             const overlay = document.getElementById('calibration-overlay'); 
             const counterEl = document.getElementById('calibration-counter'); 
             if (!overlay || !counterEl) return; 
  
-            // Procura a primeira câmara ativa no grid 
-            let activeVideo = null; 
-            let activeCanvas = null; 
-            for (let i = 0; i < layout; i++) { 
-                const cam = cameras[i]; 
-                if (cam) { 
-                    const v = document.getElementById(`media-${cam.id}`); 
-                    if (v && v.readyState >= 2) { 
-                        activeVideo = v; 
-                        activeCanvas = document.getElementById(`canvas-${cam.id}`); 
-                        break; 
-                    } 
-                } 
-            } 
- 
-            if (!activeVideo || !isAiReady) { 
-                return showToast("Erro: Ligue uma câmara primeiro para calibrar.", "error"); 
-            } 
- 
-            // Força o salto para a aba de vídeo ao vivo 
-            switchTab('live'); 
-             
             overlay.classList.remove('hidden'); 
             overlay.classList.add('flex'); 
-             
-            let count = 5; 
-            counterEl.innerText = count; 
-             
-            const timer = setInterval(async () => { 
-                count--; 
-                if (count > 0) { 
-                    counterEl.innerText = count; 
-                    playBeep(); // Beep sonoro de aviso 
-                } else { 
-                    clearInterval(timer); 
-                    counterEl.innerText = "IA"; 
-                     
-                    try { 
-                        // Sincroniza e Dispara o tiro matemático 
-                        syncCanvasToMedia(activeCanvas, activeVideo); 
-                        const result = await human.detect(activeVideo); 
-                        const faces = Array.isArray(result?.face) ? result.face : []; 
-                         
-                        if (faces.length === 0) { 
-                            showToast("Falha: Nenhum rosto detetado. Melhore a luz ou posicione-se melhor.", "error"); 
-                        } else { 
-                            // Pega no maior rosto encontrado 
-                            faces.sort((a, b) => (b.boxRaw[2] * b.boxRaw[3]) - (a.boxRaw[2] * a.boxRaw[3])); 
-                            const target = faces[0]; 
-                             
-                            const w = target.boxRaw[2] * activeCanvas.width; 
-                            const h = target.boxRaw[3] * activeCanvas.height; 
-                            const score = target.boxScore || target.score || 0; 
-                             
-                            // CALIBRAÇÃO MATEMÁTICA 
-                            // Dá 15% de folga na qualidade visual 
-                            let newConf = Math.max(0.40, Math.floor((score - 0.15) * 100) / 100); 
-                            // Dá 10% de folga no tamanho físico (para o utilizador não ter de estar imóvel) 
-                            let newSize = Math.max(40, Math.floor(Math.min(w, h) * 0.90)); 
-                            newSize = Math.floor(newSize / 5) * 5; // Arredonda para ficar bonito (ex: 110, 115) 
-                             
-                            // Dispara as atualizações da UI como se o humano tivesse arrastado 
-                            const detSlider = document.getElementById('slider-det-conf'); 
-                            const extSlider = document.getElementById('slider-ext-conf'); 
-                            const sizeSlider = document.getElementById('slider-min-size'); 
-                             
-                            if (detSlider) { detSlider.value = newConf; detSlider.dispatchEvent(new Event('input')); } 
-                            if (extSlider) { extSlider.value = newConf; extSlider.dispatchEvent(new Event('input')); } 
-                            if (sizeSlider) { sizeSlider.value = newSize; sizeSlider.dispatchEvent(new Event('input')); } 
-                             
-                            showToast(`Calibração Efetuada! Distância: ${newSize}px | Confiança Visual: ${newConf}`, "success"); 
-                             
-                            // Regressa à aba Definições para o utilizador ver a magia 
-                            setTimeout(() => switchTab('settings'), 800); 
+            counterEl.innerText = "A ligar..."; // Feedback visual de espera 
+ 
+            // 2. Loop de verificação (aguarda até que a câmara dê sinal de vida) 
+            let activeVideo = null; 
+            let activeCanvas = null; 
+            let attempts = 0; 
+ 
+            const findCam = setInterval(() => { 
+                attempts++; 
+                for (let i = 0; i < layout; i++) { 
+                    const cam = cameras[i]; 
+                    if (cam) { 
+                        const v = document.getElementById(`media-${cam.id}`); 
+                        // Suporta quer streams de Vídeo (WebRTC/Webcam) quer Imagens (MJPEG) 
+                        if (v && ((v.tagName === 'VIDEO' && v.readyState >= 2) || (v.tagName === 'IMG' && v.complete && v.naturalWidth > 0))) { 
+                            activeVideo = v; 
+                            activeCanvas = document.getElementById(`canvas-${cam.id}`); 
+                            break; 
                         } 
-                    } catch(e) { 
-                        showToast("Erro durante o scan da IA.", "error"); 
                     } 
-                     
-                    setTimeout(() => { 
-                        overlay.classList.add('hidden'); 
-                        overlay.classList.remove('flex'); 
-                    }, 1000); 
                 } 
-            }, 1000); 
+ 
+                if (activeVideo) { 
+                    clearInterval(findCam); 
+                    comecarContagem(); // Encontrou vídeo, arranca a contagem! 
+                } else if (attempts >= 15) { 
+                    // Desiste após 7.5 segundos se a câmara estiver offline 
+                    clearInterval(findCam); 
+                    overlay.classList.add('hidden'); 
+                    overlay.classList.remove('flex'); 
+                    showToast("Erro: A câmara demorou muito a ligar ou está offline.", "error"); 
+                    switchTab('settings'); 
+                } 
+            }, 500); 
+ 
+            // 3. O ciclo de contagem e calibração 
+            function comecarContagem() { 
+                let count = 5; 
+                counterEl.innerText = count; 
+                playBeep(); 
+ 
+                const timer = setInterval(async () => { 
+                    count--; 
+                    if (count > 0) { 
+                        counterEl.innerText = count; 
+                        playBeep(); 
+                    } else { 
+                        clearInterval(timer); 
+                        counterEl.innerText = "IA"; 
+                         
+                        try { 
+                            syncCanvasToMedia(activeCanvas, activeVideo); 
+                            const result = await human.detect(activeVideo); 
+                            const faces = Array.isArray(result?.face) ? result.face : []; 
+                             
+                            if (faces.length === 0) { 
+                                showToast("Falha: Nenhum rosto detetado. Melhore a luz ou posicione-se melhor.", "error"); 
+                            } else { 
+                                // Foca no rosto que estiver mais próximo/maior 
+                                faces.sort((a, b) => (b.boxRaw[2] * b.boxRaw[3]) - (a.boxRaw[2] * a.boxRaw[3])); 
+                                const target = faces[0]; 
+                                 
+                                const w = target.boxRaw[2] * activeCanvas.width; 
+                                const h = target.boxRaw[3] * activeCanvas.height; 
+                                const score = target.boxScore || target.score || 0; 
+                                 
+                                // CALIBRAÇÃO (15% folga confiança, 10% folga tamanho) 
+                                let newConf = Math.max(0.40, Math.floor((score - 0.15) * 100) / 100); 
+                                let newSize = Math.max(40, Math.floor(Math.min(w, h) * 0.90)); 
+                                newSize = Math.floor(newSize / 5) * 5; // Arredonda 
+                                 
+                                const detSlider = document.getElementById('slider-det-conf'); 
+                                const extSlider = document.getElementById('slider-ext-conf'); 
+                                const sizeSlider = document.getElementById('slider-min-size'); 
+                                 
+                                if (detSlider) { detSlider.value = newConf; detSlider.dispatchEvent(new Event('input')); } 
+                                if (extSlider) { extSlider.value = newConf; extSlider.dispatchEvent(new Event('input')); } 
+                                if (sizeSlider) { sizeSlider.value = newSize; sizeSlider.dispatchEvent(new Event('input')); } 
+                                 
+                                showToast(`Calibração Efetuada! Distância: ${newSize}px | Confiança Visual: ${newConf}`, "success"); 
+                            } 
+                        } catch(e) { 
+                            showToast("Erro durante o scan da IA.", "error"); 
+                        } 
+                         
+                        setTimeout(() => { 
+                            overlay.classList.add('hidden'); 
+                            overlay.classList.remove('flex'); 
+                            switchTab('settings'); // Volta aos settings 
+                        }, 1000); 
+                    } 
+                }, 1000); 
+            } 
         };
 
         setInterval(() => {
