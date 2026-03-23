@@ -583,9 +583,10 @@
                 mesh: { enabled: false },
                 iris: { enabled: false },
                 description: { enabled: true, minConfidence: getExtractConf() },
+                antispoof: { enabled: true },
                 emotion: { enabled: false }
             },
-            body: { enabled: false },
+            body: { enabled: true },
             hand: { enabled: false },
             object: { enabled: false }
         };
@@ -1550,6 +1551,37 @@
             aiLoops = {};
         }
 
+        // Extrator Matemático de Cores (Amostragem Rápida RGB) 
+        function getClothingColor(ctx, bodyBox, canvasW, canvasH) { 
+            if (!bodyBox) return ""; 
+            // Foca-se no centro do tronco (peito) 
+            const x = Math.floor(bodyBox[0] * canvasW + (bodyBox[2] * canvasW) * 0.4); 
+            const y = Math.floor(bodyBox[1] * canvasH + (bodyBox[3] * canvasH) * 0.3); 
+            const w = Math.floor((bodyBox[2] * canvasW) * 0.2); 
+            const h = Math.floor((bodyBox[3] * canvasH) * 0.2); 
+             
+            if (w <= 0 || h <= 0 || x < 0 || y < 0) return ""; 
+             
+            try { 
+                const imgData = ctx.getImageData(x, y, w, h).data; 
+                let r = 0, g = 0, b = 0, count = 0; 
+                for (let i = 0; i < imgData.length; i += 16) { // Pulo de 16 para performance extrema 
+                    r += imgData[i]; g += imgData[i+1]; b += imgData[i+2]; count++; 
+                } 
+                if (count === 0) return ""; 
+                r = Math.floor(r/count); g = Math.floor(g/count); b = Math.floor(b/count); 
+                 
+                // Regras de Classificação Básica CCTV 
+                if (r < 55 && g < 55 && b < 55) return "Preto/Escuro"; 
+                if (r > 200 && g > 200 && b > 200) return "Branco/Claro"; 
+                if (r > g + 50 && r > b + 50) return "Vermelho"; 
+                if (b > r + 40 && b > g + 40) return "Azul"; 
+                if (g > r + 30 && g > b + 30) return "Verde"; 
+                if (r > 150 && g > 150 && b < 100) return "Amarelo"; 
+                return "Misto"; 
+            } catch(e) { return ""; } 
+        }
+
         function startCameraAI(cam) { 
             if (aiLoops[cam.id]) return; 
             const media = document.getElementById(`media-${cam.id}`); 
@@ -1560,6 +1592,8 @@
             aiLoops[cam.id] = loopState; 
              
             const identityTracker = {}; // Buffer Temporal de Histerese por Identidade 
+            const sampleCanvas = document.createElement('canvas');
+            const sampleCtx = sampleCanvas.getContext('2d', { willReadFrequently: true });
              
             async function processFrame() { 
                   if (!loopState.active) return; 
@@ -1574,9 +1608,15 @@
                       syncCanvasToMedia(canvas, media); 
                       const result = await human.detect(media); 
                       const faces = Array.isArray(result?.face) ? result.face : []; 
+                      const bodies = Array.isArray(result?.body) ? result.body : [];
  
                       const ctx = canvas.getContext('2d'); 
                       ctx.clearRect(0, 0, canvas.width, canvas.height); 
+                      if (sampleCtx) {
+                          if (sampleCanvas.width !== canvas.width) sampleCanvas.width = canvas.width;
+                          if (sampleCanvas.height !== canvas.height) sampleCanvas.height = canvas.height;
+                          try { sampleCtx.drawImage(media, 0, 0, sampleCanvas.width, sampleCanvas.height); } catch(e) {}
+                      }
                       
                       const userThreshold = getAiConfidence(); 
                       
@@ -1593,6 +1633,33 @@
                           // 2. MORTE A OBJETOS/SOMBRAS: Exige 65% de certeza do detetor que é pele/rosto vivo 
                           const score = face.boxScore || face.score || 0; 
                           if (score < 0.65) return; 
+ 
+                          // === 1. LIVENESS DETECTION (ANTI-FRAUDE) === 
+                          const isReal = face.real !== undefined ? face.real : 1.0; 
+                          if (isReal < 0.45) { 
+                              ctx.lineWidth = 4; ctx.strokeStyle = '#ef4444'; ctx.strokeRect(x, y, w, h); 
+                              ctx.fillStyle = '#ef4444'; ctx.fillRect(x, Math.max(0, y - 22), 150, 22); 
+                              ctx.fillStyle = 'white'; ctx.font = 'bold 12px ui-monospace, monospace'; 
+                              ctx.fillText("⚠️ FRAUDE/FOTO", x + 4, Math.max(16, y - 4)); 
+                              return; 
+                          } 
+ 
+                          // === 2. ANÁLISE DEMOGRÁFICA === 
+                          const age = face.age ? Math.round(face.age) : '?'; 
+                          const gender = face.gender === 'male' ? 'Homem' : (face.gender === 'female' ? 'Mulher' : 'Pessoa'); 
+                          const demoText = `${gender}, ~${age}y`; 
+ 
+                          // === 3. CORES DA ROUPA (Associa Corpo à Cara) === 
+                          let bodyColor = ""; 
+                          const myBody = bodies.find(b => { 
+                              const box = b?.boxRaw;
+                              if (!Array.isArray(box) || box.length < 4) return false;
+                              const bx = box[0] * canvas.width; 
+                              const bw = box[2] * canvas.width; 
+                              return x >= bx - 60 && x <= bx + bw + 60; 
+                          }); 
+                          if (myBody && sampleCtx) bodyColor = getClothingColor(sampleCtx, myBody.boxRaw, sampleCanvas.width, sampleCanvas.height); 
+                          const colorText = bodyColor ? ` [${bodyColor}]` : ''; 
  
                           let color = '#3b82f6'; 
                           let text = 'Desconhecido'; 
@@ -1670,22 +1737,21 @@
                               } 
  
                               if (isConfirmed && bestDb) { 
-                                  const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb; 
-                                  const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981'; 
-                                  
-                                  // Usa a última percentagem sólida para o número não tremer histericamente no ecrã 
-                                  const displayPct = identityTracker[bestDb.id].lastPct; 
-                                  
-                                  text = `${matchedPerson.name} (${displayPct}%)`; 
-                                  color = dbColor; 
-                                  person = matchedPerson; 
-                              } else if (bestDb && pctUnica > 5) { 
-                                  text = `A analisar...`; 
-                                  color = '#3b82f6'; 
-                              } else { 
-                                  text = `Desconhecido`; 
-                                  color = '#3b82f6'; 
-                              } 
+                                   const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb; 
+                                   const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981'; 
+                                   
+                                   const displayPct = identityTracker[bestDb.id].lastPct; 
+                                   
+                                   text = `${matchedPerson.name} (${displayPct}%)${colorText}`; 
+                                   color = dbColor; 
+                                   person = matchedPerson; 
+                               } else if (bestDb && pctUnica > 5) { 
+                                   text = `A analisar...`; 
+                                   color = '#3b82f6'; 
+                               } else { 
+                                   text = `Desconhecido (${demoText})${colorText}`; 
+                                   color = '#3b82f6'; 
+                               }
                           } else { 
                               // ROSTO FORA DA ZONA DE GEOFENCING 
                               text = 'Aproxime-se da câmara'; 
