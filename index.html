@@ -1536,12 +1536,12 @@
                           const w = boxRaw[2] * canvas.width; 
                           const h = boxRaw[3] * canvas.height; 
                           
-                          // Filtra mosquitos e ruído 
-                          if (w < 35 || h < 35) return; 
+                          // 1. MORTE AOS FANTASMAS (Tamanho Mínimo) 
+                          if (w < 40 || h < 40) return; 
                           
-                          // Filtra objetos inanimados nas sombras 
+                          // 2. MORTE A OBJETOS/SOMBRAS: Exige 65% de certeza do detetor que é pele/rosto vivo 
                           const score = face.boxScore || face.score || 0; 
-                          if (score < 0.55) return; 
+                          if (score < 0.65) return; 
  
                           let color = '#3b82f6'; 
                           let text = 'Desconhecido'; 
@@ -1551,41 +1551,57 @@
                           let bestSim = 0; 
                           let bestDb = null; 
                           
-                          // Só reconhece de perto 
                           if (w >= 60 && h >= 60) { 
                               if (embedding && embedding.length > 0 && humanFaceDB.length > 0) { 
                                   for (let j = 0; j < humanFaceDB.length; j++) { 
                                       const dbFace = humanFaceDB[j]; 
                                       if (!dbFace.descriptor || embedding.length !== dbFace.descriptor.length) continue; 
                                       
-                                      // MATEMÁTICA NATIVA DA BIBLIOTECA (0 a 1) 
                                       try { 
                                           const matchResult = human.match.similarity(embedding, dbFace.descriptor); 
-                                          // Lida com o facto da API devolver às vezes o número direto ou um object { similarity } 
                                           const sim = typeof matchResult === 'number' ? matchResult : (matchResult?.similarity || 0); 
-                                          
                                           if (sim > bestSim) { bestSim = sim; bestDb = dbFace; } 
                                       } catch(e) {} 
                                   } 
                               } 
  
-                              const maxSimPct = Math.round(bestSim * 100); 
+                              // === A MAGIA DA CALIBRAÇÃO BIOMÉTRICA === 
+                              // Removemos a "anatomia partilhada" (45%) e avaliamos só os traços únicos (até 75%) 
+                              const BASE_HUMANA = 0.45; 
+                              const MAX_MODELO = 0.75; 
                               
-                              if (bestDb && bestSim >= userThreshold) { 
+                              let certezaBiometrica = 0; 
+                              if (bestSim > BASE_HUMANA) { 
+                                  certezaBiometrica = (bestSim - BASE_HUMANA) / (MAX_MODELO - BASE_HUMANA); 
+                                  certezaBiometrica = Math.max(0, Math.min(1, certezaBiometrica)); // Tranca entre 0 e 100% 
+                              } 
+                              
+                              const pctUnica = Math.round(certezaBiometrica * 100); 
+                              const rawUserThreshold = getAiConfidence(); // O valor do Slider nas Definições 
+                              
+                              // Converte a exigência do slider para a mesma escala "Única" 
+                              let limiteReal = 0; 
+                              if (rawUserThreshold > BASE_HUMANA) { 
+                                  limiteReal = (rawUserThreshold - BASE_HUMANA) / (MAX_MODELO - BASE_HUMANA); 
+                                  limiteReal = Math.max(0, Math.min(1, limiteReal)); 
+                              } 
+ 
+                              // Lógica Adaptável Pura 
+                              if (bestDb && certezaBiometrica >= limiteReal && pctUnica > 0) { 
                                   const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb; 
                                   const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981'; 
                                   
-                                  if (bestSim < userThreshold + 0.04) { 
-                                      text = `A confirmar: ${matchedPerson.name} (${maxSimPct}%)`; 
+                                  if (certezaBiometrica < limiteReal + 0.10 && pctUnica < 90) { 
+                                      text = `A confirmar: ${matchedPerson.name} (${pctUnica}%)`; 
                                       color = '#eab308'; 
                                   } else { 
-                                      text = `${matchedPerson.name} (${maxSimPct}%)`; 
+                                      text = `${matchedPerson.name} (${pctUnica}%)`; 
                                       color = dbColor; 
                                       person = matchedPerson; 
                                   } 
-                              } else if (bestDb && bestSim >= (userThreshold - 0.10)) { 
+                              } else if (bestDb && pctUnica > 5) { 
                                   text = `A analisar...`; 
-                                  color = '#eab308'; 
+                                  color = '#3b82f6'; 
                               } else { 
                                   text = `Desconhecido`; 
                               } 
@@ -1594,7 +1610,7 @@
                               color = '#9ca3af'; 
                           } 
  
-                          // Renderização 
+                          // Renderização Profissional Limpa 
                           ctx.lineWidth = 3; 
                           ctx.strokeStyle = color; 
                           ctx.strokeRect(x, y, w, h); 
@@ -1609,6 +1625,7 @@
                           ctx.fillStyle = color; 
                           ctx.fillText(text, x + 4, Math.max(16, y - 4)); 
  
+                          // Disparo de Alarmes 
                           if (person) { 
                               const now = Date.now(); 
                               const lastTime = lastDetectionTime[person.id] || 0; 
