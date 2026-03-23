@@ -430,6 +430,18 @@
                                 </div>
                                 <input id="ai-confidence" type="range" min="0.1" max="0.9" step="0.05" class="w-full accent-blue-500">
                             </div>
+                            <div class="bg-gray-950 border border-gray-800 rounded-xl p-5"> 
+                                <div class="flex items-center justify-between gap-4 mb-3"> 
+                                    <div class="min-w-0"> 
+                                        <div class="text-sm font-semibold text-white flex items-center gap-2"> 
+                                            <i data-lucide="ruler" class="w-4 h-4 text-purple-500"></i> Distância de Operação (Geofencing) 
+                                        </div> 
+                                        <div class="text-xs text-gray-400 mt-1">Define o tamanho mínimo do rosto em pixéis. Valores maiores obrigam o alvo a aproximar-se mais da câmara (Recomendado: 90 a 140).</div> 
+                                    </div> 
+                                    <div id="ai-min-size-value" class="text-xs font-mono text-purple-300 bg-purple-900/20 border border-purple-900/40 px-2 py-1 rounded">110 px</div> 
+                                </div> 
+                                <input id="ai-min-size" type="range" min="40" max="250" step="5" class="w-full accent-purple-500"> 
+                            </div>
 
                             <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 flex items-center justify-between gap-4 flex-wrap">
                                 <div class="min-w-0">
@@ -690,6 +702,10 @@
             const v = Number(localStorage.getItem('vms_ai_confidence'));
             // O default passa a ser 0.65 (65%), o ideal para Similaridade de Cosseno
             return Number.isFinite(v) && v > 0 ? Math.min(0.9, Math.max(0.1, v)) : 0.65;
+        }
+        function getMinFaceSize() {
+            const v = Number(localStorage.getItem('vms_min_face_size'));
+            return Number.isFinite(v) && v > 0 ? Math.max(40, Math.min(250, v)) : 110;
         }
 
         async function initAI() {
@@ -1554,7 +1570,7 @@
                           // === GEOFENCING DE 2 METROS === 
                           // Ajuste este valor (ex: 100 a 140) dependendo da resolução da sua câmara. 
                           // Um rosto a 2 metros numa câmara 1080p tem facilmente > 120 pixéis. 
-                          const TAMANHO_MINIMO_RECONHECIMENTO = 110; 
+                          const TAMANHO_MINIMO_RECONHECIMENTO = getMinFaceSize(); 
 
                           if (w >= TAMANHO_MINIMO_RECONHECIMENTO && h >= TAMANHO_MINIMO_RECONHECIMENTO) { 
                               if (embedding && embedding.length > 0 && humanFaceDB.length > 0) { 
@@ -1777,6 +1793,19 @@
             const current = getAiConfidence();
             if (slider) slider.value = String(current);
             if (label) label.innerText = current.toFixed(2);
+            const sizeSlider = document.getElementById('ai-min-size'); 
+            const sizeLabel = document.getElementById('ai-min-size-value'); 
+            if (sizeSlider && !sizeSlider.dataset.hydrated) { 
+                sizeSlider.dataset.hydrated = '1'; 
+                sizeSlider.addEventListener('input', (e) => { 
+                    const val = Number(e.target.value) || 110; 
+                    localStorage.setItem('vms_min_face_size', String(val)); 
+                    if (sizeLabel) sizeLabel.innerText = val + ' px'; 
+                }); 
+            } 
+            const currentSize = getMinFaceSize(); 
+            if (sizeSlider) sizeSlider.value = String(currentSize); 
+            if (sizeLabel) sizeLabel.innerText = currentSize + ' px'; 
             updateMuteButton();
         }
 
