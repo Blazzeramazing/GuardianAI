@@ -1550,6 +1550,8 @@
             const loopState = { active: true }; 
             aiLoops[cam.id] = loopState; 
              
+            const identityTracker = {}; // Buffer Temporal de Histerese por Identidade 
+             
             async function processFrame() { 
                   if (!loopState.active) return; 
                   
@@ -1631,27 +1633,52 @@
                                   limiteReal = Math.max(0, Math.min(1, limiteReal)); 
                               } 
  
-                              // Lógica Adaptável Pura 
-                              if (bestDb && certezaBiometrica >= limiteReal && pctUnica > 0) { 
+                              // === BUFFER DE HISTERESE TEMPORAL === 
+                              let isConfirmed = false; 
+                              
+                              if (bestDb) { 
+                                  const id = bestDb.id; 
+                                  if (!identityTracker[id]) identityTracker[id] = { hits: 0, lastConfirmed: 0, lastPct: 0 }; 
+                                  const track = identityTracker[id]; 
+ 
+                                  // Se bater a meta de certeza, ganha um "Hit" (até max 10) 
+                                  if (certezaBiometrica >= limiteReal && pctUnica > 0) { 
+                                      track.hits = Math.min(10, track.hits + 1); 
+                                      track.lastConfirmed = Date.now(); 
+                                      track.lastPct = pctUnica; // Congela a melhor percentagem 
+                                  } else { 
+                                      // Se falhar, perde "Hits" suavemente (suaviza falhas de luz/ângulo) 
+                                      track.hits = Math.max(0, track.hits - 1); 
+                                  } 
+ 
+                                  // REGRAS DE OURO DA ESTABILIDADE: 
+                                  // 1. Precisa de 3 frames seguidos bons para confirmar (Anti-Spike) 
+                                  // 2. Se já estava confirmado, segura o estado por 1000ms (Anti-Flicker) 
+                                  const timeSinceConfirm = Date.now() - track.lastConfirmed; 
+                                  if (track.hits >= 3 || (track.hits > 0 && timeSinceConfirm < 1000)) { 
+                                      isConfirmed = true; 
+                                  } 
+                              } 
+ 
+                              if (isConfirmed && bestDb) { 
                                   const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb; 
                                   const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981'; 
                                   
-                                  if (certezaBiometrica < limiteReal + 0.10 && pctUnica < 90) { 
-                                      text = `A confirmar: ${matchedPerson.name} (${pctUnica}%)`; 
-                                      color = '#eab308'; 
-                                  } else { 
-                                      text = `${matchedPerson.name} (${pctUnica}%)`; 
-                                      color = dbColor; 
-                                      person = matchedPerson; 
-                                  } 
+                                  // Usa a última percentagem sólida para o número não tremer histericamente no ecrã 
+                                  const displayPct = identityTracker[bestDb.id].lastPct; 
+                                  
+                                  text = `${matchedPerson.name} (${displayPct}%)`; 
+                                  color = dbColor; 
+                                  person = matchedPerson; 
                               } else if (bestDb && pctUnica > 5) { 
                                   text = `A analisar...`; 
                                   color = '#3b82f6'; 
                               } else { 
                                   text = `Desconhecido`; 
+                                  color = '#3b82f6'; 
                               } 
                           } else { 
-                              // ROSTO FORA DA ZONA DOS 2 METROS 
+                              // ROSTO FORA DA ZONA DE GEOFENCING 
                               text = 'Aproxime-se da câmara'; 
                               color = '#9ca3af'; // Cinzento (Inativo) 
                           } 
