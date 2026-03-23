@@ -1291,13 +1291,17 @@
             });
         }
 
-        function renderSidebarCameras() { 
+        window.renderSidebarCameras = () => { 
             const list = document.getElementById('camera-list'); 
             const searchInput = document.getElementById('sidebar-cam-search'); 
-            const query = searchInput ? searchInput.value.toLowerCase() : ''; 
              
-            const filteredCams = cameras.filter(c => c !== null && c.name.toLowerCase().includes(query)); 
+            // Motor de normalização inteligente: Remove acentos e maiúsculas (ex: "Portão" vira "portao") 
+            const normalizeStr = (str) => String(str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); 
              
+            const query = searchInput ? normalizeStr(searchInput.value) : ''; 
+              
+            const filteredCams = cameras.filter(c => c !== null && normalizeStr(c.name).includes(query)); 
+              
             list.innerHTML = filteredCams.map(cam => ` 
                 <li class="flex items-center justify-between p-3 md:p-2 bg-gray-950 border border-gray-800 rounded-lg md:rounded"> 
                     <div class="flex items-center gap-3 md:gap-2 truncate cursor-pointer hover:text-blue-400 flex-1 transition-colors" onclick="handleSidebarCameraClick('${cam.id}')" title="Atribuir à grelha selecionada"> 
@@ -1306,13 +1310,13 @@
                     </div> 
                     <button onclick="removeCamera('${cam.id}')" class="p-1.5 text-gray-600 hover:text-red-500"><i data-lucide="trash-2" class="w-5 h-5 md:w-4 md:h-4"></i></button> 
                 </li>`).join(''); 
-                 
+                  
             if (filteredCams.length === 0) { 
-                list.innerHTML = `<li class="text-xs text-gray-500 text-center py-4">Nenhuma câmara.</li>`; 
+                list.innerHTML = `<li class="text-xs text-gray-500 text-center py-4">Nenhuma câmara encontrada.</li>`; 
             } 
-             
+              
             lucide.createIcons(); 
-        }
+        };
 
         async function renderGrid() {
             stopAllAILoops(); 
