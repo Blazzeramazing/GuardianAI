@@ -2184,18 +2184,18 @@
         window.captureLiveFace = async (camId, event) => { 
             if (event) event.stopPropagation(); 
             if (!isAiReady) return showToast("A IA ainda não está pronta.", "warning"); 
- 
+  
             const media = document.getElementById(`media-${camId}`); 
             if (!media || !media.clientWidth) return showToast("Câmara inativa ou sem sinal.", "error"); 
- 
+  
             const slot = document.getElementById(`slot-${camId}`); 
             const flash = document.createElement('div'); 
             flash.className = 'absolute inset-0 bg-white z-[300] opacity-80 pointer-events-none transition-opacity duration-500'; 
             slot.appendChild(flash); 
             setTimeout(() => { flash.style.opacity = '0'; setTimeout(() => flash.remove(), 500); }, 50); 
- 
+  
             showToast("A capturar alvo ao vivo...", "info"); 
- 
+  
             try { 
                 const offCanvas = document.createElement('canvas'); 
                 const srcW = media.videoWidth || media.naturalWidth || media.clientWidth; 
@@ -2204,17 +2204,17 @@
                 offCanvas.height = srcH; 
                 const ctx = offCanvas.getContext('2d', { willReadFrequently: true }); 
                 ctx.drawImage(media, 0, 0, srcW, srcH); 
- 
+  
                 const result = await human.detect(offCanvas); 
                 const faces = Array.isArray(result?.face) ? result.face : []; 
-                 
+                  
                 if (faces.length === 0) { 
                     return showToast("Nenhum rosto detetado neste frame. Tente novamente.", "warning"); 
                 } 
- 
+  
                 faces.sort((a, b) => (b.boxRaw[2] * b.boxRaw[3]) - (a.boxRaw[2] * a.boxRaw[3])); 
                 const face = faces[0]; 
-                 
+                  
                 const box = face.box; 
                 const padX = box[2] * 0.4; 
                 const padY = box[3] * 0.4; 
@@ -2222,24 +2222,23 @@
                 const cropY = Math.max(0, box[1] - padY); 
                 const cropW = Math.min(srcW - cropX, box[2] + padX * 2); 
                 const cropH = Math.min(srcH - cropY, box[3] + padY * 2); 
- 
+  
                 const cropCanvas = document.createElement('canvas'); 
                 cropCanvas.width = cropW; 
                 cropCanvas.height = cropH; 
                 cropCanvas.getContext('2d').drawImage(offCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH); 
-                 
+                  
                 const dataUrl = cropCanvas.toDataURL('image/jpeg', 0.9); 
-                if (typeof window.tempPhotoUploads === 'undefined') window.tempPhotoUploads = []; 
-                window.tempPhotoUploads.push({ dataUrl: dataUrl, status: null }); 
-                 
+                tempPhotoUploads.push({ dataUrl: dataUrl, status: null }); 
+                  
                 showToast("Alvo capturado! A redirecionar...", "success"); 
-                 
+                  
                 switchTab('db'); 
-                if (typeof window.renderDynamicPhotos === 'function') window.renderDynamicPhotos(); 
-                if (typeof updateRegisterScanButtonUi === 'function') updateRegisterScanButtonUi(); 
-                 
-                setTimeout(() => { if (typeof window.analyzeUploadedPhoto === 'function') window.analyzeUploadedPhoto(); }, 600); 
- 
+                window.renderDynamicPhotos(); 
+                updateRegisterScanButtonUi(); 
+                  
+                setTimeout(() => { window.analyzeUploadedPhoto(); }, 600); 
+  
             } catch (err) { 
                 console.error(err); 
                 showToast("Falha na extração de hardware.", "error"); 
