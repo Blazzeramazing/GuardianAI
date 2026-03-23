@@ -1369,8 +1369,13 @@
                         <div class="absolute top-2 left-2 bg-black/60 px-2 py-1 rounded text-[10px] sm:text-xs font-mono text-white flex items-center gap-1 sm:gap-2 backdrop-blur-sm z-20 max-w-[70%] truncate">
                             <div class="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></div> <span class="truncate">${escapeHtml(cam.name)}</span>
                         </div>
-                        <div class="absolute top-2 right-2 z-20 flex items-center gap-1">
-                            <div class="bg-blue-600/80 px-1.5 py-0.5 rounded text-[10px] text-white"><i data-lucide="brain" class="w-3 h-3 inline"></i> ON</div>
+                        <div class="absolute top-2 right-2 z-20 flex items-center gap-1.5">
+                            <button onclick="captureLiveFace('${cam.id}', event)" class="bg-black/60 hover:bg-blue-600 p-1.5 rounded text-white backdrop-blur border border-gray-600 hover:border-blue-400 transition-colors shadow-lg" title="Capturar Rosto (Live Enrollment)">
+                                <i data-lucide="camera" class="w-4 h-4"></i>
+                            </button>
+                            <div class="bg-blue-600/80 px-2 py-1 rounded text-[10px] font-bold tracking-widest text-white flex items-center gap-1">
+                                <i data-lucide="brain" class="w-3 h-3"></i> ON
+                            </div>
                         </div>
                     `;
                     grid.appendChild(slot);
@@ -2175,6 +2180,71 @@
             c.insertAdjacentHTML('beforeend', html);
             setTimeout(() => { if(c.lastChild) c.lastChild.remove(); }, 4000);
         }
+
+        window.captureLiveFace = async (camId, event) => { 
+            if (event) event.stopPropagation(); 
+            if (!isAiReady) return showToast("A IA ainda não está pronta.", "warning"); 
+ 
+            const media = document.getElementById(`media-${camId}`); 
+            if (!media || !media.clientWidth) return showToast("Câmara inativa ou sem sinal.", "error"); 
+ 
+            const slot = document.getElementById(`slot-${camId}`); 
+            const flash = document.createElement('div'); 
+            flash.className = 'absolute inset-0 bg-white z-[300] opacity-80 pointer-events-none transition-opacity duration-500'; 
+            slot.appendChild(flash); 
+            setTimeout(() => { flash.style.opacity = '0'; setTimeout(() => flash.remove(), 500); }, 50); 
+ 
+            showToast("A capturar alvo ao vivo...", "info"); 
+ 
+            try { 
+                const offCanvas = document.createElement('canvas'); 
+                const srcW = media.videoWidth || media.naturalWidth || media.clientWidth; 
+                const srcH = media.videoHeight || media.naturalHeight || media.clientHeight; 
+                offCanvas.width = srcW; 
+                offCanvas.height = srcH; 
+                const ctx = offCanvas.getContext('2d', { willReadFrequently: true }); 
+                ctx.drawImage(media, 0, 0, srcW, srcH); 
+ 
+                const result = await human.detect(offCanvas); 
+                const faces = Array.isArray(result?.face) ? result.face : []; 
+                 
+                if (faces.length === 0) { 
+                    return showToast("Nenhum rosto detetado neste frame. Tente novamente.", "warning"); 
+                } 
+ 
+                faces.sort((a, b) => (b.boxRaw[2] * b.boxRaw[3]) - (a.boxRaw[2] * a.boxRaw[3])); 
+                const face = faces[0]; 
+                 
+                const box = face.box; 
+                const padX = box[2] * 0.4; 
+                const padY = box[3] * 0.4; 
+                const cropX = Math.max(0, box[0] - padX); 
+                const cropY = Math.max(0, box[1] - padY); 
+                const cropW = Math.min(srcW - cropX, box[2] + padX * 2); 
+                const cropH = Math.min(srcH - cropY, box[3] + padY * 2); 
+ 
+                const cropCanvas = document.createElement('canvas'); 
+                cropCanvas.width = cropW; 
+                cropCanvas.height = cropH; 
+                cropCanvas.getContext('2d').drawImage(offCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH); 
+                 
+                const dataUrl = cropCanvas.toDataURL('image/jpeg', 0.9); 
+                if (typeof window.tempPhotoUploads === 'undefined') window.tempPhotoUploads = []; 
+                window.tempPhotoUploads.push({ dataUrl: dataUrl, status: null }); 
+                 
+                showToast("Alvo capturado! A redirecionar...", "success"); 
+                 
+                switchTab('db'); 
+                if (typeof window.renderDynamicPhotos === 'function') window.renderDynamicPhotos(); 
+                if (typeof updateRegisterScanButtonUi === 'function') updateRegisterScanButtonUi(); 
+                 
+                setTimeout(() => { if (typeof window.analyzeUploadedPhoto === 'function') window.analyzeUploadedPhoto(); }, 600); 
+ 
+            } catch (err) { 
+                console.error(err); 
+                showToast("Falha na extração de hardware.", "error"); 
+            } 
+        };
 
         window.startAutoCalibration = async () => { 
             if (!isAiReady) return showToast("Aguarde a inicialização da IA primeiro.", "error"); 
