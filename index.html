@@ -647,6 +647,7 @@
                 iris: { enabled: false },
                 description: { enabled: true, minConfidence: getExtractConf() },
                 antispoof: { enabled: true },
+                tracker: { enabled: true }, // ESTABILIZAÇÃO ÓTICA PARA ALVOS PARADOS
                 emotion: { enabled: false }
             },
             body: { enabled: true },
@@ -1161,60 +1162,83 @@
             }
         };
 
-        window.savePersonToDB = async (e) => {
-            e.preventDefault();
-            if (!db) return showToast("Base de Dados Offline", "error");
-            if (!tempDescriptors.length || !tempPhoto) return showToast("Analise a biometria primeiro!", "error");
+        window.savePersonToDB = async (e) => { 
+            e.preventDefault(); 
+            if (!db) return showToast("Base de Dados Offline", "error"); 
+            if (!tempDescriptors.length || !tempPhoto) return showToast("Analise a biometria primeiro!", "error"); 
 
-            let compressedPhoto = tempPhoto;
-            try {
-                const img = new Image();
-                img.src = tempPhoto;
-                await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
+            let compressedPhoto = tempPhoto; 
+            try { 
+                const img = new Image(); 
+                img.src = tempPhoto; 
+                await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; }); 
 
-                const MAX_WIDTH = 400;
-                const srcW = img.naturalWidth || img.width || 0;
-                const srcH = img.naturalHeight || img.height || 0;
+                const MAX_WIDTH = 400; 
+                const srcW = img.naturalWidth || img.width || 0; 
+                const srcH = img.naturalHeight || img.height || 0; 
 
-                if (srcW > 0 && srcH > 0) {
-                    const scale = Math.min(1, MAX_WIDTH / srcW);
-                    const targetW = Math.max(1, Math.round(srcW * scale));
-                    const targetH = Math.max(1, Math.round(srcH * scale));
+                if (srcW > 0 && srcH > 0) { 
+                    const scale = Math.min(1, MAX_WIDTH / srcW); 
+                    const targetW = Math.max(1, Math.round(srcW * scale)); 
+                    const targetH = Math.max(1, Math.round(srcH * scale)); 
 
-                    const canvas = document.createElement('canvas');
-                    canvas.width = targetW;
-                    canvas.height = targetH;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, targetW, targetH);
-                    compressedPhoto = canvas.toDataURL('image/jpeg', 0.5);
-                }
-            } catch (err) {
-                compressedPhoto = tempPhoto;
-            }
+                    const canvas = document.createElement('canvas'); 
+                    canvas.width = targetW; 
+                    canvas.height = targetH; 
+                    const ctx = canvas.getContext('2d'); 
+                    ctx.drawImage(img, 0, 0, targetW, targetH); 
+                    compressedPhoto = canvas.toDataURL('image/jpeg', 0.5); 
+                } 
+            } catch (err) { 
+                compressedPhoto = tempPhoto; 
+            } 
 
-            const person = {
-                name: document.getElementById('person-name').value,
-                level: document.getElementById('person-level').value,
-                photo: compressedPhoto,
-                descriptors: tempDescriptors.map(d => JSON.stringify(d))
-            };
+            const inputName = document.getElementById('person-name').value.trim(); 
+            const inputLevel = document.getElementById('person-level').value; 
+            const newDescriptors = tempDescriptors.map(d => JSON.stringify(d)); 
 
-            try {
-                await addDoc(collection(db, "students"), person);
-                showToast("Alvo guardado na base de dados!", "success");
+            try { 
+                // MÁGICA: Verifica se o alvo já existe (ignora Maiúsculas/Minúsculas) 
+                const existingPerson = persons.find(p => p.name && p.name.toLowerCase() === inputName.toLowerCase()); 
 
-                document.getElementById('db-form').reset();
-                tempPhoto = null;
-                tempDescriptors = [];
-                tempPhotoUploads = [];
-                const upload = document.getElementById('register-upload-dynamic');
-                if (upload) upload.value = '';
-                window.renderDynamicPhotos();
-                resetRegisterScanButtonUi();
-            } catch (err) {
-                console.error("Erro Firebase:", err);
-                showToast("Erro ao guardar no Firebase.", "error");
-            }
+                if (existingPerson) { 
+                    // MODO ATUALIZAÇÃO: Fonde os cálculos antigos com os novos 
+                    const mergedDescriptors = [...(existingPerson.descriptors || []), ...newDescriptors]; 
+                    
+                    await updateDoc(doc(db, 'students', existingPerson.id), { 
+                        descriptors: mergedDescriptors, 
+                        photo: compressedPhoto // Atualiza a foto principal 
+                    }); 
+                    showToast(`Novas biometrias fundidas com o alvo "${existingPerson.name}"!`, "success"); 
+                } else { 
+                    // MODO CRIAÇÃO: Regista um alvo virgem 
+                    const person = { 
+                        name: inputName, 
+                        level: inputLevel, 
+                        photo: compressedPhoto, 
+                        descriptors: newDescriptors 
+                    }; 
+                    await addDoc(collection(db, "students"), person); 
+                    showToast("Novo alvo guardado na base de dados!", "success"); 
+                } 
+
+                // Limpa a interface 
+                document.getElementById('db-form').reset(); 
+                tempPhoto = null; 
+                tempDescriptors = []; 
+                tempPhotoUploads = []; 
+                const upload = document.getElementById('register-upload-dynamic'); 
+                if (upload) upload.value = ''; 
+                window.renderDynamicPhotos(); 
+                resetRegisterScanButtonUi(); 
+                
+                // WORKFLOW TÁTICO: Devolve o operador à câmara ao vivo automaticamente 
+                setTimeout(() => { switchTab('live'); }, 800); 
+                
+            } catch (err) { 
+                console.error("Erro Firebase:", err); 
+                showToast("Erro ao guardar no Firebase.", "error"); 
+            } 
         };
 
         // ================= WEBRTC & CÂMARAS =================
