@@ -2322,81 +2322,103 @@
                       }); 
                       } 
 
-                      let uiOffsetY = canvas.height - 10; // Ponto base inferior para empilhar UI 
-
-                      // MÓDULO 2.1: CONTROLO DE MULTIDÕES (Sem piscar) 
-                      if (camCfg.crowd === true) { 
-                          const validBodies = bodies.filter(b => b.boxRaw[2] * canvas.width > 30); 
-                          const crowdCount = validBodies.length; 
-                          
-                          uiOffsetY -= 35; 
-                          ctx.fillStyle = crowdCount >= 5 ? 'rgba(220, 38, 38, 1)' : (crowdCount > 0 ? 'rgba(37, 99, 235, 1)' : 'rgba(31, 41, 55, 1)'); 
-                          ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; 
-                          ctx.lineWidth = 1; 
-                          ctx.fillRect(10, uiOffsetY, 180, 35); 
-                          ctx.strokeRect(10, uiOffsetY, 180, 35); 
-                          
-                          ctx.fillStyle = 'white'; 
-                          ctx.font = 'bold 14px ui-monospace, monospace'; 
-                          ctx.textBaseline = 'middle'; 
-                          ctx.fillText(`👥 MULTIDÃO: ${crowdCount}`, 20, uiOffsetY + 17); 
-                          uiOffsetY -= 5; 
-                      } 
-
-                      // MÓDULO 2.2: CONTAGEM DE FLUXO COM MEMÓRIA 
+                      let uiOffsetY = canvas.height - 10; // Ponto base inferior para empilhar UI globalmente 
+ 
+                      // === 1. ATUALIZAÇÃO DE MEMÓRIA DA I.A. (Apenas quando acordado) === 
+                      if (isAwake) { 
+                          // MÓDULO 2.1: CONTROLO DE MULTIDÕES (Calcula apenas, renderiza no if) 
+                          if (camCfg.crowd === true) { 
+                              const validBodies = bodies.filter(b => b.boxRaw[2] * canvas.width > 30); 
+                              const crowdCount = validBodies.length; 
+                               
+                              uiOffsetY -= 35; 
+                              ctx.fillStyle = crowdCount >= 5 ? 'rgba(220, 38, 38, 1)' : (crowdCount > 0 ? 'rgba(37, 99, 235, 1)' : 'rgba(31, 41, 55, 1)'); 
+                              ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; 
+                              ctx.lineWidth = 1; 
+                              ctx.fillRect(10, uiOffsetY, 180, 35); 
+                              ctx.strokeRect(10, uiOffsetY, 180, 35); 
+                               
+                              ctx.fillStyle = 'white'; 
+                              ctx.font = 'bold 14px ui-monospace, monospace'; 
+                              ctx.textBaseline = 'middle'; 
+                              ctx.fillText(`👥 MULTIDÃO: ${crowdCount}`, 20, uiOffsetY + 17); 
+                              uiOffsetY -= 5; 
+                          } 
+ 
+                          // MÓDULO 2.2: MEMÓRIA DE FLUXO 
+                          if (camCfg.flowCount === true) { 
+                              if (!window.flowCounters) window.flowCounters = {}; 
+                              if (!window.flowCounters[cam.id]) window.flowCounters[cam.id] = new Set(); 
+                              if (typeof bodies !== 'undefined') { 
+                                  bodies.forEach(b => { if (b.id != null) window.flowCounters[cam.id].add(b.id); }); 
+                              } 
+                          } 
+ 
+                          // MÓDULO 3: MEMÓRIA DE VEÍCULOS 
+                          if (!window.hudMemory) window.hudMemory = {}; 
+                          if (!window.hudMemory[cam.id]) window.hudMemory[cam.id] = { vCount: 0, aCount: 0 }; 
+                          window.hudMemory[cam.id].vCount = 0; // Reseta para recalcular 
+                          window.hudMemory[cam.id].aCount = 0; 
+ 
+                          if (camCfg.vehicles === true && vehiclePredictions && vehiclePredictions.length > 0) { 
+                              const vehicleClasses = ['car', 'truck', 'bus', 'motorcycle', 'bicycle']; 
+                              const animalClasses = ['dog', 'cat', 'bird', 'horse', 'cow', 'sheep', 'bear']; 
+                               
+                              vehiclePredictions.forEach(pred => { 
+                                  if (pred.score < 0.45) return; 
+                                  const isVeh = vehicleClasses.includes(pred.class); 
+                                  const isAni = animalClasses.includes(pred.class); 
+                                  if (!isVeh && !isAni) return; 
+                                   
+                                  if (isVeh) window.hudMemory[cam.id].vCount++; 
+                                  if (isAni) window.hudMemory[cam.id].aCount++; 
+ 
+                                  // Desenha caixas nos veículos (Só faz sentido se a IA estiver ativa) 
+                                  const [x, y, w, h] = pred.bbox; 
+                                  const color = isVeh ? '#eab308' : '#ec4899'; 
+                                  const labelName = pred.class === 'car' ? 'CARRO' : pred.class === 'truck' ? 'CAMIÃO' : pred.class === 'motorcycle' ? 'MOTA' : pred.class === 'dog' ? 'CÃO' : pred.class === 'cat' ? 'GATO' : pred.class.toUpperCase(); 
+                                  const label = `${labelName} ${Math.round(pred.score * 100)}%`; 
+     
+                                  ctx.lineWidth = 3; ctx.strokeStyle = color; ctx.strokeRect(x, y, w, h); 
+                                  ctx.font = 'bold 12px ui-monospace, monospace'; 
+                                  const textWidth = ctx.measureText(label).width; 
+                                  ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(x, Math.max(0, y - 22), textWidth + 8, 22); 
+                                  ctx.fillStyle = color; ctx.textBaseline = 'bottom'; ctx.fillText(label, x + 4, Math.max(16, y - 4)); 
+                              }); 
+                          } 
+                      } // <--- FECHO DO BLOCO 'isAwake' 
+ 
+                      // ========================================================== 
+                      // === 2. UI PERSISTENTE (Fica sempre no ecrã, até no Standby) === 
+                      // ========================================================== 
+ 
+                      // MÓDULO 2.2: RENDERIZAR CONTAGEM DE FLUXO 
                       if (camCfg.flowCount === true) { 
+                          // Garante a existência da memória para não quebrar a UI 
                           if (!window.flowCounters) window.flowCounters = {}; 
                           if (!window.flowCounters[cam.id]) window.flowCounters[cam.id] = new Set(); 
-                          
-                          bodies.forEach(b => { 
-                              if (b.id != null) window.flowCounters[cam.id].add(b.id); 
-                          }); 
-                          
+                           
                           const totalFluxo = window.flowCounters[cam.id].size; 
                           uiOffsetY -= 35; 
-                          
+                           
                           ctx.fillStyle = 'rgba(16, 185, 129, 1)'; 
                           ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; 
                           ctx.lineWidth = 1; 
                           ctx.fillRect(10, uiOffsetY, 180, 35); 
                           ctx.strokeRect(10, uiOffsetY, 180, 35); 
-                          
+                           
                           ctx.fillStyle = 'white'; 
                           ctx.font = 'bold 14px ui-monospace, monospace'; 
                           ctx.textBaseline = 'middle'; 
                           ctx.fillText(`🚶 FLUXO TOTAL: ${totalFluxo}`, 20, uiOffsetY + 17); 
                           uiOffsetY -= 5; 
                       } 
-
-                      // MÓDULO 3: DETEÇÃO DE VEÍCULOS E ANIMAIS (TFJS) 
-                      if (camCfg.vehicles === true && vehiclePredictions && vehiclePredictions.length > 0) { 
-                          const vehicleClasses = ['car', 'truck', 'bus', 'motorcycle', 'bicycle']; 
-                          const animalClasses = ['dog', 'cat', 'bird', 'horse', 'cow', 'sheep', 'bear']; 
-                          let vCount = 0; let aCount = 0; 
-  
-                          vehiclePredictions.forEach(pred => { 
-                              if (pred.score < 0.45) return; 
-                              const isVeh = vehicleClasses.includes(pred.class); 
-                              const isAni = animalClasses.includes(pred.class); 
-                              if (!isVeh && !isAni) return; 
-                               
-                              if (isVeh) vCount++; 
-                              if (isAni) aCount++; 
-  
-                              const [x, y, w, h] = pred.bbox; 
-                              const color = isVeh ? '#eab308' : '#ec4899'; 
-                              const labelName = pred.class === 'car' ? 'CARRO' : pred.class === 'truck' ? 'CAMIÃO' : pred.class === 'motorcycle' ? 'MOTA' : pred.class === 'dog' ? 'CÃO' : pred.class === 'cat' ? 'GATO' : pred.class.toUpperCase(); 
-                              const label = `${labelName} ${Math.round(pred.score * 100)}%`; 
-  
-                              ctx.lineWidth = 3; ctx.strokeStyle = color; ctx.strokeRect(x, y, w, h); 
-                              ctx.font = 'bold 12px ui-monospace, monospace'; 
-                              const textWidth = ctx.measureText(label).width; 
-                              ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(x, Math.max(0, y - 22), textWidth + 8, 22); 
-                              ctx.fillStyle = color; ctx.textBaseline = 'bottom'; ctx.fillText(label, x + 4, Math.max(16, y - 4)); 
-                          }); 
-  
-                          if (vCount > 0 || aCount > 0) { 
-                              const boxHeight = (vCount > 0 && aCount > 0 ? 45 : 25); 
+ 
+                      // MÓDULO 3: RENDERIZAR CONTADOR DE VEÍCULOS/ANIMAIS 
+                      if (camCfg.vehicles === true && window.hudMemory && window.hudMemory[cam.id]) { 
+                          const mem = window.hudMemory[cam.id]; 
+                          if (mem.vCount > 0 || mem.aCount > 0) { 
+                              const boxHeight = (mem.vCount > 0 && mem.aCount > 0 ? 45 : 25); 
                               uiOffsetY -= boxHeight; 
                               ctx.fillStyle = 'rgba(0,0,0,0.8)'; 
                               ctx.fillRect(10, uiOffsetY, 180, boxHeight); 
@@ -2405,12 +2427,11 @@
                               ctx.textBaseline = 'top'; 
                               let textY = uiOffsetY + 5; 
                                
-                              if (vCount > 0) { ctx.fillStyle = '#eab308'; ctx.fillText(`🚗 VEÍCULOS: ${vCount}`, 15, textY); textY += 20; } 
-                              if (aCount > 0) { ctx.fillStyle = '#ec4899'; ctx.fillText(`🐕 ANIMAIS: ${aCount}`, 15, textY); } 
+                              if (mem.vCount > 0) { ctx.fillStyle = '#eab308'; ctx.fillText(`🚗 VEÍCULOS: ${mem.vCount}`, 15, textY); textY += 20; } 
+                              if (mem.aCount > 0) { ctx.fillStyle = '#ec4899'; ctx.fillText(`🐕 ANIMAIS: ${mem.aCount}`, 15, textY); } 
                               uiOffsetY -= 5; 
                           } 
-                      }
-                      }
+                      } 
 
                       // === DESENHO DOS TRIPWIRES (Fica no final para ser visível sempre, mesmo em standby) === 
                       if (camCfg.perimeter === true || activeDrawCamId === cam.id) { 
