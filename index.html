@@ -318,7 +318,7 @@
                             </div>
 
                             <div class="p-4 md:p-6 flex-1 overflow-y-auto bg-gray-950">
-                                <div id="faces-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+                                <div id="faces-grid" class="w-full flex flex-col"></div>
                             </div>
 
                             <div class="p-4 border-t border-gray-800 bg-black/50 flex items-center justify-between gap-3 flex-wrap">
@@ -2812,51 +2812,90 @@
         }
 
         // ================= DB FACES (CADASTRO) =================
-        function filteredPersons() {
-            const q = facesState.search.trim().toLowerCase();
-            const lvl = document.getElementById('faces-level-filter')?.value || 'all';
-            return persons.filter(p => (lvl === 'all' || p.level === lvl) && (!q || String(p.name ?? '').toLowerCase().includes(q)));
+        function filteredPersons() { 
+            const q = facesState.search.trim().toLowerCase(); 
+            const lvl = document.getElementById('faces-level-filter')?.value || 'all'; 
+            let res = persons.filter(p => (lvl === 'all' || p.level === lvl) && (!q || String(p.name ?? '').toLowerCase().includes(q))); 
+            
+            // Ordenação Tática: Ameaças Críticas (1) -> Suspeitos (2) -> Autorizados (3) 
+            const weight = { 'danger': 1, 'suspect': 2, 'normal': 3 }; 
+            res.sort((a, b) => (weight[a.level] || 99) - (weight[b.level] || 99)); 
+            
+            return res; 
         }
 
-        function renderFaces() {
-            const grid = document.getElementById('faces-grid');
-            if (!grid) return;
-            const all = filteredPersons();
-            facesState.totalPages = Math.max(1, Math.ceil(all.length / facesState.pageSize));
-            facesState.page = Math.min(Math.max(1, facesState.page), facesState.totalPages);
+        function renderFaces() { 
+            const container = document.getElementById('faces-grid'); 
+            if (!container) return; 
+            const all = filteredPersons(); 
+            facesState.totalPages = Math.max(1, Math.ceil(all.length / facesState.pageSize)); 
+            facesState.page = Math.min(Math.max(1, facesState.page), facesState.totalPages); 
 
-            const start = (facesState.page - 1) * facesState.pageSize;
-            const pageItems = all.slice(start, start + facesState.pageSize);
+            const start = (facesState.page - 1) * facesState.pageSize; 
+            const pageItems = all.slice(start, start + facesState.pageSize); 
 
-            const ind = document.getElementById('faces-page-indicator');
-            if (ind) ind.innerText = `Pág. ${facesState.page} de ${facesState.totalPages}`;
-            setButtonDisabled(document.getElementById('faces-first'), facesState.page <= 1);
-            setButtonDisabled(document.getElementById('faces-prev'), facesState.page <= 1);
-            setButtonDisabled(document.getElementById('faces-next'), facesState.page >= facesState.totalPages);
-            setButtonDisabled(document.getElementById('faces-last'), facesState.page >= facesState.totalPages);
+            const ind = document.getElementById('faces-page-indicator'); 
+            if (ind) ind.innerText = `Pág. ${facesState.page} de ${facesState.totalPages}`; 
+            setButtonDisabled(document.getElementById('faces-first'), facesState.page <= 1); 
+            setButtonDisabled(document.getElementById('faces-prev'), facesState.page <= 1); 
+            setButtonDisabled(document.getElementById('faces-next'), facesState.page >= facesState.totalPages); 
+            setButtonDisabled(document.getElementById('faces-last'), facesState.page >= facesState.totalPages); 
 
-            if (!pageItems.length) { grid.innerHTML = `<div class="col-span-full p-10 text-center text-gray-500 text-sm">Nenhum alvo encontrado.</div>`; return; }
+            if (!pageItems.length) { 
+                container.innerHTML = `<div class="p-10 text-center text-gray-500 text-sm w-full">Nenhum alvo encontrado.</div>`; 
+                return; 
+            } 
 
-            grid.innerHTML = pageItems.map(p => `
-                <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 flex flex-col gap-3 h-full">
-                    <div class="flex items-center gap-3">
-                        <img src="${escapeHtml(p.photo)}" class="w-12 h-12 rounded-full object-cover border border-gray-700 bg-black shrink-0" onerror="this.src=''; this.classList.add('bg-gray-800')">
-                        <div class="min-w-0 flex-1">
-                            <div class="text-sm font-bold text-white truncate w-full" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
-                            <div class="mt-1">${levelBadgeHtml(p.level)}</div>
-                        </div>
-                    </div>
-                    <div class="flex gap-2 mt-auto pt-3 border-t border-gray-800/50">
-                        <button onclick="openEditPersonModal('${escapeHtml(p.id)}')" class="flex-1 py-2 rounded-lg bg-gray-900 border border-gray-700 text-gray-300 hover:bg-gray-800 flex items-center justify-center transition-colors">
-                            <i data-lucide="pencil" class="w-4 h-4 md:w-3 md:h-3"></i> <span class="hidden md:inline md:ml-2">Editar</span>
-                        </button>
-                        <button onclick="deletePerson('${escapeHtml(p.id)}')" class="px-4 md:px-3 py-2 rounded-lg bg-red-900/30 border border-red-900/60 text-red-300 hover:bg-red-900/50 transition-colors">
-                            <i data-lucide="trash-2" class="w-4 h-4 md:w-3 md:h-3"></i>
-                        </button>
-                    </div>
-                </div>
-            `).join('');
-            lucide.createIcons();
+            // Agrupamento Visual Inteligente 
+            const groups = { 
+                'danger': { title: '🔴 Ameaças Críticas', border: 'border-red-900/50', text: 'text-red-400', badge: 'bg-red-900/30 text-red-400', items: [] }, 
+                'suspect': { title: '🟡 Indivíduos Suspeitos', border: 'border-yellow-900/50', text: 'text-yellow-400', badge: 'bg-yellow-900/30 text-yellow-400', items: [] }, 
+                'normal': { title: '🟢 Pessoal Autorizado', border: 'border-green-900/50', text: 'text-green-400', badge: 'bg-green-900/30 text-green-400', items: [] } 
+            }; 
+
+            pageItems.forEach(p => { if(groups[p.level]) groups[p.level].items.push(p); }); 
+
+            let html = ''; 
+            for (const key of ['danger', 'suspect', 'normal']) { 
+                const g = groups[key]; 
+                if (g.items.length === 0) continue; 
+                
+                html += ` 
+                    <div class="mb-6 w-full"> 
+                        <h4 class="${g.text} font-bold text-xs uppercase tracking-widest border-b ${g.border} pb-2 mb-3 flex items-center gap-2"> 
+                            ${g.title} <span class="${g.badge} px-2 py-0.5 rounded text-[10px] shadow">${g.items.length} na página</span> 
+                        </h4> 
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4"> 
+                            ${g.items.map(p => ` 
+                                <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 flex flex-col gap-3 h-full relative overflow-hidden group"> 
+                                    ${key === 'danger' ? '<div class="absolute top-0 left-0 w-1.5 h-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]"></div>' : ''} 
+                                    ${key === 'suspect' ? '<div class="absolute top-0 left-0 w-1.5 h-full bg-yellow-500"></div>' : ''} 
+                                    ${key === 'normal' ? '<div class="absolute top-0 left-0 w-1.5 h-full bg-green-500 opacity-60"></div>' : ''} 
+                                    
+                                    <div class="flex items-center gap-3 pl-3"> 
+                                        <img src="${escapeHtml(p.photo)}" class="w-12 h-12 rounded-full object-cover border border-gray-700 bg-black shrink-0" onerror="this.src=''; this.classList.add('bg-gray-800')"> 
+                                        <div class="min-w-0 flex-1"> 
+                                            <div class="text-sm font-bold text-white truncate w-full" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div> 
+                                            <div class="mt-1">${levelBadgeHtml(p.level)}</div> 
+                                        </div> 
+                                    </div> 
+                                    <div class="flex gap-2 mt-auto pt-3 border-t border-gray-800/50 pl-3"> 
+                                        <button onclick="openEditPersonModal('${escapeHtml(p.id)}')" class="flex-1 py-2 rounded-lg bg-gray-900 border border-gray-700 text-gray-300 hover:bg-gray-800 flex items-center justify-center transition-colors"> 
+                                            <i data-lucide="pencil" class="w-4 h-4 md:w-3 md:h-3"></i> <span class="hidden md:inline md:ml-2">Editar</span> 
+                                        </button> 
+                                        <button onclick="deletePerson('${escapeHtml(p.id)}')" class="px-4 md:px-3 py-2 rounded-lg bg-red-900/30 border border-red-900/60 text-red-300 hover:bg-red-900/50 transition-colors"> 
+                                            <i data-lucide="trash-2" class="w-4 h-4 md:w-3 md:h-3"></i> 
+                                        </button> 
+                                    </div> 
+                                </div> 
+                            `).join('')} 
+                        </div> 
+                    </div> 
+                `; 
+            } 
+
+            container.innerHTML = html; 
+            lucide.createIcons(); 
         }
 
         function hydrateFacesControls() {
