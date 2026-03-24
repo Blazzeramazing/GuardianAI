@@ -517,6 +517,12 @@
                                     <p class="text-xs text-gray-500 mb-2">Afinador de escala para cálculo da percentagem única (0 a 100%).</p> 
                                     <input id="slider-max-modelo" type="range" min="0.5" max="1.0" step="0.01" class="w-full accent-green-500"> 
                                 </div> 
+                                
+                                <div class="pt-2 border-t border-gray-800">
+                                    <div class="flex justify-between gap-4 mb-2"><div class="text-sm font-semibold text-white">Sensibilidade de Movimento (Wake-up CPU)</div><div id="val-motion-sens" class="text-xs font-mono text-green-300 bg-green-900/20 px-2 py-1 rounded border border-green-900/40">10.00</div></div>
+                                    <p class="text-xs text-gray-500 mb-2">Desperta a IA Pesada apenas se houver movimento no vídeo, poupando até 80% de hardware. (Baixo = Mais Sensível).</p>
+                                    <input id="slider-motion-sens" type="range" min="1" max="50" step="1" class="w-full accent-green-500">
+                                </div>
                             </div> 
 
                             <div class="bg-blue-900/10 border border-blue-500/30 rounded-xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-[0_0_15px_rgba(59,130,246,0.1)]"> 
@@ -801,6 +807,7 @@
         function getBaseHumana() { const v = Number(localStorage.getItem('vms_base_humana')); return Number.isFinite(v) && v > 0 ? Math.min(0.8, Math.max(0.1, v)) : 0.45; }
         function getMaxModelo() { const v = Number(localStorage.getItem('vms_max_modelo')); return Number.isFinite(v) && v > 0 ? Math.min(1.0, Math.max(0.5, v)) : 0.75; }
         function getLivenessConf() { const v = Number(localStorage.getItem('vms_liveness_conf')); return Number.isFinite(v) && v > 0 ? Math.min(0.9, Math.max(0.1, v)) : 0.45; }
+        function getMotionSens() { const v = Number(localStorage.getItem('vms_motion_sens')); return Number.isFinite(v) && v > 0 ? Math.max(1, Math.min(50, v)) : 10; }
         let showContext = localStorage.getItem('vms_show_context') !== '0';
         window.toggleContext = () => {
             showContext = !showContext;
@@ -1723,6 +1730,11 @@
             const identityTracker = {}; // Buffer Temporal de Histerese por Identidade 
             const sampleCanvas = document.createElement('canvas');
             const sampleCtx = sampleCanvas.getContext('2d', { willReadFrequently: true });
+            const motionCanvas = document.createElement('canvas'); 
+            motionCanvas.width = 64; motionCanvas.height = 48; // Ultra Low-Res para velocidade 
+            const motionCtx = motionCanvas.getContext('2d', { willReadFrequently: true }); 
+            let lastMotionData = null; 
+            let sleepTimer = 0; 
              
             async function processFrame() { 
                   if (!loopState.active) return; 
@@ -1735,6 +1747,45 @@
                   
                   try { 
                       syncCanvasToMedia(canvas, media); 
+
+                      // === 0. GESTOR DE RECURSOS INTELIGENTE (MOTION WAKE-UP) === 
+                      motionCtx.drawImage(media, 0, 0, 64, 48); 
+                      const currentMotionData = motionCtx.getImageData(0, 0, 64, 48).data; 
+                      let motionScore = 0; 
+                      
+                      if (lastMotionData) { 
+                          for (let i = 0; i < currentMotionData.length; i += 4) { // Verifica apenas 1 canal de cor (R) para máxima velocidade 
+                              motionScore += Math.abs(currentMotionData[i] - lastMotionData[i]); 
+                          } 
+                          motionScore = motionScore / (64 * 48); // Média de variação por pixel 
+                      } 
+                      lastMotionData = currentMotionData; 
+                      
+                      const wakeThreshold = getMotionSens(); 
+                      let isAwake = true; 
+
+                      if (motionScore < wakeThreshold) { 
+                          if (sleepTimer > 0) sleepTimer--; 
+                          else isAwake = false; 
+                      } else { 
+                          sleepTimer = 15; // Histerese: Mantém a IA acordada por 15 frames após a pessoa parar/sair 
+                      } 
+
+                      const ctx = canvas.getContext('2d'); 
+                      
+                      if (!isAwake) { 
+                          ctx.clearRect(0, 0, canvas.width, canvas.height); 
+                          ctx.fillStyle = 'rgba(16, 185, 129, 0.85)'; // Verde UI Poupança 
+                          ctx.font = 'bold 11px ui-monospace, monospace'; 
+                          ctx.textBaseline = 'top'; 
+                          ctx.fillText("💤 STANDBY (Poupança CPU/GPU)", 10, 10); 
+                          
+                          const elapsed = Date.now() - startTime; 
+                          // Loop muito mais lento (300ms) porque não há ninguém no vídeo 
+                          if (loopState.active) { setTimeout(processFrame, Math.max(100, 300 - elapsed)); } 
+                          return; // ABORTA EXECUÇÃO PESADA DA REDE NEURAL 
+                      }
+
                       const result = await human.detect(media); 
                       const faces = Array.isArray(result?.face) ? result.face : []; 
                       const bodies = Array.isArray(result?.body) ? result.body : [];
@@ -2096,6 +2147,7 @@
             setupSlider('slider-base-humana', 'val-base-humana', 'vms_base_humana', getBaseHumana);
             setupSlider('slider-max-modelo', 'val-max-modelo', 'vms_max_modelo', getMaxModelo);
             setupSlider('slider-liveness', 'val-liveness', 'vms_liveness_conf', getLivenessConf);
+            setupSlider('slider-motion-sens', 'val-motion-sens', 'vms_motion_sens', getMotionSens);
             const contextToggle = document.getElementById('toggle-context-ui'); 
             if (contextToggle) contextToggle.checked = showContext;
             const rg = document.getElementById('radar-gender'); if (rg) rg.value = localStorage.getItem('vms_radar_gender') || 'all'; 
@@ -2593,11 +2645,11 @@
             let profile = {}; 
              
             if (distance === 1) { 
-                profile = { 'vms_min_face_size': 180, 'vms_det_conf': 0.70, 'vms_ext_conf': 0.70, 'vms_ai_confidence': 0.75, 'vms_base_humana': 0.50, 'vms_max_modelo': 0.85, 'vms_liveness_conf': 0.60 }; 
+                profile = { 'vms_min_face_size': 180, 'vms_det_conf': 0.70, 'vms_ext_conf': 0.70, 'vms_ai_confidence': 0.75, 'vms_base_humana': 0.50, 'vms_max_modelo': 0.85, 'vms_liveness_conf': 0.60, 'vms_motion_sens': 15 }; 
             } else if (distance === 3) { 
-                profile = { 'vms_min_face_size': 110, 'vms_det_conf': 0.55, 'vms_ext_conf': 0.55, 'vms_ai_confidence': 0.65, 'vms_base_humana': 0.45, 'vms_max_modelo': 0.75, 'vms_liveness_conf': 0.45 }; 
+                profile = { 'vms_min_face_size': 110, 'vms_det_conf': 0.55, 'vms_ext_conf': 0.55, 'vms_ai_confidence': 0.65, 'vms_base_humana': 0.45, 'vms_max_modelo': 0.75, 'vms_liveness_conf': 0.45, 'vms_motion_sens': 10 }; 
             } else if (distance === 5) { 
-                profile = { 'vms_min_face_size': 50, 'vms_det_conf': 0.40, 'vms_ext_conf': 0.40, 'vms_ai_confidence': 0.55, 'vms_base_humana': 0.35, 'vms_max_modelo': 0.65, 'vms_liveness_conf': 0.30 }; 
+                profile = { 'vms_min_face_size': 50, 'vms_det_conf': 0.40, 'vms_ext_conf': 0.40, 'vms_ai_confidence': 0.55, 'vms_base_humana': 0.35, 'vms_max_modelo': 0.65, 'vms_liveness_conf': 0.30, 'vms_motion_sens': 5 }; 
             } 
  
             const sliderMap = { 
@@ -2607,7 +2659,8 @@
                 'vms_ai_confidence': 'slider-ai-conf', 
                 'vms_base_humana': 'slider-base-humana', 
                 'vms_max_modelo': 'slider-max-modelo', 
-                'vms_liveness_conf': 'slider-liveness' 
+                'vms_liveness_conf': 'slider-liveness',
+                'vms_motion_sens': 'slider-motion-sens'
             }; 
  
             for (const [key, val] of Object.entries(profile)) { 
