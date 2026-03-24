@@ -514,6 +514,11 @@
                                     </label>
 
                                     <label class="flex items-center justify-between p-3 rounded-lg border border-gray-800 bg-gray-900 hover:bg-gray-800 cursor-pointer transition-colors">
+                                        <div><div class="text-sm font-bold text-white">Contagem de Fluxo</div><div class="text-[10px] text-gray-400">Memoriza o total de passagens únicas na câmara.</div></div>
+                                        <input type="checkbox" id="mod-flow" class="w-5 h-5 accent-indigo-500" onchange="saveCamSetting('flowCount', this.checked)">
+                                    </label>
+
+                                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-800 bg-gray-900 hover:bg-gray-800 cursor-pointer transition-colors">
                                         <div><div class="text-sm font-bold text-white flex items-center gap-1">Controlo de Perímetro <span class="bg-blue-900 text-blue-300 text-[8px] px-1 rounded">EM BREVE</span></div><div class="text-[10px] text-gray-400">Linhas virtuais (Tripwires) e zonas de intrusão.</div></div>
                                         <input type="checkbox" id="mod-perim" class="w-5 h-5 accent-indigo-500" onchange="saveCamSetting('perimeter', this.checked)">
                                     </label>
@@ -786,10 +791,11 @@
         const defaultCamConfig = {
             faceRec: true, crowd: false, perimeter: false, vehicles: false, animals: false,
             detConf: 0.60, extConf: 0.60, liveness: 0.45, minSize: 110, motionSens: 10, customLines: [],
-            webhookUrl: ''
+            webhookUrl: '', flowCount: false
         };
         let currentSettingsCamId = null;
         let globalFramesRendered = 0;
+        window.flowCounters = {}; // Memória Global de Fluxo
 
         let activeDrawCamId = null;
         let isDrawing = false;
@@ -1602,6 +1608,15 @@
             showToast("Última linha de perímetro apagada.", "info"); 
         };
 
+        window.resetFlow = (camId, e) => { 
+            if (e) e.stopPropagation(); 
+            if (window.flowCounters && window.flowCounters[camId]) { 
+                window.flowCounters[camId].clear(); 
+                showToast("Contador de fluxo reiniciado a zero.", "success"); 
+                renderGrid(); 
+            } 
+        };
+
         window.addEventListener('DOMContentLoaded', () => { 
             const grid = document.getElementById('video-grid'); 
             if (!grid) return; 
@@ -1742,6 +1757,9 @@
                                 </button>
                                 <button onclick="clearLastLine('${cam.id}', event)" class="bg-gray-900/80 hover:bg-red-500 text-gray-300 hover:text-white p-2 rounded backdrop-blur border border-white/20 transition-all" title="Apagar Última Linha (Undo)"> 
                                     <i data-lucide="eraser" class="w-4 h-4"></i> 
+                                </button>
+                                <button onclick="resetFlow('${cam.id}', event)" class="bg-gray-900/80 hover:bg-green-500 text-gray-300 hover:text-white p-2 rounded backdrop-blur border border-white/20 transition-all" title="Zerar Contador de Fluxo"> 
+                                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i> 
                                 </button>
                                 <button onclick="captureSnapshot('${cam.id}')" class="bg-gray-900/80 hover:bg-white text-gray-300 hover:text-black p-2 rounded backdrop-blur border border-white/20 transition-all" title="Tirar Foto Rápida">
                                     <i data-lucide="camera" class="w-4 h-4"></i>
@@ -2295,78 +2313,93 @@
                       }); 
                       } 
 
-                      // MÓDULO 2: CONTROLO DE MULTIDÕES (Crowd Control) 
+                      let uiOffsetY = canvas.height - 10; // Ponto base inferior para empilhar UI 
+
+                      // MÓDULO 2.1: CONTROLO DE MULTIDÕES (Sem piscar) 
                       if (camCfg.crowd === true) { 
                           const validBodies = bodies.filter(b => b.boxRaw[2] * canvas.width > 30); 
                           const crowdCount = validBodies.length; 
-                          if (crowdCount > 0) { 
-                              ctx.fillStyle = crowdCount >= 5 ? 'rgba(239, 68, 68, 0.8)' : 'rgba(59, 130, 246, 0.8)'; 
-                              ctx.fillRect(10, canvas.height - 40, 200, 30); 
-                              ctx.fillStyle = 'white'; 
-                              ctx.font = 'bold 14px monospace'; 
-                              ctx.fillText(`👥 MULTIDÃO: ${crowdCount} ALVOS`, 20, canvas.height - 20); 
-                          } 
-                      }
+                          
+                          uiOffsetY -= 35; 
+                          ctx.fillStyle = crowdCount >= 5 ? 'rgba(220, 38, 38, 1)' : (crowdCount > 0 ? 'rgba(37, 99, 235, 1)' : 'rgba(31, 41, 55, 1)'); 
+                          ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; 
+                          ctx.lineWidth = 1; 
+                          ctx.fillRect(10, uiOffsetY, 180, 35); 
+                          ctx.strokeRect(10, uiOffsetY, 180, 35); 
+                          
+                          ctx.fillStyle = 'white'; 
+                          ctx.font = 'bold 14px ui-monospace, monospace'; 
+                          ctx.textBaseline = 'middle'; 
+                          ctx.fillText(`👥 MULTIDÃO: ${crowdCount}`, 20, uiOffsetY + 17); 
+                          uiOffsetY -= 5; 
+                      } 
+
+                      // MÓDULO 2.2: CONTAGEM DE FLUXO COM MEMÓRIA 
+                      if (camCfg.flowCount === true) { 
+                          if (!window.flowCounters) window.flowCounters = {}; 
+                          if (!window.flowCounters[cam.id]) window.flowCounters[cam.id] = new Set(); 
+                          
+                          bodies.forEach(b => { 
+                              if (b.id != null) window.flowCounters[cam.id].add(b.id); 
+                          }); 
+                          
+                          const totalFluxo = window.flowCounters[cam.id].size; 
+                          uiOffsetY -= 35; 
+                          
+                          ctx.fillStyle = 'rgba(16, 185, 129, 1)'; 
+                          ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; 
+                          ctx.lineWidth = 1; 
+                          ctx.fillRect(10, uiOffsetY, 180, 35); 
+                          ctx.strokeRect(10, uiOffsetY, 180, 35); 
+                          
+                          ctx.fillStyle = 'white'; 
+                          ctx.font = 'bold 14px ui-monospace, monospace'; 
+                          ctx.textBaseline = 'middle'; 
+                          ctx.fillText(`🚶 FLUXO TOTAL: ${totalFluxo}`, 20, uiOffsetY + 17); 
+                          uiOffsetY -= 5; 
+                      } 
 
                       // MÓDULO 3: DETEÇÃO DE VEÍCULOS E ANIMAIS (TFJS) 
                       if (camCfg.vehicles === true && objectModel && sampleCanvas) { 
                           const predictions = await objectModel.detect(sampleCanvas); 
-                          
                           const vehicleClasses = ['car', 'truck', 'bus', 'motorcycle', 'bicycle']; 
                           const animalClasses = ['dog', 'cat', 'bird', 'horse', 'cow', 'sheep', 'bear']; 
-                          
-                          let vCount = 0; 
-                          let aCount = 0; 
- 
+                          let vCount = 0; let aCount = 0; 
+  
                           predictions.forEach(pred => { 
                               if (pred.score < 0.45) return; 
-                              
                               const isVeh = vehicleClasses.includes(pred.class); 
                               const isAni = animalClasses.includes(pred.class); 
-                              
                               if (!isVeh && !isAni) return; 
-                              
+                               
                               if (isVeh) vCount++; 
                               if (isAni) aCount++; 
- 
+  
                               const [x, y, w, h] = pred.bbox; 
                               const color = isVeh ? '#eab308' : '#ec4899'; 
                               const labelName = pred.class === 'car' ? 'CARRO' : pred.class === 'truck' ? 'CAMIÃO' : pred.class === 'motorcycle' ? 'MOTA' : pred.class === 'dog' ? 'CÃO' : pred.class === 'cat' ? 'GATO' : pred.class.toUpperCase(); 
                               const label = `${labelName} ${Math.round(pred.score * 100)}%`; 
- 
-                              ctx.lineWidth = 3; 
-                              ctx.strokeStyle = color; 
-                              ctx.strokeRect(x, y, w, h); 
-                              
+  
+                              ctx.lineWidth = 3; ctx.strokeStyle = color; ctx.strokeRect(x, y, w, h); 
                               ctx.font = 'bold 12px ui-monospace, monospace'; 
                               const textWidth = ctx.measureText(label).width; 
-                              
-                              ctx.fillStyle = 'rgba(0,0,0,0.7)'; 
-                              ctx.fillRect(x, Math.max(0, y - 22), textWidth + 8, 22); 
-                              
-                              ctx.fillStyle = color; 
-                              ctx.textBaseline = 'bottom'; 
-                              ctx.fillText(label, x + 4, Math.max(16, y - 4)); 
+                              ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(x, Math.max(0, y - 22), textWidth + 8, 22); 
+                              ctx.fillStyle = color; ctx.textBaseline = 'bottom'; ctx.fillText(label, x + 4, Math.max(16, y - 4)); 
                           }); 
- 
+  
                           if (vCount > 0 || aCount > 0) { 
-                              const startY = camCfg.crowd ? canvas.height - 90 : canvas.height - 50; 
+                              const boxHeight = (vCount > 0 && aCount > 0 ? 45 : 25); 
+                              uiOffsetY -= boxHeight; 
                               ctx.fillStyle = 'rgba(0,0,0,0.8)'; 
-                              ctx.fillRect(10, startY, 180, (vCount > 0 && aCount > 0 ? 45 : 25)); 
-                              
+                              ctx.fillRect(10, uiOffsetY, 180, boxHeight); 
+                               
                               ctx.font = 'bold 13px monospace'; 
                               ctx.textBaseline = 'top'; 
-                              let textY = startY + 5; 
-                              
-                              if (vCount > 0) { 
-                                  ctx.fillStyle = '#eab308'; 
-                                  ctx.fillText(`🚗 VEÍCULOS: ${vCount}`, 15, textY); 
-                                  textY += 20; 
-                              } 
-                              if (aCount > 0) { 
-                                  ctx.fillStyle = '#ec4899'; 
-                                  ctx.fillText(`🐕 ANIMAIS: ${aCount}`, 15, textY); 
-                              } 
+                              let textY = uiOffsetY + 5; 
+                               
+                              if (vCount > 0) { ctx.fillStyle = '#eab308'; ctx.fillText(`🚗 VEÍCULOS: ${vCount}`, 15, textY); textY += 20; } 
+                              if (aCount > 0) { ctx.fillStyle = '#ec4899'; ctx.fillText(`🐕 ANIMAIS: ${aCount}`, 15, textY); } 
+                              uiOffsetY -= 5; 
                           } 
                       }
                       }
@@ -2699,6 +2732,7 @@
             
             document.getElementById('mod-face').checked = cfg.faceRec;
             document.getElementById('mod-crowd').checked = cfg.crowd;
+            document.getElementById('mod-flow').checked = cfg.flowCount === true;
             document.getElementById('mod-vehicles').checked = cfg.vehicles === true;
             document.getElementById('mod-perim').checked = cfg.perimeter === true;
             
