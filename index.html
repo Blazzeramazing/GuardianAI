@@ -14,6 +14,9 @@
     <!-- Human -->
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/human@3.2.2/dist/human.js"></script>
 
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+
     <style>
         .toast-enter { animation: slideIn 0.3s ease-out forwards; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
@@ -399,11 +402,18 @@
                 <!-- VISTA 4: CONFIGURAÇÕES -->
                 <div id="tab-settings" class="tab-content hidden flex-col h-full w-full bg-gray-950 p-4 md:p-6 overflow-y-auto">
                     <div class="max-w-3xl mx-auto w-full bg-gray-900 rounded-xl border border-gray-800 shadow-2xl overflow-hidden">
-                        <div class="p-4 md:p-6 border-b border-gray-800 bg-black/50">
-                            <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                                <i data-lucide="settings" class="text-blue-500"></i> Definições do Sistema
-                            </h2>
-                            <p class="text-sm text-gray-400 mt-1">Parâmetros locais por dispositivo do operador.</p>
+                        <div class="p-4 md:p-6 border-b border-gray-800 bg-black/50 flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-20">
+                            <div>
+                                <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                                    <i data-lucide="settings-2" class="text-blue-500"></i> Cérebro Independente por Câmara
+                                </h2>
+                                <p class="text-xs text-gray-400 mt-1">Ative múltiplos módulos de IA simultâneos. Cada câmara processa apenas o que necessita.</p>
+                            </div>
+                            <div class="min-w-[250px]">
+                                <select id="settings-cam-select" class="w-full bg-gray-950 border border-blue-500/50 rounded-lg px-4 py-3 text-white font-bold outline-none focus:border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.2)] transition-colors" onchange="loadSettingsForCamera(this.value)">
+                                    <option value="global" disabled selected>Selecione uma Câmara...</option>
+                                </select>
+                            </div>
                         </div>
 
                         <div class="p-4 md:p-6 space-y-6 overflow-y-auto custom-scrollbar" style="max-height: calc(100vh - 150px);">
@@ -427,6 +437,35 @@
                                         <span class="text-[10px] uppercase tracking-wider text-gray-500 group-hover:text-purple-500/70">Longo Alcance</span> 
                                     </button> 
                                 </div> 
+                            </div>
+
+                            <div id="ai-modules-panel" class="bg-gray-950 border border-gray-800 rounded-xl p-5 space-y-4 shadow-2xl opacity-50 pointer-events-none transition-opacity duration-300">
+                                <div class="flex items-center gap-2 border-b border-gray-800 pb-3">
+                                    <i data-lucide="cpu" class="text-indigo-500 w-5 h-5"></i>
+                                    <h3 class="text-white font-bold text-sm uppercase tracking-widest text-indigo-400">Módulos Analíticos Ativos</h3>
+                                </div>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-800 bg-gray-900 hover:bg-gray-800 cursor-pointer transition-colors">
+                                        <div><div class="text-sm font-bold text-white">Reconhecimento Facial</div><div class="text-[10px] text-gray-400">Validação Biométrica e Anti-Fraude.</div></div>
+                                        <input type="checkbox" id="mod-face" class="w-5 h-5 accent-indigo-500" onchange="saveCamSetting('faceRec', this.checked)">
+                                    </label>
+                                    
+                                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-800 bg-gray-900 hover:bg-gray-800 cursor-pointer transition-colors">
+                                        <div><div class="text-sm font-bold text-white">Controlo de Multidões</div><div class="text-[10px] text-gray-400">Contagem de pessoas e alertas de aglomeração.</div></div>
+                                        <input type="checkbox" id="mod-crowd" class="w-5 h-5 accent-indigo-500" onchange="saveCamSetting('crowd', this.checked)">
+                                    </label>
+
+                                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-800 bg-gray-900 hover:bg-gray-800 cursor-pointer transition-colors">
+                                        <div><div class="text-sm font-bold text-white flex items-center gap-1">Controlo de Perímetro <span class="bg-blue-900 text-blue-300 text-[8px] px-1 rounded">EM BREVE</span></div><div class="text-[10px] text-gray-400">Linhas virtuais (Tripwires) e zonas de intrusão.</div></div>
+                                        <input type="checkbox" id="mod-perim" disabled class="w-5 h-5 accent-gray-500 cursor-not-allowed">
+                                    </label>
+
+                                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-800 bg-gray-900 hover:bg-gray-800 cursor-pointer transition-colors">
+                                        <div><div class="text-sm font-bold text-white flex items-center gap-1">Deteção de Veículos &amp; Animais <span class="bg-blue-900 text-blue-300 text-[8px] px-1 rounded">TF-SSD</span></div><div class="text-[10px] text-gray-400">Identifica Carros, Motos, Camiões, Cães e Gatos.</div></div>
+                                        <input type="checkbox" id="mod-vehicles" class="w-5 h-5 accent-indigo-500" onchange="saveCamSetting('vehicles', this.checked)">
+                                    </label>
+                                </div>
                             </div>
                             
                             <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 space-y-6"> 
@@ -646,6 +685,7 @@
         let layout = Number(localStorage.getItem('vms_layout')) || 4;
         let faceMatcher = null;
         let human = null;
+        let objectModel = null;
         let humanFaceDB = [];
         const humanConfig = {
             modelBasePath: 'https://vladmandic.github.io/human/models/',
@@ -677,6 +717,13 @@
         let cameras = JSON.parse(localStorage.getItem('vms_cameras')) || [
             { id: 'cam-webcam', name: 'Webcam Local (Testes IA)', type: 'webcam', url: 'local' }
         ];
+
+        let camConfigs = JSON.parse(localStorage.getItem('vms_cam_configs')) || {};
+        const defaultCamConfig = {
+            faceRec: true, crowd: false, perimeter: false, vehicles: false, animals: false,
+            detConf: 0.60, extConf: 0.60, liveness: 0.45, minSize: 110, motionSens: 10
+        };
+        let currentSettingsCamId = null;
 
         let aiLoops = {}; 
         const webrtcConnections = {}; 
@@ -823,6 +870,10 @@
                 human = new HumanCtor(humanConfig);
                 await human.load();
                 await human.warmup();
+
+                try { 
+                    objectModel = await cocoSsd.load({ base: 'lite_mobilenet_v2' }); 
+                } catch(e) { console.error("Erro ao carregar TF-SSD:", e); }
                 
                 isAiReady = true;
                 const statusElems = [document.getElementById('ai-status-desktop'), document.getElementById('ai-status-mobile')];
@@ -1744,6 +1795,8 @@
                   if (!human) { setTimeout(processFrame, 1000); return; } 
                   
                   const startTime = Date.now(); 
+                  const camCfg = camConfigs[cam.id] || defaultCamConfig; 
+                  const wakeThreshold = camCfg.motionSens !== undefined ? camCfg.motionSens : getMotionSens(); 
                   
                   try { 
                       syncCanvasToMedia(canvas, media); 
@@ -1761,7 +1814,6 @@
                       } 
                       lastMotionData = currentMotionData; 
                       
-                      const wakeThreshold = getMotionSens(); 
                       let isAwake = true; 
 
                       if (motionScore < wakeThreshold) { 
@@ -1790,7 +1842,6 @@
                       const faces = Array.isArray(result?.face) ? result.face : []; 
                       const bodies = Array.isArray(result?.body) ? result.body : [];
  
-                      const ctx = canvas.getContext('2d'); 
                       ctx.clearRect(0, 0, canvas.width, canvas.height); 
                       if (sampleCtx) {
                           if (sampleCanvas.width !== canvas.width) sampleCanvas.width = canvas.width;
@@ -1845,6 +1896,8 @@
                       
                       const userThreshold = getAiConfidence(); 
                       
+                      // MÓDULO 1: RECONHECIMENTO FACIAL 
+                      if (camCfg.faceRec !== false) { 
                       faces.forEach((face) => { 
                           const boxRaw = face.boxRaw || [0, 0, 0, 0]; 
                           const x = boxRaw[0] * canvas.width; 
@@ -1857,11 +1910,12 @@
                           
                           // 2. MORTE A OBJETOS/SOMBRAS: Exige 65% de certeza do detetor que é pele/rosto vivo 
                           const score = face.boxScore || face.score || 0; 
-                          if (score < 0.65) return; 
+                          const detLimit = camCfg.detConf !== undefined ? camCfg.detConf : getDetectorConf(); 
+                          if (score < detLimit) return; 
  
                           // === 1. LIVENESS DETECTION (ANTI-FRAUDE) === 
                           const isReal = face.real !== undefined ? face.real : 1.0; 
-                          const livenessLimit = getLivenessConf(); // Lê do Slider em tempo real 
+                          const livenessLimit = camCfg.liveness !== undefined ? camCfg.liveness : getLivenessConf(); // Lê do Slider em tempo real 
                           if (isReal < livenessLimit) { 
                               ctx.lineWidth = 4; ctx.strokeStyle = '#ef4444'; ctx.strokeRect(x, y, w, h); 
                               ctx.fillStyle = '#ef4444'; ctx.fillRect(x, Math.max(0, y - 22), 150, 22); 
@@ -1900,7 +1954,7 @@
                           let bestDb = null;  
                            
                           // === GEOFENCING DE 2 METROS ===  
-                          const TAMANHO_MINIMO_RECONHECIMENTO = getMinFaceSize();  
+                          const TAMANHO_MINIMO_RECONHECIMENTO = camCfg.minSize !== undefined ? camCfg.minSize : getMinFaceSize();  
  
                           if (w >= TAMANHO_MINIMO_RECONHECIMENTO && h >= TAMANHO_MINIMO_RECONHECIMENTO) {  
                               if (embedding && embedding.length > 0 && humanFaceDB.length > 0) {  
@@ -2000,6 +2054,82 @@
                               } 
                           }
                       }); 
+                      } 
+
+                      // MÓDULO 2: CONTROLO DE MULTIDÕES (Crowd Control) 
+                      if (camCfg.crowd === true) { 
+                          const validBodies = bodies.filter(b => b.boxRaw[2] * canvas.width > 30); 
+                          const crowdCount = validBodies.length; 
+                          if (crowdCount > 0) { 
+                              ctx.fillStyle = crowdCount >= 5 ? 'rgba(239, 68, 68, 0.8)' : 'rgba(59, 130, 246, 0.8)'; 
+                              ctx.fillRect(10, canvas.height - 40, 200, 30); 
+                              ctx.fillStyle = 'white'; 
+                              ctx.font = 'bold 14px monospace'; 
+                              ctx.fillText(`👥 MULTIDÃO: ${crowdCount} ALVOS`, 20, canvas.height - 20); 
+                          } 
+                      }
+
+                      // MÓDULO 3: DETEÇÃO DE VEÍCULOS E ANIMAIS (TFJS) 
+                      if (camCfg.vehicles === true && objectModel && sampleCanvas) { 
+                          const predictions = await objectModel.detect(sampleCanvas); 
+                          
+                          const vehicleClasses = ['car', 'truck', 'bus', 'motorcycle', 'bicycle']; 
+                          const animalClasses = ['dog', 'cat', 'bird', 'horse', 'cow', 'sheep', 'bear']; 
+                          
+                          let vCount = 0; 
+                          let aCount = 0; 
+ 
+                          predictions.forEach(pred => { 
+                              if (pred.score < 0.45) return; 
+                              
+                              const isVeh = vehicleClasses.includes(pred.class); 
+                              const isAni = animalClasses.includes(pred.class); 
+                              
+                              if (!isVeh && !isAni) return; 
+                              
+                              if (isVeh) vCount++; 
+                              if (isAni) aCount++; 
+ 
+                              const [x, y, w, h] = pred.bbox; 
+                              const color = isVeh ? '#eab308' : '#ec4899'; 
+                              const labelName = pred.class === 'car' ? 'CARRO' : pred.class === 'truck' ? 'CAMIÃO' : pred.class === 'motorcycle' ? 'MOTA' : pred.class === 'dog' ? 'CÃO' : pred.class === 'cat' ? 'GATO' : pred.class.toUpperCase(); 
+                              const label = `${labelName} ${Math.round(pred.score * 100)}%`; 
+ 
+                              ctx.lineWidth = 3; 
+                              ctx.strokeStyle = color; 
+                              ctx.strokeRect(x, y, w, h); 
+                              
+                              ctx.font = 'bold 12px ui-monospace, monospace'; 
+                              const textWidth = ctx.measureText(label).width; 
+                              
+                              ctx.fillStyle = 'rgba(0,0,0,0.7)'; 
+                              ctx.fillRect(x, Math.max(0, y - 22), textWidth + 8, 22); 
+                              
+                              ctx.fillStyle = color; 
+                              ctx.textBaseline = 'bottom'; 
+                              ctx.fillText(label, x + 4, Math.max(16, y - 4)); 
+                          }); 
+ 
+                          if (vCount > 0 || aCount > 0) { 
+                              const startY = camCfg.crowd ? canvas.height - 90 : canvas.height - 50; 
+                              ctx.fillStyle = 'rgba(0,0,0,0.8)'; 
+                              ctx.fillRect(10, startY, 180, (vCount > 0 && aCount > 0 ? 45 : 25)); 
+                              
+                              ctx.font = 'bold 13px monospace'; 
+                              ctx.textBaseline = 'top'; 
+                              let textY = startY + 5; 
+                              
+                              if (vCount > 0) { 
+                                  ctx.fillStyle = '#eab308'; 
+                                  ctx.fillText(`🚗 VEÍCULOS: ${vCount}`, 15, textY); 
+                                  textY += 20; 
+                              } 
+                              if (aCount > 0) { 
+                                  ctx.fillStyle = '#ec4899'; 
+                                  ctx.fillText(`🐕 ANIMAIS: ${aCount}`, 15, textY); 
+                              } 
+                          } 
+                      }
                   } catch (e) {} 
  
                   const elapsed = Date.now() - startTime; 
@@ -2128,7 +2258,19 @@
                 slider.dataset.hydrated = '1';
                 slider.addEventListener('input', (e) => {
                     const val = Number(e.target.value);
-                    localStorage.setItem(storageKey, String(val));
+                    const perCamKey =
+                        storageKey === 'vms_det_conf' ? 'detConf' :
+                        storageKey === 'vms_ext_conf' ? 'extConf' :
+                        storageKey === 'vms_liveness_conf' ? 'liveness' :
+                        storageKey === 'vms_min_face_size' ? 'minSize' :
+                        storageKey === 'vms_motion_sens' ? 'motionSens' :
+                        null;
+
+                    if (currentSettingsCamId && perCamKey) {
+                        window.saveCamSetting(perCamKey, val);
+                    } else {
+                        localStorage.setItem(storageKey, String(val));
+                    }
                     if (label) label.innerText = isPixel ? val + ' px' : val.toFixed(2);
                     if (liveUpdateFn && human) liveUpdateFn(val);
                     if (storageKey === 'vms_ai_confidence') updateFaceMatcher();
@@ -2153,7 +2295,38 @@
             const rg = document.getElementById('radar-gender'); if (rg) rg.value = localStorage.getItem('vms_radar_gender') || 'all'; 
             const rc = document.getElementById('radar-color'); if (rc) rc.value = localStorage.getItem('vms_radar_color') || 'all';
             updateMuteButton();
+
+            const selectEl = document.getElementById('settings-cam-select');
+            if (selectEl) {
+                selectEl.innerHTML = '<option value="global" disabled selected>Selecione uma Câmara para Configurar...</option>' +
+                    cameras.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+            }
         }
+
+        window.loadSettingsForCamera = (camId) => {
+            currentSettingsCamId = camId;
+            document.getElementById('ai-modules-panel')?.classList.remove('opacity-50', 'pointer-events-none');
+            
+            if (!camConfigs[camId]) camConfigs[camId] = { ...defaultCamConfig };
+            const cfg = camConfigs[camId];
+            
+            document.getElementById('mod-face').checked = cfg.faceRec;
+            document.getElementById('mod-crowd').checked = cfg.crowd;
+            document.getElementById('mod-vehicles').checked = cfg.vehicles === true;
+            
+            document.getElementById('slider-det-conf').value = cfg.detConf; document.getElementById('val-det-conf').innerText = cfg.detConf.toFixed(2);
+            document.getElementById('slider-ext-conf').value = cfg.extConf; document.getElementById('val-ext-conf').innerText = cfg.extConf.toFixed(2);
+            document.getElementById('slider-liveness').value = cfg.liveness; document.getElementById('val-liveness').innerText = cfg.liveness.toFixed(2);
+            document.getElementById('slider-min-size').value = cfg.minSize; document.getElementById('val-min-size').innerText = cfg.minSize + ' px';
+            document.getElementById('slider-motion-sens').value = cfg.motionSens; document.getElementById('val-motion-sens').innerText = cfg.motionSens.toFixed(2);
+        };
+
+        window.saveCamSetting = (key, value) => {
+            if (!currentSettingsCamId) return;
+            if (!camConfigs[currentSettingsCamId]) camConfigs[currentSettingsCamId] = { ...defaultCamConfig };
+            camConfigs[currentSettingsCamId][key] = value;
+            localStorage.setItem('vms_cam_configs', JSON.stringify(camConfigs));
+        };
 
         // ================= LOGS (HISTÓRICO LOCAL) =================
         function mergeLogsUnique(primary, secondary) {
