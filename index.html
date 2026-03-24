@@ -16,6 +16,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
         .toast-enter { animation: slideIn 0.3s ease-out forwards; }
@@ -385,6 +386,43 @@
                                 </div>
                             </div>
                         </header>
+
+                        <div class="p-4 md:p-6 border-b border-gray-800 bg-gray-900/50">
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div class="flex flex-col gap-4">
+                                    <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 flex items-center justify-between shadow-lg relative overflow-hidden">
+                                        <div class="absolute left-0 top-0 w-1 h-full bg-blue-500"></div>
+                                        <div>
+                                            <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-1">Total de Eventos</p>
+                                            <h4 id="kpi-total" class="text-3xl font-black text-white">0</h4>
+                                        </div>
+                                        <i data-lucide="activity" class="w-8 h-8 text-blue-500/20"></i>
+                                    </div>
+                                    <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 flex items-center justify-between shadow-lg relative overflow-hidden">
+                                        <div class="absolute left-0 top-0 w-1 h-full bg-red-500"></div>
+                                        <div>
+                                            <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-1">Ameaças Críticas</p>
+                                            <h4 id="kpi-danger" class="text-2xl font-black text-red-400">0</h4>
+                                        </div>
+                                        <i data-lucide="shield-alert" class="w-8 h-8 text-red-500/20"></i>
+                                    </div>
+                                </div>
+
+                                <div class="md:col-span-1 bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative">
+                                    <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-2">Análise de Risco</p>
+                                    <div class="flex-1 relative min-h-[120px] w-full">
+                                        <canvas id="chart-levels"></canvas>
+                                    </div>
+                                </div>
+
+                                <div class="md:col-span-2 bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative">
+                                    <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-2">Fluxo Tático por Hora</p>
+                                    <div class="flex-1 relative min-h-[120px] w-full">
+                                        <canvas id="chart-time"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         
                         <!-- Container Responsivo para Tabela -->
                         <div id="logs-table-wrapper" class="w-full overflow-x-auto overflow-y-auto max-h-[60vh] relative custom-scrollbar">
@@ -986,7 +1024,11 @@
                 hydrateFacesControls(); renderFaces();
             }
 
-            if (tab === 'logs') { hydrateLogsControls(); renderLogs(); }
+            if (tab === 'logs') {
+                hydrateLogsControls();
+                renderLogs();
+                setTimeout(() => { if (typeof window.updateAnalyticsDashboard === 'function') window.updateAnalyticsDashboard(); }, 100);
+            }
             if (tab === 'settings') hydrateSettingsControls();
         };
 
@@ -1588,6 +1630,7 @@
                 if (p.nx < 0 || p.nx > 1 || p.ny < 0 || p.ny > 1) return;
                  
                 isDrawing = true; 
+                if (e.cancelable) e.preventDefault(); // Bloqueia ghost-dragging do browser 
                 const nx = Math.max(0, Math.min(1, p.nx));
                 const ny = Math.max(0, Math.min(1, p.ny));
                 currentLine = { x1: nx, y1: ny, x2: nx, y2: ny }; 
@@ -1660,7 +1703,8 @@
                 slot.id = cam ? `slot-${cam.id}` : `slot-empty-${i}`;
                 
                 // Eventos de interatividade e Drag & Drop
-                slot.draggable = true;
+                // Desativa o Drag & Drop se a câmara estiver em Modo de Desenho Tático 
+                slot.draggable = (cam && activeDrawCamId === cam.id) ? false : true;
                 slot.setAttribute('ondragstart', `handleDragStart(event, ${i})`);
                 slot.setAttribute('ondragover', `handleDragOver(event)`);
                 slot.setAttribute('ondrop', `handleDrop(event, ${i})`);
@@ -2741,6 +2785,10 @@
             
             const tableWrapper = document.getElementById('logs-table-wrapper');
             if (tableWrapper) tableWrapper.scrollTop = 0;
+
+            if (typeof window.updateAnalyticsDashboard === 'function') {
+                window.updateAnalyticsDashboard();
+            }
         }
 
         window.exportLogsCSV = () => {
@@ -3185,6 +3233,94 @@
             document.getElementById('slider-det-conf')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); 
              
             showToast(`Perfil Tático [${distance} Metro(s)] carregado com sucesso!`, "success"); 
+        };
+
+        let chartLevelsInstance = null;
+        let chartTimeInstance = null;
+
+        window.updateAnalyticsDashboard = () => {
+            if (activeTab !== 'logs') return;
+            if (typeof Chart === 'undefined') return;
+            
+            const total = allLogs.length;
+            const danger = allLogs.filter(l => l.level === 'danger').length;
+            const suspect = allLogs.filter(l => l.level === 'suspect').length;
+            const normal = allLogs.filter(l => l.level === 'normal').length;
+            
+            const elTotal = document.getElementById('kpi-total'); if (elTotal) elTotal.innerText = total;
+            const elDanger = document.getElementById('kpi-danger'); if (elDanger) elDanger.innerText = danger;
+            
+            const ctxLevels = document.getElementById('chart-levels');
+            if (ctxLevels) {
+                if (chartLevelsInstance) chartLevelsInstance.destroy();
+                Chart.defaults.color = '#6b7280';
+                Chart.defaults.font.family = 'monospace';
+                chartLevelsInstance = new Chart(ctxLevels, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Crítico', 'Suspeito', 'Autorizado'],
+                        datasets: [{
+                            data: [danger, suspect, normal],
+                            backgroundColor: ['#ef4444', '#eab308', '#10b981'],
+                            borderWidth: 2,
+                            borderColor: '#030712'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '70%',
+                        plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } }
+                    }
+                });
+            }
+            
+            const timeGroups = {};
+            const recentLogs = [...allLogs].reverse().slice(0, 200).reverse();
+            recentLogs.forEach(l => {
+                const date = new Date(l.timestamp);
+                const hourLabel = `${date.getHours().toString().padStart(2, '0')}:00`;
+                timeGroups[hourLabel] = (timeGroups[hourLabel] || 0) + 1;
+            });
+            
+            if (Object.keys(timeGroups).length === 0) {
+                const h = new Date().getHours();
+                timeGroups[`${h.toString().padStart(2, '0')}:00`] = 0;
+            }
+            
+            const sortedHours = Object.keys(timeGroups).sort();
+            const timeData = sortedHours.map(h => timeGroups[h]);
+            
+            const ctxTime = document.getElementById('chart-time');
+            if (ctxTime) {
+                if (chartTimeInstance) chartTimeInstance.destroy();
+                chartTimeInstance = new Chart(ctxTime, {
+                    type: 'line',
+                    data: {
+                        labels: sortedHours,
+                        datasets: [{
+                            label: 'Deteções',
+                            data: timeData,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            pointBackgroundColor: '#3b82f6',
+                            pointRadius: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, border: {display: false}, ticks: {stepSize: 1, color: '#4b5563'}, grid: {color: 'rgba(255,255,255,0.05)'} },
+                            x: { border: {display: false}, grid: {display: false}, ticks: {color: '#4b5563'} }
+                        },
+                        plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } }
+                    }
+                });
+            }
         };
 
         setInterval(() => {
