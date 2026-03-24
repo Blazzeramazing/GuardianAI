@@ -1591,8 +1591,11 @@
         }; 
 
         window.clearLastLine = (camId, e) => { 
-            e.stopPropagation(); 
-            if (!camConfigs[camId] || !camConfigs[camId].customLines || camConfigs[camId].customLines.length === 0) return; 
+            if (e) e.stopPropagation(); 
+            if (!camConfigs[camId] || !camConfigs[camId].customLines || camConfigs[camId].customLines.length === 0) { 
+                showToast("Nenhuma linha tática para apagar nesta câmara.", "warning"); 
+                return; 
+            } 
             camConfigs[camId].customLines.pop(); 
             localStorage.setItem('vms_cam_configs', JSON.stringify(camConfigs)); 
             showToast("Última linha de perímetro apagada.", "info"); 
@@ -1622,18 +1625,17 @@
 
             const onDown = (e) => { 
                 if (!activeDrawCamId) return; 
+                
+                // Se clicou num botão da interface (Caneta, Borracha, etc), ignora o desenho! 
+                if (e.target && e.target.closest('button')) return; 
                 const data = getCanvasAndRect(); 
                 if (!data) return; 
-                const { canvas, rect } = data; 
+                const { rect } = data; 
                 
-                // Garante que clicou no canvas e bloqueia o arrasto nativo do browser! 
-                if (e.target !== canvas) return; 
-                if (e.cancelable) e.preventDefault(); 
-
+                if (e.cancelable) e.preventDefault(); // Bloqueia arrastar a imagem nativa 
                 const p = getNormPoint(e, rect); 
                 if (!p) return; 
-                if (p.nx < 0 || p.nx > 1 || p.ny < 0 || p.ny > 1) return; 
-                 
+                
                 isDrawing = true; 
                 const nx = Math.max(0, Math.min(1, p.nx)); 
                 const ny = Math.max(0, Math.min(1, p.ny)); 
@@ -1642,11 +1644,12 @@
              
             const onMove = (e) => { 
                 if (!isDrawing || !activeDrawCamId || !currentLine) return; 
-                const data = getCanvasAndRect();
-                if (!data) return;
-                const { rect } = data;
-                const p = getNormPoint(e, rect);
-                if (!p) return;
+                const data = getCanvasAndRect(); 
+                if (!data) return; 
+                const { rect } = data; 
+                const p = getNormPoint(e, rect); 
+                if (!p) return; 
+                
                 currentLine.x2 = Math.max(0, Math.min(1, p.nx)); 
                 currentLine.y2 = Math.max(0, Math.min(1, p.ny)); 
             }; 
@@ -1664,7 +1667,7 @@
                     showToast("Barreira Tática adicionada!", "success"); 
                 } 
                 currentLine = null; 
-            }; 
+            };
 
             grid.addEventListener('mousedown', onDown);
             grid.addEventListener('mousemove', onMove);
@@ -1733,8 +1736,11 @@
                         </div>
                         <div class="${activeDrawCamId === cam.id ? 'opacity-100 bg-black/40' : 'opacity-0 group-hover:opacity-100 bg-gradient-to-t from-black/80 via-transparent to-black/40'} absolute inset-0 transition-all duration-300 z-30 flex flex-col justify-between p-4 ${activeDrawCamId === cam.id ? 'cursor-crosshair' : ''}">
                             <div class="flex justify-end gap-2">
-                                <button onclick="toggleDrawMode('${cam.id}', event)" ondblclick="clearLastLine('${cam.id}', event)" class="${activeDrawCamId === cam.id ? 'bg-yellow-500 hover:bg-yellow-400 text-black border-yellow-300 shadow-[0_0_15px_rgba(234,179,8,0.5)]' : 'bg-gray-900/80 hover:bg-white text-gray-300 hover:text-black border-white/20'} p-2 rounded backdrop-blur border transition-all" title="1 Clique: Desenhar | 2 Cliques Rápidos: Apagar Última">
+                                <button onclick="toggleDrawMode('${cam.id}', event)" class="${activeDrawCamId === cam.id ? 'bg-yellow-500 hover:bg-yellow-400 text-black border-yellow-300 shadow-[0_0_15px_rgba(234,179,8,0.5)]' : 'bg-gray-900/80 hover:bg-white text-gray-300 hover:text-black border-white/20'} p-2 rounded backdrop-blur border transition-all" title="Ativar/Desativar Caneta Tática"> 
                                     <i data-lucide="pen-tool" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="clearLastLine('${cam.id}', event)" class="bg-gray-900/80 hover:bg-red-500 text-gray-300 hover:text-white p-2 rounded backdrop-blur border border-white/20 transition-all" title="Apagar Última Linha (Undo)"> 
+                                    <i data-lucide="eraser" class="w-4 h-4"></i> 
                                 </button>
                                 <button onclick="captureSnapshot('${cam.id}')" class="bg-gray-900/80 hover:bg-white text-gray-300 hover:text-black p-2 rounded backdrop-blur border border-white/20 transition-all" title="Tirar Foto Rápida">
                                     <i data-lucide="camera" class="w-4 h-4"></i>
@@ -1939,7 +1945,7 @@
 
         window.toggleMaximize = (camId, event) => { 
             // Se o clique veio de um botão do painel, aborta a maximização! 
-            if (event && event.target.closest('button')) return; 
+            if (event && event.target && event.target.closest('button')) return; 
             
             const slot = document.getElementById(`slot-${camId}`); 
             if (!slot) return;
