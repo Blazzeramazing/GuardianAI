@@ -559,6 +559,13 @@
                                         <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div> 
                                     </label> 
                                 </div>
+                                <div class="pt-4 border-t border-gray-800"> 
+                                    <div class="flex justify-between gap-4 mb-2"> 
+                                        <div class="text-sm font-semibold text-white flex items-center gap-2"><i data-lucide="key" class="w-4 h-4 text-green-500"></i> Relé de Acesso (Webhook HTTP)</div> 
+                                    </div> 
+                                    <p class="text-xs text-gray-500 mb-2">URL disparado quando um alvo "Verde" (Autorizado) é reconhecido. Ideal para abrir portas com Shelly/Sonoff.</p> 
+                                    <input type="text" id="input-webhook" placeholder="http://192.168.1.50/relay/0?turn=on" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-green-500 transition-colors"> 
+                                </div>
                             </div> 
 
                             <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 space-y-6"> 
@@ -580,11 +587,6 @@
                                     <div class="flex justify-between gap-4 mb-2"><div class="text-sm font-semibold text-white">Sensibilidade de Movimento (Wake-up CPU)</div><div id="val-motion-sens" class="text-xs font-mono text-green-300 bg-green-900/20 px-2 py-1 rounded border border-green-900/40">10.00</div></div>
                                     <p class="text-xs text-gray-500 mb-2">Desperta a IA Pesada apenas se houver movimento no vídeo, poupando até 80% de hardware. (Baixo = Mais Sensível).</p>
                                     <input id="slider-motion-sens" type="range" min="1" max="50" step="1" class="w-full accent-green-500">
-                                </div>
-                                <div class="pt-4 border-t border-gray-800">
-                                    <div class="flex justify-between gap-4 mb-2"><div class="text-sm font-semibold text-white flex items-center gap-2"><i data-lucide="move-horizontal" class="w-4 h-4 text-red-500"></i> Altura do Perímetro (Tripwire)</div><div id="val-tripwire" class="text-xs font-mono text-red-300 bg-red-900/20 px-2 py-1 rounded border border-red-900/40">50 %</div></div>
-                                    <p class="text-xs text-gray-500 mb-2">Posição vertical da linha a laser. O alarme dispara se o alvo cruzar esta linha.</p>
-                                    <input id="slider-tripwire" type="range" min="10" max="90" step="1" class="w-full accent-red-500">
                                 </div>
                             </div> 
 
@@ -745,10 +747,15 @@
         let camConfigs = JSON.parse(localStorage.getItem('vms_cam_configs')) || {};
         const defaultCamConfig = {
             faceRec: true, crowd: false, perimeter: false, vehicles: false, animals: false,
-            detConf: 0.60, extConf: 0.60, liveness: 0.45, minSize: 110, motionSens: 10, tripwireY: 50
+            detConf: 0.60, extConf: 0.60, liveness: 0.45, minSize: 110, motionSens: 10, customLines: [],
+            webhookUrl: ''
         };
         let currentSettingsCamId = null;
         let globalFramesRendered = 0;
+
+        let activeDrawCamId = null;
+        let isDrawing = false;
+        let currentLine = null;
 
         let aiLoops = {}; 
         const webrtcConnections = {}; 
@@ -1521,6 +1528,108 @@
             lucide.createIcons(); 
         };
 
+        function distToSegment(px, py, x1, y1, x2, y2) { 
+            const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2; 
+            if (l2 === 0) return Math.hypot(px - x1, py - y1); 
+            let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2; 
+            t = Math.max(0, Math.min(1, t)); 
+            return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1))); 
+        } 
+
+        window.toggleDrawMode = (camId, e) => { 
+            e.stopPropagation(); 
+            if (activeDrawCamId === camId) { 
+                activeDrawCamId = null; 
+                showToast("Modo de desenho desativado.", "info"); 
+            } else { 
+                activeDrawCamId = camId; 
+                showToast("Modo de desenho ATIVADO! Clique e arraste no vídeo.", "success"); 
+            } 
+            renderGrid(); 
+        }; 
+
+        window.clearLastLine = (camId, e) => { 
+            e.stopPropagation(); 
+            if (!camConfigs[camId] || !camConfigs[camId].customLines || camConfigs[camId].customLines.length === 0) return; 
+            camConfigs[camId].customLines.pop(); 
+            localStorage.setItem('vms_cam_configs', JSON.stringify(camConfigs)); 
+            showToast("Última linha de perímetro apagada.", "info"); 
+        };
+
+        window.addEventListener('DOMContentLoaded', () => { 
+            const grid = document.getElementById('video-grid'); 
+            if (!grid) return; 
+             
+            const getCanvasAndRect = () => {
+                if (!activeDrawCamId) return null;
+                const canvas = document.getElementById(`canvas-${activeDrawCamId}`); 
+                if (!canvas) return null;
+                const rect = canvas.getBoundingClientRect();
+                return { canvas, rect };
+            };
+
+            const getNormPoint = (e, rect) => {
+                const clientX = e.clientX ?? (e.touches?.[0]?.clientX);
+                const clientY = e.clientY ?? (e.touches?.[0]?.clientY);
+                if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+                return {
+                    nx: (clientX - rect.left) / rect.width,
+                    ny: (clientY - rect.top) / rect.height
+                };
+            };
+
+            const onDown = (e) => { 
+                if (!activeDrawCamId) return; 
+                const data = getCanvasAndRect();
+                if (!data) return;
+                const { rect } = data;
+                const p = getNormPoint(e, rect);
+                if (!p) return;
+                if (p.nx < 0 || p.nx > 1 || p.ny < 0 || p.ny > 1) return;
+                 
+                isDrawing = true; 
+                const nx = Math.max(0, Math.min(1, p.nx));
+                const ny = Math.max(0, Math.min(1, p.ny));
+                currentLine = { x1: nx, y1: ny, x2: nx, y2: ny }; 
+            }; 
+             
+            const onMove = (e) => { 
+                if (!isDrawing || !activeDrawCamId || !currentLine) return; 
+                const data = getCanvasAndRect();
+                if (!data) return;
+                const { rect } = data;
+                const p = getNormPoint(e, rect);
+                if (!p) return;
+                currentLine.x2 = Math.max(0, Math.min(1, p.nx)); 
+                currentLine.y2 = Math.max(0, Math.min(1, p.ny)); 
+            }; 
+             
+            const onUp = (e) => { 
+                if (!isDrawing || !activeDrawCamId || !currentLine) return; 
+                isDrawing = false; 
+                 
+                const dist = Math.hypot(currentLine.x2 - currentLine.x1, currentLine.y2 - currentLine.y1); 
+                if (dist > 0.02) { 
+                    if (!camConfigs[activeDrawCamId]) camConfigs[activeDrawCamId] = { ...defaultCamConfig, customLines: [] }; 
+                    if (!Array.isArray(camConfigs[activeDrawCamId].customLines)) camConfigs[activeDrawCamId].customLines = []; 
+                    camConfigs[activeDrawCamId].customLines.push({ ...currentLine }); 
+                    localStorage.setItem('vms_cam_configs', JSON.stringify(camConfigs)); 
+                    showToast("Barreira Tática adicionada!", "success"); 
+                } 
+                currentLine = null; 
+            }; 
+
+            grid.addEventListener('mousedown', onDown);
+            grid.addEventListener('mousemove', onMove);
+            grid.addEventListener('mouseup', onUp);
+            grid.addEventListener('mouseleave', onUp);
+
+            grid.addEventListener('touchstart', (e) => { onDown(e); }, { passive: true });
+            grid.addEventListener('touchmove', (e) => { onMove(e); }, { passive: true });
+            grid.addEventListener('touchend', (e) => { onUp(e); }, { passive: true });
+            grid.addEventListener('touchcancel', (e) => { onUp(e); }, { passive: true });
+        });
+
         async function renderGrid() {
             stopAllAILoops(); 
             stopAllWebRTCConnections();
@@ -1574,8 +1683,11 @@
                             <div class="w-2 h-2 rounded-full ${isAiOn ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]' : 'bg-gray-500'} shrink-0"></div>
                             <span class="truncate font-semibold tracking-wide">${escapeHtml(cam.name)}</span>
                         </div>
-                        <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-30 flex flex-col justify-between p-4">
+                        <div class="${activeDrawCamId === cam.id ? 'opacity-100 bg-black/40' : 'opacity-0 group-hover:opacity-100 bg-gradient-to-t from-black/80 via-transparent to-black/40'} absolute inset-0 transition-all duration-300 z-30 flex flex-col justify-between p-4 ${activeDrawCamId === cam.id ? 'cursor-crosshair' : ''}">
                             <div class="flex justify-end gap-2">
+                                <button onclick="toggleDrawMode('${cam.id}', event)" ondblclick="clearLastLine('${cam.id}', event)" class="${activeDrawCamId === cam.id ? 'bg-yellow-500 hover:bg-yellow-400 text-black border-yellow-300 shadow-[0_0_15px_rgba(234,179,8,0.5)]' : 'bg-gray-900/80 hover:bg-white text-gray-300 hover:text-black border-white/20'} p-2 rounded backdrop-blur border transition-all" title="1 Clique: Desenhar | 2 Cliques Rápidos: Apagar Última">
+                                    <i data-lucide="pen-tool" class="w-4 h-4"></i>
+                                </button>
                                 <button onclick="captureSnapshot('${cam.id}')" class="bg-gray-900/80 hover:bg-white text-gray-300 hover:text-black p-2 rounded backdrop-blur border border-white/20 transition-all" title="Tirar Foto Rápida">
                                     <i data-lucide="camera" class="w-4 h-4"></i>
                                 </button>
@@ -1638,7 +1750,7 @@
         window.toggleAIPower = (camId) => {
             const cam = cameras.find(c => c.id === camId);
             if (!cam) return;
-            if (!camConfigs[camId]) camConfigs[camId] = { ...defaultCamConfig };
+            if (!camConfigs[camId]) camConfigs[camId] = { ...defaultCamConfig, customLines: [] };
             
             const next = (camConfigs[camId].aiPower ?? true) !== true;
             camConfigs[camId].aiPower = next;
@@ -1918,32 +2030,55 @@
 
                       globalFramesRendered++;
 
-                      if (camCfg.perimeter === true) {
-                          const tripY = canvas.height * ((camCfg.tripwireY || 50) / 100);
-                          ctx.beginPath();
-                          ctx.moveTo(0, tripY);
-                          ctx.lineTo(canvas.width, tripY);
-                          ctx.lineWidth = 2;
-                          ctx.strokeStyle = 'rgba(239, 68, 68, 0.7)';
-                          ctx.setLineDash([10, 5]);
-                          ctx.stroke();
-                          ctx.setLineDash([]);
+                      if (camCfg.perimeter === true || activeDrawCamId === cam.id) { 
+                          const lines = camCfg.customLines || []; 
                           
-                          ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
-                          ctx.font = 'bold 10px ui-monospace, monospace';
-                          ctx.textBaseline = 'bottom';
-                          ctx.fillText('⚡ TRIPWIRE ATIVO', 5, Math.max(12, tripY - 4));
-
-                          bodies.forEach(b => {
-                              const by = b.boxRaw[1] * canvas.height;
-                              const bh = b.boxRaw[3] * canvas.height;
-                              const footY = by + bh;
-                              if (footY >= tripY - 15 && by <= tripY + 15) {
-                                  ctx.fillStyle = 'rgba(239, 68, 68, 0.3)';
-                                  ctx.fillRect(0, 0, canvas.width, canvas.height);
-                                  if (Math.random() < 0.1) showToast(`⚠️ Intrusão Perimetral na ${cam.name}`, "error");
-                              }
-                          });
+                          ctx.lineWidth = 3; 
+                          lines.forEach((l, idx) => { 
+                              ctx.beginPath(); 
+                              ctx.moveTo(l.x1 * canvas.width, l.y1 * canvas.height); 
+                              ctx.lineTo(l.x2 * canvas.width, l.y2 * canvas.height); 
+                              ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)'; 
+                              ctx.stroke(); 
+                              ctx.fillStyle = 'rgba(239, 68, 68, 0.9)'; 
+                              ctx.font = 'bold 10px ui-monospace, monospace'; 
+                              ctx.fillText(`L${idx+1}`, (l.x1 * canvas.width) + 5, (l.y1 * canvas.height) - 5); 
+                          }); 
+ 
+                          if (activeDrawCamId === cam.id && isDrawing && currentLine) { 
+                              ctx.beginPath(); 
+                              ctx.moveTo(currentLine.x1 * canvas.width, currentLine.y1 * canvas.height); 
+                              ctx.lineTo(currentLine.x2 * canvas.width, currentLine.y2 * canvas.height); 
+                              ctx.lineWidth = 3; 
+                              ctx.setLineDash([5, 5]); 
+                              ctx.strokeStyle = 'rgba(234, 179, 8, 0.9)'; 
+                              ctx.stroke(); 
+                              ctx.setLineDash([]); 
+                          } 
+ 
+                          if (camCfg.perimeter === true && lines.length > 0) { 
+                              let intrusionDetected = false; 
+                              
+                              bodies.forEach(b => { 
+                                  const px = (b.boxRaw[0] + b.boxRaw[2] / 2) * canvas.width; 
+                                  const py = (b.boxRaw[1] + b.boxRaw[3]) * canvas.height; 
+                                  
+                                  lines.forEach(l => { 
+                                      const x1 = l.x1 * canvas.width; const y1 = l.y1 * canvas.height; 
+                                      const x2 = l.x2 * canvas.width; const y2 = l.y2 * canvas.height; 
+                                      
+                                      if (distToSegment(px, py, x1, y1, x2, y2) < 20) { 
+                                          intrusionDetected = true; 
+                                      } 
+                                  }); 
+                              }); 
+ 
+                              if (intrusionDetected) { 
+                                  ctx.fillStyle = 'rgba(239, 68, 68, 0.3)'; 
+                                  ctx.fillRect(0, 0, canvas.width, canvas.height); 
+                                  if (Math.random() < 0.1) showToast(`⚠️ INTRUSÃO PERIMETRAL: ${cam.name}`, "error"); 
+                              } 
+                          } 
                       }
  
                       // === RADAR SEMÂNTICO DE LONGA DISTÂNCIA (Independente de Rostos) === 
@@ -2269,9 +2404,32 @@
                 } catch(e) {}
             }
 
-            if (person.level === 'danger') triggerTacticalAlarm(person, cam, snapshotBase64);
-            else if (person.level === 'suspect') { showToast(`SUSPEITO: ${person.name} em ${cam.name}`, "warning"); playBeep(); }
-            else showToast(`Reconhecimento: ${person.name} em ${cam.name}`, "success");
+            if (person.level === 'danger') { 
+                triggerTacticalAlarm(person, cam, snapshotBase64); 
+            } else if (person.level === 'suspect') { 
+                showToast(`SUSPEITO: ${person.name} em ${cam.name}`, "warning"); 
+                playBeep(); 
+            } else { 
+                const camCfg = camConfigs[cam.id] || defaultCamConfig; 
+                 
+                if (camCfg.webhookUrl && camCfg.webhookUrl.length > 5) { 
+                    const now = Date.now(); 
+                    const lastOpen = cam.lastDoorOpen || 0; 
+                     
+                    if (now - lastOpen > 8000) { 
+                        cam.lastDoorOpen = now; 
+                         
+                        fetch(camCfg.webhookUrl, { mode: 'no-cors' }) 
+                            .catch(err => console.log("Aviso de rede no relé (Normal):", err)); 
+                             
+                        showToast(`🚪 PORTA ABERTA PARA: ${person.name}`, "success"); 
+                    } else { 
+                        showToast(`Reconhecimento: ${person.name} (Porta já destrancada)`, "info"); 
+                    } 
+                } else { 
+                    showToast(`Reconhecimento: ${person.name} em ${cam.name}`, "success"); 
+                } 
+            }
 
             appendLiveFeed(person.name, person.level, cam.name, snapshotBase64);
         }
@@ -2436,7 +2594,7 @@
             currentSettingsCamId = camId;
             document.getElementById('ai-modules-panel')?.classList.remove('opacity-50', 'pointer-events-none');
             
-            if (!camConfigs[camId]) camConfigs[camId] = { ...defaultCamConfig };
+            if (!camConfigs[camId]) camConfigs[camId] = { ...defaultCamConfig, customLines: [] };
             const cfg = camConfigs[camId];
             
             document.getElementById('mod-face').checked = cfg.faceRec;
@@ -2450,23 +2608,19 @@
             document.getElementById('slider-min-size').value = cfg.minSize; document.getElementById('val-min-size').innerText = cfg.minSize + ' px';
             document.getElementById('slider-motion-sens').value = cfg.motionSens; document.getElementById('val-motion-sens').innerText = cfg.motionSens.toFixed(2);
 
-            const tripwireVal = Number.isFinite(Number(cfg.tripwireY)) ? Number(cfg.tripwireY) : 50;
-            const tripSlider = document.getElementById('slider-tripwire');
-            const tripLabel = document.getElementById('val-tripwire');
-            if (tripSlider) tripSlider.value = String(tripwireVal);
-            if (tripLabel) tripLabel.innerText = tripwireVal + ' %';
-            if (tripSlider) {
-                tripSlider.oninput = (e) => {
-                    const v = Number(e.target.value);
-                    if (tripLabel) tripLabel.innerText = v + ' %';
-                        if (currentSettingsCamId) window.saveCamSetting('tripwireY', v);
+            const webhookInput = document.getElementById('input-webhook');
+            if (webhookInput) {
+                webhookInput.value = cfg.webhookUrl || '';
+                webhookInput.onchange = (e) => {
+                    if (currentSettingsCamId) window.saveCamSetting('webhookUrl', e.target.value.trim());
+                    showToast("Webhook de acesso guardado com sucesso.", "success");
                 };
             }
         };
 
         window.saveCamSetting = (key, value) => {
             if (!currentSettingsCamId) return;
-            if (!camConfigs[currentSettingsCamId]) camConfigs[currentSettingsCamId] = { ...defaultCamConfig };
+            if (!camConfigs[currentSettingsCamId]) camConfigs[currentSettingsCamId] = { ...defaultCamConfig, customLines: [] };
             camConfigs[currentSettingsCamId][key] = value;
             localStorage.setItem('vms_cam_configs', JSON.stringify(camConfigs));
         };
