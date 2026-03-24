@@ -2081,30 +2081,39 @@
                           sleepTimer = 15; 
                       } 
 
-                      // LIMPA O CANVAS APENAS 1 VEZ AQUI 
+                      let faces = []; 
+                      let bodies = []; 
+                      let vehiclePredictions = []; 
+ 
+                      // === 1. PROCESSAMENTO ASSÍNCRONO DA IA (Evita Strobe/Piscar do Canvas) === 
+                      if (isAwake) { 
+                          const result = await human.detect(media); 
+                          faces = Array.isArray(result?.face) ? result.face : []; 
+                          bodies = Array.isArray(result?.body) ? result.body : []; 
+                          globalFramesRendered++; 
+ 
+                          if (sampleCtx) { 
+                              if (sampleCanvas.width !== canvas.width) sampleCanvas.width = canvas.width; 
+                              if (sampleCanvas.height !== canvas.height) sampleCanvas.height = canvas.height; 
+                              try { sampleCtx.drawImage(media, 0, 0, sampleCanvas.width, sampleCanvas.height); } catch(e) {} 
+                              
+                              // Pré-processa os veículos aqui para não fazer o ecrã esperar mais à frente! 
+                              if (camCfg.vehicles === true && objectModel) { 
+                                  try { vehiclePredictions = await objectModel.detect(sampleCanvas); } catch(e) {} 
+                              } 
+                          } 
+                      } 
+ 
+                      // === 2. RENDERIZAÇÃO SÍNCRONA IMEDIATA === 
                       const ctx = canvas.getContext('2d'); 
                       ctx.clearRect(0, 0, canvas.width, canvas.height); 
-                      
-                      let faces = [];
-                      let bodies = [];
-
+ 
                       if (!isAwake) { 
                           ctx.fillStyle = 'rgba(16, 185, 129, 0.85)'; 
                           ctx.font = 'bold 11px ui-monospace, monospace'; 
                           ctx.textBaseline = 'top'; 
                           ctx.fillText("💤 STANDBY (Poupança CPU/GPU)", 10, 10); 
                       } else { 
-                          // === CORRE A IA PESADA APENAS SE ESTIVER ACORDADO === 
-                          const result = await human.detect(media); 
-                          faces = Array.isArray(result?.face) ? result.face : []; 
-                          bodies = Array.isArray(result?.body) ? result.body : []; 
-                          globalFramesRendered++; 
-
-                          if (sampleCtx) { 
-                              if (sampleCanvas.width !== canvas.width) sampleCanvas.width = canvas.width; 
-                              if (sampleCanvas.height !== canvas.height) sampleCanvas.height = canvas.height; 
-                              try { sampleCtx.drawImage(media, 0, 0, sampleCanvas.width, sampleCanvas.height); } catch(e) {} 
-                          }
 
                       // === RADAR SEMÂNTICO DE LONGA DISTÂNCIA (Independente de Rostos) === 
                       const radarGen = localStorage.getItem('vms_radar_gender') || 'all'; 
@@ -2360,13 +2369,12 @@
                       } 
 
                       // MÓDULO 3: DETEÇÃO DE VEÍCULOS E ANIMAIS (TFJS) 
-                      if (camCfg.vehicles === true && objectModel && sampleCanvas) { 
-                          const predictions = await objectModel.detect(sampleCanvas); 
+                      if (camCfg.vehicles === true && vehiclePredictions && vehiclePredictions.length > 0) { 
                           const vehicleClasses = ['car', 'truck', 'bus', 'motorcycle', 'bicycle']; 
                           const animalClasses = ['dog', 'cat', 'bird', 'horse', 'cow', 'sheep', 'bear']; 
                           let vCount = 0; let aCount = 0; 
   
-                          predictions.forEach(pred => { 
+                          vehiclePredictions.forEach(pred => { 
                               if (pred.score < 0.45) return; 
                               const isVeh = vehicleClasses.includes(pred.class); 
                               const isAni = animalClasses.includes(pred.class); 
