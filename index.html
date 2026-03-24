@@ -798,6 +798,7 @@
         let aiLoops = {}; 
         const webrtcConnections = {}; 
         const lastDetectionTime = {}; 
+        const lastTripwireTime = {}; // Cooldown para o Alarme de Perímetro
 
         let audioCtx = null;
         let alarmOscillator = null;
@@ -2418,7 +2419,44 @@
                               if (intrusionDetected) { 
                                   ctx.fillStyle = 'rgba(239, 68, 68, 0.3)'; 
                                   ctx.fillRect(0, 0, canvas.width, canvas.height); 
-                                  if (Math.random() < 0.1) showToast(`⚠️ INTRUSÃO PERIMETRAL: ${cam.name}`, "error"); 
+                                  
+                                  const now = Date.now(); 
+                                  const lastTripAlert = lastTripwireTime[cam.id] || 0; 
+                                  
+                                  // Cooldown de 5 segundos para não spammar o alarme 
+                                  if (now - lastTripAlert > 5000) { 
+                                      lastTripwireTime[cam.id] = now; 
+                                      showToast(`⚠️ INTRUSÃO PERIMETRAL: ${cam.name}`, "error"); 
+                                      
+                                      // 1. Tirar Snapshot Instantâneo da Violação 
+                                      let snapBase64 = ""; 
+                                      try { 
+                                          const tempCvs = document.createElement('canvas'); 
+                                          tempCvs.width = media.videoWidth || media.naturalWidth || 640; 
+                                          tempCvs.height = media.videoHeight || media.naturalHeight || 480; 
+                                          tempCvs.getContext('2d').drawImage(media, 0, 0, tempCvs.width, tempCvs.height); 
+                                          snapBase64 = tempCvs.toDataURL('image/jpeg', 0.5); 
+                                      } catch(e) {} 
+
+                                      // 2. Gravar no Histórico (Logs) para o Analytics 
+                                      if (db) { 
+                                          try { 
+                                              const time = new Date().toLocaleTimeString('pt-PT'); 
+                                              addDoc(collection(db, "logs"), { 
+                                                  personName: "INTRUSO (Linha Virtual)", 
+                                                  level: "danger", 
+                                                  cameraName: cam.name, 
+                                                  time, 
+                                                  timestamp: now, 
+                                                  snapshot: snapBase64 
+                                              }); 
+                                          } catch(e) {} 
+                                      } 
+
+                                      // 3. Disparar o Painel Tático Principal com a Sirene 
+                                      const mockIntruder = { name: "QUEBRA DE PERÍMETRO", photo: snapBase64, level: 'danger' }; 
+                                      triggerTacticalAlarm(mockIntruder, cam, snapBase64); 
+                                  } 
                               } 
                           } 
                       }
