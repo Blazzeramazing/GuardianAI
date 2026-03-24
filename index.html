@@ -514,7 +514,7 @@
                                     </label>
 
                                     <label class="flex items-center justify-between p-3 rounded-lg border border-gray-800 bg-gray-900 hover:bg-gray-800 cursor-pointer transition-colors">
-                                        <div><div class="text-sm font-bold text-white flex items-center gap-1">Controlo de Perímetro <span class="bg-blue-900 text-blue-300 text-[8px] px-1 rounded">CDP</span></div><div class="text-[10px] text-gray-400">Linhas virtuais (Tripwires) e zonas de intrusão.</div></div>
+                                        <div><div class="text-sm font-bold text-white flex items-center gap-1">Controlo de Perímetro <span class="bg-blue-900 text-blue-300 text-[8px] px-1 rounded">EM BREVE</span></div><div class="text-[10px] text-gray-400">Linhas virtuais (Tripwires) e zonas de intrusão.</div></div>
                                         <input type="checkbox" id="mod-perim" class="w-5 h-5 accent-indigo-500" onchange="saveCamSetting('perimeter', this.checked)">
                                     </label>
 
@@ -1622,17 +1622,21 @@
 
             const onDown = (e) => { 
                 if (!activeDrawCamId) return; 
-                const data = getCanvasAndRect();
-                if (!data) return;
-                const { rect } = data;
-                const p = getNormPoint(e, rect);
-                if (!p) return;
-                if (p.nx < 0 || p.nx > 1 || p.ny < 0 || p.ny > 1) return;
+                const data = getCanvasAndRect(); 
+                if (!data) return; 
+                const { canvas, rect } = data; 
+                
+                // Garante que clicou no canvas e bloqueia o arrasto nativo do browser! 
+                if (e.target !== canvas) return; 
+                if (e.cancelable) e.preventDefault(); 
+
+                const p = getNormPoint(e, rect); 
+                if (!p) return; 
+                if (p.nx < 0 || p.nx > 1 || p.ny < 0 || p.ny > 1) return; 
                  
                 isDrawing = true; 
-                if (e.cancelable) e.preventDefault(); // Bloqueia ghost-dragging do browser 
-                const nx = Math.max(0, Math.min(1, p.nx));
-                const ny = Math.max(0, Math.min(1, p.ny));
+                const nx = Math.max(0, Math.min(1, p.nx)); 
+                const ny = Math.max(0, Math.min(1, p.ny)); 
                 currentLine = { x1: nx, y1: ny, x2: nx, y2: ny }; 
             }; 
              
@@ -1712,7 +1716,7 @@
                 if (selectedSlotIndex === i) slot.classList.add('slot-selected');
                 
                 if (cam) {
-                    slot.setAttribute('ondblclick', `toggleMaximize('${cam.id}')`);
+                    slot.setAttribute('ondblclick', `toggleMaximize('${cam.id}', event)`);
                     if (maximizedSlotId === cam.id) slot.classList.add('camera-maximized');
 
                     const isAiOn = (camConfigs?.[cam.id]?.aiPower ?? true) === true;
@@ -1722,7 +1726,7 @@
 
                     slot.innerHTML = `
                         ${mediaHtml}
-                        <canvas id="canvas-${cam.id}" class="ai-canvas"></canvas>
+                        <canvas id="canvas-${cam.id}" class="ai-canvas" style="${activeDrawCamId === cam.id ? 'pointer-events: auto; cursor: crosshair;' : ''}"></canvas> 
                         <div class="absolute top-3 left-3 bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1.5 rounded shadow-xl text-[10px] sm:text-xs font-mono text-white flex items-center gap-2 z-20 max-w-[70%] transition-all">
                             <div class="w-2 h-2 rounded-full ${isAiOn ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]' : 'bg-gray-500'} shrink-0"></div>
                             <span class="truncate font-semibold tracking-wide">${escapeHtml(cam.name)}</span>
@@ -1933,8 +1937,11 @@
             draggedSlotIndex = null;
         };
 
-        window.toggleMaximize = (camId) => {
-            const slot = document.getElementById(`slot-${camId}`);
+        window.toggleMaximize = (camId, event) => { 
+            // Se o clique veio de um botão do painel, aborta a maximização! 
+            if (event && event.target.closest('button')) return; 
+            
+            const slot = document.getElementById(`slot-${camId}`); 
             if (!slot) return;
             
             if (maximizedSlotId === camId) {
@@ -2038,93 +2045,42 @@
                       lastMotionData = currentMotionData; 
                       
                       let isAwake = true; 
-
-                      if (motionScore < wakeThreshold) { 
+                      // FORÇA O DESPERTAR SE A CANETA ESTIVER ATIVA (para desenhar a 30fps) 
+                      if (activeDrawCamId === cam.id) { 
+                          sleepTimer = 15; 
+                          isAwake = true; 
+                      } else if (motionScore < wakeThreshold) { 
                           if (sleepTimer > 0) sleepTimer--; 
                           else isAwake = false; 
                       } else { 
-                          sleepTimer = 15; // Histerese: Mantém a IA acordada por 15 frames após a pessoa parar/sair 
+                          sleepTimer = 15; 
                       } 
 
+                      // LIMPA O CANVAS APENAS 1 VEZ AQUI 
                       const ctx = canvas.getContext('2d'); 
+                      ctx.clearRect(0, 0, canvas.width, canvas.height); 
                       
+                      let faces = [];
+                      let bodies = [];
+
                       if (!isAwake) { 
-                          ctx.clearRect(0, 0, canvas.width, canvas.height); 
-                          ctx.fillStyle = 'rgba(16, 185, 129, 0.85)'; // Verde UI Poupança 
+                          ctx.fillStyle = 'rgba(16, 185, 129, 0.85)'; 
                           ctx.font = 'bold 11px ui-monospace, monospace'; 
                           ctx.textBaseline = 'top'; 
                           ctx.fillText("💤 STANDBY (Poupança CPU/GPU)", 10, 10); 
-                          
-                          const elapsed = Date.now() - startTime; 
-                          // Loop muito mais lento (300ms) porque não há ninguém no vídeo 
-                          if (loopState.active) { setTimeout(processFrame, Math.max(100, 300 - elapsed)); } 
-                          return; // ABORTA EXECUÇÃO PESADA DA REDE NEURAL 
-                      }
+                      } else { 
+                          // === CORRE A IA PESADA APENAS SE ESTIVER ACORDADO === 
+                          const result = await human.detect(media); 
+                          faces = Array.isArray(result?.face) ? result.face : []; 
+                          bodies = Array.isArray(result?.body) ? result.body : []; 
+                          globalFramesRendered++; 
 
-                      const result = await human.detect(media); 
-                      const faces = Array.isArray(result?.face) ? result.face : []; 
-                      const bodies = Array.isArray(result?.body) ? result.body : [];
- 
-                      ctx.clearRect(0, 0, canvas.width, canvas.height); 
-                      if (sampleCtx) {
-                          if (sampleCanvas.width !== canvas.width) sampleCanvas.width = canvas.width;
-                          if (sampleCanvas.height !== canvas.height) sampleCanvas.height = canvas.height;
-                          try { sampleCtx.drawImage(media, 0, 0, sampleCanvas.width, sampleCanvas.height); } catch(e) {}
-                      }
+                          if (sampleCtx) { 
+                              if (sampleCanvas.width !== canvas.width) sampleCanvas.width = canvas.width; 
+                              if (sampleCanvas.height !== canvas.height) sampleCanvas.height = canvas.height; 
+                              try { sampleCtx.drawImage(media, 0, 0, sampleCanvas.width, sampleCanvas.height); } catch(e) {} 
+                          }
 
-                      globalFramesRendered++;
-
-                      if (camCfg.perimeter === true || activeDrawCamId === cam.id) { 
-                          const lines = camCfg.customLines || []; 
-                          
-                          ctx.lineWidth = 3; 
-                          lines.forEach((l, idx) => { 
-                              ctx.beginPath(); 
-                              ctx.moveTo(l.x1 * canvas.width, l.y1 * canvas.height); 
-                              ctx.lineTo(l.x2 * canvas.width, l.y2 * canvas.height); 
-                              ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)'; 
-                              ctx.stroke(); 
-                              ctx.fillStyle = 'rgba(239, 68, 68, 0.9)'; 
-                              ctx.font = 'bold 10px ui-monospace, monospace'; 
-                              ctx.fillText(`L${idx+1}`, (l.x1 * canvas.width) + 5, (l.y1 * canvas.height) - 5); 
-                          }); 
- 
-                          if (activeDrawCamId === cam.id && isDrawing && currentLine) { 
-                              ctx.beginPath(); 
-                              ctx.moveTo(currentLine.x1 * canvas.width, currentLine.y1 * canvas.height); 
-                              ctx.lineTo(currentLine.x2 * canvas.width, currentLine.y2 * canvas.height); 
-                              ctx.lineWidth = 3; 
-                              ctx.setLineDash([5, 5]); 
-                              ctx.strokeStyle = 'rgba(234, 179, 8, 0.9)'; 
-                              ctx.stroke(); 
-                              ctx.setLineDash([]); 
-                          } 
- 
-                          if (camCfg.perimeter === true && lines.length > 0) { 
-                              let intrusionDetected = false; 
-                              
-                              bodies.forEach(b => { 
-                                  const px = (b.boxRaw[0] + b.boxRaw[2] / 2) * canvas.width; 
-                                  const py = (b.boxRaw[1] + b.boxRaw[3]) * canvas.height; 
-                                  
-                                  lines.forEach(l => { 
-                                      const x1 = l.x1 * canvas.width; const y1 = l.y1 * canvas.height; 
-                                      const x2 = l.x2 * canvas.width; const y2 = l.y2 * canvas.height; 
-                                      
-                                      if (distToSegment(px, py, x1, y1, x2, y2) < 20) { 
-                                          intrusionDetected = true; 
-                                      } 
-                                  }); 
-                              }); 
- 
-                              if (intrusionDetected) { 
-                                  ctx.fillStyle = 'rgba(239, 68, 68, 0.3)'; 
-                                  ctx.fillRect(0, 0, canvas.width, canvas.height); 
-                                  if (Math.random() < 0.1) showToast(`⚠️ INTRUSÃO PERIMETRAL: ${cam.name}`, "error"); 
-                              } 
-                          } 
-                      }
- 
                       // === RADAR SEMÂNTICO DE LONGA DISTÂNCIA (Independente de Rostos) === 
                       const radarGen = localStorage.getItem('vms_radar_gender') || 'all'; 
                       const radarCol = localStorage.getItem('vms_radar_color') || 'all'; 
@@ -2406,7 +2362,63 @@
                               } 
                           } 
                       }
-                  } catch (e) {} 
+                      }
+
+                      // === DESENHO DOS TRIPWIRES (Fica no final para ser visível sempre, mesmo em standby) === 
+                      if (camCfg.perimeter === true || activeDrawCamId === cam.id) { 
+                          const lines = camCfg.customLines || []; 
+                          
+                          ctx.lineWidth = 3; 
+                          lines.forEach((l, idx) => { 
+                              ctx.beginPath(); 
+                              ctx.moveTo(l.x1 * canvas.width, l.y1 * canvas.height); 
+                              ctx.lineTo(l.x2 * canvas.width, l.y2 * canvas.height); 
+                              ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)'; 
+                              ctx.stroke(); 
+                              ctx.fillStyle = 'rgba(239, 68, 68, 0.9)'; 
+                              ctx.font = 'bold 10px ui-monospace, monospace'; 
+                              ctx.fillText(`L${idx+1}`, (l.x1 * canvas.width) + 5, (l.y1 * canvas.height) - 5); 
+                          }); 
+
+                          if (activeDrawCamId === cam.id && isDrawing && currentLine) { 
+                              ctx.beginPath(); 
+                              ctx.moveTo(currentLine.x1 * canvas.width, currentLine.y1 * canvas.height); 
+                              ctx.lineTo(currentLine.x2 * canvas.width, currentLine.y2 * canvas.height); 
+                              ctx.lineWidth = 3; 
+                              ctx.setLineDash([5, 5]); 
+                              ctx.strokeStyle = 'rgba(234, 179, 8, 0.9)'; 
+                              ctx.stroke(); 
+                              ctx.setLineDash([]); 
+                          } 
+
+                          // Alarmes apenas se a IA detetou corpos neste frame (só funciona se isAwake for true e tiver bodies) 
+                          if (isAwake && camCfg.perimeter === true && lines.length > 0 && typeof bodies !== 'undefined') { 
+                              let intrusionDetected = false; 
+                              
+                              bodies.forEach(b => { 
+                                  const px = (b.boxRaw[0] + b.boxRaw[2] / 2) * canvas.width; 
+                                  const py = (b.boxRaw[1] + b.boxRaw[3]) * canvas.height; 
+                                  
+                                  lines.forEach(l => { 
+                                      const x1 = l.x1 * canvas.width; const y1 = l.y1 * canvas.height; 
+                                      const x2 = l.x2 * canvas.width; const y2 = l.y2 * canvas.height; 
+                                      
+                                      if (distToSegment(px, py, x1, y1, x2, y2) < 20) { 
+                                          intrusionDetected = true; 
+                                      } 
+                                  }); 
+                              }); 
+
+                              if (intrusionDetected) { 
+                                  ctx.fillStyle = 'rgba(239, 68, 68, 0.3)'; 
+                                  ctx.fillRect(0, 0, canvas.width, canvas.height); 
+                                  if (Math.random() < 0.1) showToast(`⚠️ INTRUSÃO PERIMETRAL: ${cam.name}`, "error"); 
+                              } 
+                          } 
+                      }
+                  } catch (e) {
+                      // Ignora erros silenciosos de frames
+                  } 
  
                   const elapsed = Date.now() - startTime; 
                   if (loopState.active) { setTimeout(processFrame, Math.max(30, 100 - elapsed)); } 
