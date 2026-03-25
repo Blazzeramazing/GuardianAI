@@ -767,17 +767,22 @@
         const humanConfig = {
             modelBasePath: 'https://vladmandic.github.io/human/models/',
             filter: { equalization: false },
+            tracker: { enabled: true }, // ESSENCIAL: Ativa o rastreamento global para gerar IDs únicos para contagem de fluxo
             face: {
                 enabled: true,
-                detector: { rotation: true, return: true, minConfidence: getDetectorConf(), maxDetected: 10 },
+                detector: { rotation: true, return: true, minConfidence: getDetectorConf(), maxDetected: 50 }, // MAX 50 ROSTOS
                 mesh: { enabled: false },
                 iris: { enabled: false },
                 description: { enabled: true, minConfidence: getExtractConf() },
                 antispoof: { enabled: true },
-                tracker: { enabled: true }, // ESTABILIZAÇÃO ÓTICA PARA ALVOS PARADOS
+                tracker: { enabled: true },
                 emotion: { enabled: false }
             },
-            body: { enabled: true },
+            body: { 
+                enabled: true, 
+                maxDetected: 50, // CORREÇÃO DO BUG: Força deteção de até 50 corpos (Multipose)
+                minConfidence: 0.15 // SENSIBILIDADE EXTREMA PARA ALVOS MUITO DISTANTES
+            },
             hand: { enabled: false },
             object: { enabled: false }
         };
@@ -2203,7 +2208,7 @@
                           const bw = box[2] * canvas.width; 
                           const bh = box[3] * canvas.height; 
                            
-                          if (bw < 5 || bh < 15) return; 
+                          if (bw < 2 || bh < 10) return; 
                            
                           let bodyCol = ""; 
                           if (sampleCtx) bodyCol = getClothingColor(sampleCtx, box, sampleCanvas.width, sampleCanvas.height); 
@@ -2402,7 +2407,7 @@
 
                       // MÓDULO 2.1: CONTROLO DE MULTIDÕES (Sem piscar) 
                       if (camCfg.crowd === true) { 
-                          const validBodies = bodies.filter(b => b?.boxRaw && b.boxRaw[2] * canvas.width > 5); 
+                          const validBodies = bodies.filter(b => b?.boxRaw && b.boxRaw[2] * canvas.width >= 2); 
                           const crowdCount = validBodies.length; 
                           
                           uiOffsetY -= 35; 
@@ -2425,7 +2430,10 @@
                           if (!window.flowCounters[cam.id]) window.flowCounters[cam.id] = new Set(); 
                           
                           bodies.forEach(b => { 
-                              if (b.id != null) window.flowCounters[cam.id].add(b.id); 
+                              // Conta apenas se o corpo tiver uma largura mínima de 2px e possuir ID 
+                              if (b.id != null && b.boxRaw[2] * canvas.width >= 2) { 
+                                  window.flowCounters[cam.id].add(b.id); 
+                              } 
                           }); 
                           
                           const totalFluxo = window.flowCounters[cam.id].size; 
@@ -2451,7 +2459,7 @@
                           let vCount = 0; let aCount = 0; 
   
                           vehiclePredictions.forEach(pred => { 
-                              if (pred.score < 0.35) return; 
+                              if (pred.score < 0.20) return; 
                               const isVeh = vehicleClasses.includes(pred.class); 
                               const isAni = animalClasses.includes(pred.class); 
                               if (!isVeh && !isAni) return; 
