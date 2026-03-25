@@ -1704,6 +1704,7 @@
                 const chk = document.getElementById('mod-heatmap');
                 if (chk) chk.checked = nextState;
             }
+            renderGrid();
         };
 
         window.toggleDrawMode = (camId, e) => { 
@@ -1932,7 +1933,7 @@
                                 <button onclick="resetFlow('${cam.id}', event)" class="bg-gray-900/80 hover:bg-green-500 text-gray-300 hover:text-white p-2 rounded backdrop-blur border border-white/20 transition-all" title="Zerar Contador de Fluxo"> 
                                     <i data-lucide="rotate-ccw" class="w-4 h-4"></i> 
                                 </button>
-                                <button onclick="toggleHeatmap('${cam.id}', event)" class="bg-gray-900/80 hover:bg-orange-500 text-gray-300 hover:text-white p-2 rounded backdrop-blur border border-white/20 transition-all" title="Ver Mapa de Calor"> 
+                                <button onclick="toggleHeatmap('${cam.id}', event)" class="${(camConfigs?.[cam.id]?.heatmap === true) ? 'bg-orange-500 hover:bg-orange-400 text-white border-orange-300 shadow-[0_0_15px_rgba(249,115,22,0.5)]' : 'bg-gray-900/80 hover:bg-orange-500 text-gray-300 hover:text-white border-white/20'} p-2 rounded backdrop-blur border transition-all" title="Ver Mapa de Calor"> 
                                     <i data-lucide="flame" class="w-4 h-4"></i> 
                                 </button>
                                 <button onclick="captureSnapshot('${cam.id}')" class="bg-gray-900/80 hover:bg-white text-gray-300 hover:text-black p-2 rounded backdrop-blur border border-white/20 transition-all" title="Tirar Foto Rápida">
@@ -2525,9 +2526,14 @@
                 let nextTracks = []; 
 
                 countTargets.forEach(target => { 
-                    if (!window.camHeatmaps[cam.id]) window.camHeatmaps[cam.id] = []; 
-                    window.camHeatmaps[cam.id].push({x: target.cx, y: target.cy, ts: Date.now()}); 
-                    window.camHeatmaps[cam.id] = window.camHeatmaps[cam.id].filter(p => Date.now() - p.ts < 600000); 
+                    // PERFORMANCE: Só regista e processa pontos se o Mapa de Calor estiver LIGADO 
+                    if (camCfg.heatmap) { 
+                        if (!window.camHeatmaps[cam.id]) window.camHeatmaps[cam.id] = []; 
+                        window.camHeatmaps[cam.id].push({x: target.cx, y: target.cy, ts: Date.now()}); 
+                        window.camHeatmaps[cam.id] = window.camHeatmaps[cam.id].filter(p => Date.now() - p.ts < 600000); 
+                    } else if (window.camHeatmaps[cam.id] && window.camHeatmaps[cam.id].length > 0) { 
+                        window.camHeatmaps[cam.id] = []; // Esvazia a memória imediatamente ao desligar 
+                    } 
 
                     let assignedId = target.id; 
                     let trackHistory = [{x: target.cx, y: target.cy}]; 
@@ -3152,6 +3158,11 @@
             }
  
             localStorage.setItem('vms_cam_configs', JSON.stringify(camConfigs));
+            
+            // Sincroniza a Grid (Botões e Sinais Visuais) se uma feature core for ativada/desativada 
+            if (['heatmap', 'faceRec', 'crowd', 'flowCount', 'vehicles', 'aiPower'].includes(key)) { 
+                renderGrid(); 
+            } 
         };
 
         // ================= LOGS (HISTÓRICO LOCAL) =================
