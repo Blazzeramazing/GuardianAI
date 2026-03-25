@@ -780,9 +780,8 @@
             },
             body: { 
                 enabled: true, 
-                modelPath: 'movenet-multipose.json', // <-- FORÇA MULTIPOSE 
-                maxDetected: 50, // CORREÇÃO DO BUG: Força deteção de até 50 corpos (Multipose)
-                minConfidence: 0.15 // SENSIBILIDADE EXTREMA PARA ALVOS MUITO DISTANTES
+                maxDetected: 50, 
+                minConfidence: 0.15 
             },
             hand: { enabled: false },
             object: { enabled: false }
@@ -2146,8 +2145,8 @@
                               if (sampleCanvas.height !== canvas.height) sampleCanvas.height = canvas.height; 
                               try { sampleCtx.drawImage(media, 0, 0, sampleCanvas.width, sampleCanvas.height); } catch(e) {} 
                               
-                              // Pré-processa os veículos aqui para não fazer o ecrã esperar mais à frente! 
-                              if (camCfg.vehicles === true && objectModel) { 
+                              // Pré-processa os veículos e humanos de longa distância 
+                              if ((camCfg.vehicles === true || camCfg.crowd === true || camCfg.flowCount === true) && objectModel) { 
                                   try { vehiclePredictions = await objectModel.detect(sampleCanvas); } catch(e) {} 
                               } 
                           } 
@@ -2417,8 +2416,8 @@
                           } 
                       }); 
                       
-                      // 2. Adiciona 'person' do TF-SSD (longuíssima distância) se ativado
-                      if (camCfg.vehicles === true && vehiclePredictions) { 
+                      // 2. Adiciona 'person' do TF-SSD (longuíssima distância)
+                      if (vehiclePredictions && vehiclePredictions.length > 0) { 
                           vehiclePredictions.forEach(pred => { 
                               if (pred.class === 'person' && pred.score >= 0.20) { 
                                   const [px, py, pw, ph] = pred.bbox; 
