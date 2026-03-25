@@ -790,7 +790,7 @@
         let camConfigs = JSON.parse(localStorage.getItem('vms_cam_configs')) || {};
         const defaultCamConfig = {
             faceRec: true, crowd: false, perimeter: false, vehicles: false, animals: false,
-            detConf: 0.60, extConf: 0.60, liveness: 0.45, minSize: 110, motionSens: 10, customLines: [],
+            detConf: 0.60, extConf: 0.60, liveness: 0.45, minSize: 110, motionSens: 10, customZones: [],
             webhookUrl: '', flowCount: false
         };
         let currentSettingsCamId = null;
@@ -799,7 +799,8 @@
 
         let activeDrawCamId = null;
         let isDrawing = false;
-        let currentLine = null;
+        let currentPolygon = [];
+        let currentPolyPointer = null;
 
         let aiLoops = {}; 
         const webrtcConnections = {}; 
@@ -1585,27 +1586,48 @@
             return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1))); 
         } 
 
+        function isPointInPolygon(point, vs) { 
+            let x = point[0], y = point[1]; 
+            let inside = false; 
+            for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) { 
+                let xi = vs[i].x, yi = vs[i].y; 
+                let xj = vs[j].x, yj = vs[j].y; 
+                let intersect = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi); 
+                if (intersect) inside = !inside; 
+            } 
+            return inside; 
+        }
+
         window.toggleDrawMode = (camId, e) => { 
             e.stopPropagation(); 
             if (activeDrawCamId === camId) { 
                 activeDrawCamId = null; 
+                currentPolygon = []; 
+                currentPolyPointer = null; 
+                isDrawing = false; 
                 showToast("Modo de desenho desativado.", "info"); 
             } else { 
                 activeDrawCamId = camId; 
-                showToast("Modo de desenho ATIVADO! Clique e arraste no vídeo.", "success"); 
+                currentPolygon = []; 
+                currentPolyPointer = null; 
+                isDrawing = false; 
+                showToast("Modo de desenho ATIVADO! Clique para criar vértices e feche no ponto inicial.", "success"); 
             } 
             renderGrid(); 
         }; 
 
         window.clearLastLine = (camId, e) => { 
             if (e) e.stopPropagation(); 
-            if (!camConfigs[camId] || !camConfigs[camId].customLines || camConfigs[camId].customLines.length === 0) { 
-                showToast("Nenhuma linha tática para apagar nesta câmara.", "warning"); 
+            const zones = camConfigs?.[camId]?.customZones;
+            const legacyLines = camConfigs?.[camId]?.customLines;
+            if ((!Array.isArray(zones) || zones.length === 0) && (!Array.isArray(legacyLines) || legacyLines.length === 0)) { 
+                showToast("Nenhuma zona ROI para apagar nesta câmara.", "warning"); 
                 return; 
             } 
-            camConfigs[camId].customLines.pop(); 
+            if (Array.isArray(zones) && zones.length > 0) camConfigs[camId].customZones.pop(); 
+            else if (Array.isArray(legacyLines) && legacyLines.length > 0) camConfigs[camId].customLines.pop(); 
             localStorage.setItem('vms_cam_configs', JSON.stringify(camConfigs)); 
-            showToast("Última linha de perímetro apagada.", "info"); 
+            showToast("Última zona ROI apagada.", "info"); 
         };
 
         window.resetFlow = (camId, e) => { 
@@ -1652,37 +1674,44 @@
                 const p = getNormPoint(e, rect); 
                 if (!p) return; 
                 
-                isDrawing = true; 
                 const nx = Math.max(0, Math.min(1, p.nx)); 
                 const ny = Math.max(0, Math.min(1, p.ny)); 
-                currentLine = { x1: nx, y1: ny, x2: nx, y2: ny }; 
+                currentPolyPointer = { x: nx, y: ny };
+
+                if (currentPolygon.length >= 3) {
+                    const first = currentPolygon[0];
+                    const closeDist = Math.hypot(nx - first.x, ny - first.y);
+                    if (closeDist < 0.05) {
+                        if (!camConfigs[activeDrawCamId]) camConfigs[activeDrawCamId] = { ...defaultCamConfig, customZones: [] };
+                        if (!Array.isArray(camConfigs[activeDrawCamId].customZones)) camConfigs[activeDrawCamId].customZones = [];
+                        camConfigs[activeDrawCamId].customZones.push(currentPolygon.map(pt => ({ x: pt.x, y: pt.y })));
+                        localStorage.setItem('vms_cam_configs', JSON.stringify(camConfigs));
+                        showToast("Zona ROI adicionada!", "success");
+                        currentPolygon = [];
+                        currentPolyPointer = null;
+                        isDrawing = false;
+                        return;
+                    }
+                }
+
+                currentPolygon.push({ x: nx, y: ny });
+                isDrawing = currentPolygon.length > 0;
             }; 
              
             const onMove = (e) => { 
-                if (!isDrawing || !activeDrawCamId || !currentLine) return; 
+                if (!activeDrawCamId) return; 
                 const data = getCanvasAndRect(); 
                 if (!data) return; 
                 const { rect } = data; 
                 const p = getNormPoint(e, rect); 
                 if (!p) return; 
                 
-                currentLine.x2 = Math.max(0, Math.min(1, p.nx)); 
-                currentLine.y2 = Math.max(0, Math.min(1, p.ny)); 
+                currentPolyPointer = { x: Math.max(0, Math.min(1, p.nx)), y: Math.max(0, Math.min(1, p.ny)) };
             }; 
              
             const onUp = (e) => { 
-                if (!isDrawing || !activeDrawCamId || !currentLine) return; 
-                isDrawing = false; 
-                 
-                const dist = Math.hypot(currentLine.x2 - currentLine.x1, currentLine.y2 - currentLine.y1); 
-                if (dist > 0.02) { 
-                    if (!camConfigs[activeDrawCamId]) camConfigs[activeDrawCamId] = { ...defaultCamConfig, customLines: [] }; 
-                    if (!Array.isArray(camConfigs[activeDrawCamId].customLines)) camConfigs[activeDrawCamId].customLines = []; 
-                    camConfigs[activeDrawCamId].customLines.push({ ...currentLine }); 
-                    localStorage.setItem('vms_cam_configs', JSON.stringify(camConfigs)); 
-                    showToast("Barreira Tática adicionada!", "success"); 
-                } 
-                currentLine = null; 
+                if (!activeDrawCamId) return;
+                if (e.cancelable) e.preventDefault();
             };
 
             grid.addEventListener('mousedown', onDown);
@@ -1823,7 +1852,7 @@
         window.toggleAIPower = (camId) => {
             const cam = cameras.find(c => c.id === camId);
             if (!cam) return;
-            if (!camConfigs[camId]) camConfigs[camId] = { ...defaultCamConfig, customLines: [] };
+            if (!camConfigs[camId]) camConfigs[camId] = { ...defaultCamConfig, customZones: [] };
             
             const next = (camConfigs[camId].aiPower ?? true) !== true;
             camConfigs[camId].aiPower = next;
@@ -2041,6 +2070,7 @@
             const motionCtx = motionCanvas.getContext('2d', { willReadFrequently: true }); 
             let lastMotionData = null; 
             let sleepTimer = 0; 
+            let hadTargetsPrevFrame = false;
              
             async function processFrame() { 
                   if (!loopState.active) return; 
@@ -2074,6 +2104,9 @@
                       if (activeDrawCamId === cam.id) { 
                           sleepTimer = 15; 
                           isAwake = true; 
+                      } else if (hadTargetsPrevFrame) {
+                          sleepTimer = 15;
+                          isAwake = true;
                       } else if (motionScore < wakeThreshold) { 
                           if (sleepTimer > 0) sleepTimer--; 
                           else isAwake = false; 
@@ -2102,7 +2135,41 @@
                                   try { vehiclePredictions = await objectModel.detect(sampleCanvas); } catch(e) {} 
                               } 
                           } 
+                      } else {
+                          hadTargetsPrevFrame = false;
                       } 
+
+                      const activeZones = Array.isArray(camCfg.customZones) ? camCfg.customZones : [];
+                      const normalizedZones = activeZones.filter(z => Array.isArray(z) && z.length >= 3);
+                      const isInsideZones = (nx, ny) => {
+                          if (normalizedZones.length === 0) return true;
+                          return normalizedZones.some(zone => isPointInPolygon([nx, ny], zone));
+                      };
+                      if (normalizedZones.length > 0) {
+                          faces = faces.filter(f => {
+                              const box = f?.boxRaw;
+                              if (!Array.isArray(box) || box.length < 4) return false;
+                              const nx = box[0] + box[2] / 2;
+                              const ny = box[1] + box[3];
+                              return isInsideZones(nx, ny);
+                          });
+                          bodies = bodies.filter(b => {
+                              const box = b?.boxRaw;
+                              if (!Array.isArray(box) || box.length < 4) return false;
+                              const nx = box[0] + box[2] / 2;
+                              const ny = box[1] + box[3];
+                              return isInsideZones(nx, ny);
+                          });
+                          vehiclePredictions = vehiclePredictions.filter(pred => {
+                              const bbox = pred?.bbox;
+                              if (!Array.isArray(bbox) || bbox.length < 4 || !canvas.width || !canvas.height) return false;
+                              const [x, y, w, h] = bbox;
+                              const nx = (x + w / 2) / canvas.width;
+                              const ny = (y + h) / canvas.height;
+                              return isInsideZones(nx, ny);
+                          });
+                      }
+                      hadTargetsPrevFrame = (bodies.length > 0 || vehiclePredictions.length > 0);
  
                       // === 2. RENDERIZAÇÃO SÍNCRONA IMEDIATA === 
                       const ctx = canvas.getContext('2d'); 
@@ -2326,7 +2393,7 @@
 
                       // MÓDULO 2.1: CONTROLO DE MULTIDÕES (Sem piscar) 
                       if (camCfg.crowd === true) { 
-                          const validBodies = bodies.filter(b => b.boxRaw[2] * canvas.width > 30); 
+                          const validBodies = bodies.filter(b => b?.boxRaw && b.boxRaw[2] * canvas.width > 15); 
                           const crowdCount = validBodies.length; 
                           
                           uiOffsetY -= 35; 
@@ -2375,7 +2442,7 @@
                           let vCount = 0; let aCount = 0; 
   
                           vehiclePredictions.forEach(pred => { 
-                              if (pred.score < 0.45) return; 
+                              if (pred.score < 0.35) return; 
                               const isVeh = vehicleClasses.includes(pred.class); 
                               const isAni = animalClasses.includes(pred.class); 
                               if (!isVeh && !isAni) return; 
@@ -2412,64 +2479,79 @@
                       }
                       }
 
-                      // === DESENHO DOS TRIPWIRES (Fica no final para ser visível sempre, mesmo em standby) === 
+                      // === DESENHO DAS ZONAS ROI (Fica no final para ser visível sempre, mesmo em standby) === 
                       if (camCfg.perimeter === true || activeDrawCamId === cam.id) { 
-                          const lines = camCfg.customLines || []; 
+                          const zones = Array.isArray(camCfg.customZones) ? camCfg.customZones : []; 
+                          const zonesForDraw = zones.filter(z => Array.isArray(z) && z.length >= 3); 
                           
-                          ctx.lineWidth = 3; 
-                          lines.forEach((l, idx) => { 
+                          zonesForDraw.forEach(zone => { 
                               ctx.beginPath(); 
-                              ctx.moveTo(l.x1 * canvas.width, l.y1 * canvas.height); 
-                              ctx.lineTo(l.x2 * canvas.width, l.y2 * canvas.height); 
-                              ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)'; 
+                              ctx.moveTo(zone[0].x * canvas.width, zone[0].y * canvas.height); 
+                              for (let i = 1; i < zone.length; i++) { 
+                                  ctx.lineTo(zone[i].x * canvas.width, zone[i].y * canvas.height); 
+                              } 
+                              ctx.closePath(); 
+                              ctx.fillStyle = 'rgba(239, 68, 68, 0.18)'; 
+                              ctx.fill(); 
+                              ctx.lineWidth = 2; 
+                              ctx.strokeStyle = 'rgba(239, 68, 68, 0.85)'; 
                               ctx.stroke(); 
-                              ctx.fillStyle = 'rgba(239, 68, 68, 0.9)'; 
-                              ctx.font = 'bold 10px ui-monospace, monospace'; 
-                              ctx.fillText(`L${idx+1}`, (l.x1 * canvas.width) + 5, (l.y1 * canvas.height) - 5); 
                           }); 
 
-                          if (activeDrawCamId === cam.id && isDrawing && currentLine) { 
+                          if (activeDrawCamId === cam.id && Array.isArray(currentPolygon) && currentPolygon.length > 0) { 
                               ctx.beginPath(); 
-                              ctx.moveTo(currentLine.x1 * canvas.width, currentLine.y1 * canvas.height); 
-                              ctx.lineTo(currentLine.x2 * canvas.width, currentLine.y2 * canvas.height); 
-                              ctx.lineWidth = 3; 
-                              ctx.setLineDash([5, 5]); 
-                              ctx.strokeStyle = 'rgba(234, 179, 8, 0.9)'; 
+                              ctx.moveTo(currentPolygon[0].x * canvas.width, currentPolygon[0].y * canvas.height); 
+                              for (let i = 1; i < currentPolygon.length; i++) { 
+                                  ctx.lineTo(currentPolygon[i].x * canvas.width, currentPolygon[i].y * canvas.height); 
+                              } 
+                              ctx.lineWidth = 2; 
+                              ctx.strokeStyle = 'rgba(234, 179, 8, 0.95)'; 
                               ctx.stroke(); 
-                              ctx.setLineDash([]); 
+                              
+                              if (currentPolyPointer && Number.isFinite(currentPolyPointer.x) && Number.isFinite(currentPolyPointer.y)) { 
+                                  const last = currentPolygon[currentPolygon.length - 1]; 
+                                  ctx.beginPath(); 
+                                  ctx.moveTo(last.x * canvas.width, last.y * canvas.height); 
+                                  ctx.lineTo(currentPolyPointer.x * canvas.width, currentPolyPointer.y * canvas.height); 
+                                  ctx.setLineDash([6, 6]); 
+                                  ctx.lineWidth = 2; 
+                                  ctx.strokeStyle = 'rgba(234, 179, 8, 0.75)'; 
+                                  ctx.stroke(); 
+                                  ctx.setLineDash([]); 
+                              } 
                           } 
 
-                          // Alarmes apenas se a IA detetou corpos neste frame (só funciona se isAwake for true e tiver bodies) 
-                          if (isAwake && camCfg.perimeter === true && lines.length > 0 && typeof bodies !== 'undefined') { 
+                          // Alarmes apenas se a IA detetou alvos neste frame (só funciona se isAwake for true) 
+                          if (isAwake && camCfg.perimeter === true && zonesForDraw.length > 0) { 
                               let intrusionDetected = false; 
                               
                               bodies.forEach(b => { 
-                                  const px = (b.boxRaw[0] + b.boxRaw[2] / 2) * canvas.width; 
-                                  const py = (b.boxRaw[1] + b.boxRaw[3]) * canvas.height; 
-                                  
-                                  lines.forEach(l => { 
-                                      const x1 = l.x1 * canvas.width; const y1 = l.y1 * canvas.height; 
-                                      const x2 = l.x2 * canvas.width; const y2 = l.y2 * canvas.height; 
-                                      
-                                      if (distToSegment(px, py, x1, y1, x2, y2) < 20) { 
-                                          intrusionDetected = true; 
-                                      } 
-                                  }); 
+                                  const box = b?.boxRaw; 
+                                  if (!Array.isArray(box) || box.length < 4) return; 
+                                  const nx = box[0] + box[2] / 2; 
+                                  const ny = box[1] + box[3]; 
+                                  if (zonesForDraw.some(zone => isPointInPolygon([nx, ny], zone))) intrusionDetected = true; 
+                              }); 
+                              vehiclePredictions.forEach(pred => { 
+                                  const bbox = pred?.bbox; 
+                                  if (!Array.isArray(bbox) || bbox.length < 4 || !canvas.width || !canvas.height) return; 
+                                  const [x, y, w, h] = bbox; 
+                                  const nx = (x + w / 2) / canvas.width; 
+                                  const ny = (y + h) / canvas.height; 
+                                  if (zonesForDraw.some(zone => isPointInPolygon([nx, ny], zone))) intrusionDetected = true; 
                               }); 
 
                               if (intrusionDetected) { 
-                                  ctx.fillStyle = 'rgba(239, 68, 68, 0.3)'; 
+                                  ctx.fillStyle = 'rgba(239, 68, 68, 0.22)'; 
                                   ctx.fillRect(0, 0, canvas.width, canvas.height); 
                                   
                                   const now = Date.now(); 
                                   const lastTripAlert = lastTripwireTime[cam.id] || 0; 
                                   
-                                  // Cooldown de 5 segundos para não spammar o alarme 
                                   if (now - lastTripAlert > 5000) { 
                                       lastTripwireTime[cam.id] = now; 
-                                      showToast(`⚠️ INTRUSÃO PERIMETRAL: ${cam.name}`, "error"); 
+                                      showToast(`⚠️ INTRUSÃO NA ZONA ROI: ${cam.name}`, "error"); 
                                       
-                                      // 1. Tirar Snapshot Instantâneo da Violação 
                                       let snapBase64 = ""; 
                                       try { 
                                           const tempCvs = document.createElement('canvas'); 
@@ -2479,12 +2561,11 @@
                                           snapBase64 = tempCvs.toDataURL('image/jpeg', 0.5); 
                                       } catch(e) {} 
 
-                                      // 2. Gravar no Histórico (Logs) para o Analytics 
                                       if (db) { 
                                           try { 
                                               const time = new Date().toLocaleTimeString('pt-PT'); 
                                               addDoc(collection(db, "logs"), { 
-                                                  personName: "INTRUSO (Linha Virtual)", 
+                                                  personName: "INTRUSO (Zona ROI)", 
                                                   level: "danger", 
                                                   cameraName: cam.name, 
                                                   time, 
@@ -2494,8 +2575,7 @@
                                           } catch(e) {} 
                                       } 
 
-                                      // 3. Disparar o Painel Tático Principal com a Sirene 
-                                      const mockIntruder = { name: "QUEBRA DE PERÍMETRO", photo: snapBase64, level: 'danger' }; 
+                                      const mockIntruder = { name: "INTRUSÃO NA ZONA", photo: snapBase64, level: 'danger' }; 
                                       triggerTacticalAlarm(mockIntruder, cam, snapBase64); 
                                   } 
                               } 
@@ -2735,7 +2815,7 @@
             currentSettingsCamId = camId;
             document.getElementById('ai-modules-panel')?.classList.remove('opacity-50', 'pointer-events-none');
             
-            if (!camConfigs[camId]) camConfigs[camId] = { ...defaultCamConfig, customLines: [] };
+            if (!camConfigs[camId]) camConfigs[camId] = { ...defaultCamConfig, customZones: [] };
             const cfg = camConfigs[camId];
             
             document.getElementById('mod-face').checked = cfg.faceRec;
@@ -2762,7 +2842,7 @@
 
         window.saveCamSetting = (key, value) => {
             if (!currentSettingsCamId) return;
-            if (!camConfigs[currentSettingsCamId]) camConfigs[currentSettingsCamId] = { ...defaultCamConfig, customLines: [] };
+            if (!camConfigs[currentSettingsCamId]) camConfigs[currentSettingsCamId] = { ...defaultCamConfig, customZones: [] };
             camConfigs[currentSettingsCamId][key] = value;
             localStorage.setItem('vms_cam_configs', JSON.stringify(camConfigs));
         };
