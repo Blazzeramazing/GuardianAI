@@ -408,19 +408,26 @@
                                     </div>
                                 </div>
 
-                                <div class="md:col-span-1 bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative">
-                                    <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-2">Análise de Risco</p>
-                                    <div class="flex-1 relative min-h-[120px] w-full">
-                                        <canvas id="chart-levels"></canvas>
-                                    </div>
-                                </div>
-
-                                <div class="md:col-span-2 bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative">
-                                    <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-2">Fluxo Tático por Hora</p>
-                                    <div class="flex-1 relative min-h-[120px] w-full">
-                                        <canvas id="chart-time"></canvas>
-                                    </div>
-                                </div>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6"> 
+                                <div class="md:col-span-1 bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative"> 
+                                    <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-2">Análise de Risco</p> 
+                                    <div class="flex-1 relative min-h-[160px] w-full"> 
+                                        <canvas id="chart-levels"></canvas> 
+                                    </div> 
+                                </div> 
+                                <div class="md:col-span-2 bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative"> 
+                                    <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-2">Fluxo Tático por Hora</p> 
+                                    <div class="flex-1 relative min-h-[160px] w-full"> 
+                                        <canvas id="chart-time"></canvas> 
+                                    </div> 
+                                </div> 
+                                <div class="md:col-span-1 bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative"> 
+                                    <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-2">Demografia</p> 
+                                    <div class="flex-1 relative min-h-[160px] w-full"> 
+                                        <canvas id="chart-demographics"></canvas> 
+                                    </div> 
+                                </div> 
+                            </div>
                             </div>
                         </div>
                         
@@ -503,6 +510,10 @@
                                 </div>
                                 
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-800 bg-gray-900 hover:bg-gray-800 cursor-pointer transition-colors">
+                                        <div><div class="text-sm font-bold text-white">Mapa de Calor (Heatmap)</div><div class="text-[10px] text-gray-400">Regista zonas de maior tráfego visual.</div></div>
+                                        <input type="checkbox" id="mod-heatmap" class="w-5 h-5 accent-indigo-500" onchange="saveCamSetting('heatmap', this.checked)">
+                                    </label>
                                     <label class="flex items-center justify-between p-3 rounded-lg border border-gray-800 bg-gray-900 hover:bg-gray-800 cursor-pointer transition-colors">
                                         <div><div class="text-sm font-bold text-white">Reconhecimento Facial</div><div class="text-[10px] text-gray-400">Validação Biométrica e Anti-Fraude.</div></div>
                                         <input type="checkbox" id="mod-face" class="w-5 h-5 accent-indigo-500" onchange="saveCamSetting('faceRec', this.checked)">
@@ -610,6 +621,12 @@
                                 </div> 
 
                                 <div> 
+                                    <div class="flex justify-between gap-4 mb-2"><div class="text-sm font-semibold text-white">Alarme de Vadiagem (Loitering)</div><div id="val-loitering" class="text-xs font-mono text-purple-300 bg-purple-900/20 px-2 py-1 rounded border border-purple-900/40">0 s</div></div> 
+                                    <p class="text-xs text-gray-500 mb-2">Dispara se um alvo ficar parado na câmara (0 = Desativado).</p> 
+                                    <input id="slider-loitering" type="range" min="0" max="120" step="5" class="w-full accent-purple-500"> 
+                                </div> 
+
+                                <div> 
                                     <div class="flex justify-between gap-4 mb-2"><div class="text-sm font-semibold text-white">Tolerância da IA (Match)</div><div id="val-ai-conf" class="text-xs font-mono text-purple-300 bg-purple-900/20 px-2 py-1 rounded border border-purple-900/40">0.65</div></div> 
                                     <p class="text-xs text-gray-500 mb-2">Percentagem de semelhança necessária para disparar um alerta verde/vermelho.</p> 
                                     <input id="slider-ai-conf" type="range" min="0.1" max="0.9" step="0.05" class="w-full accent-purple-500"> 
@@ -639,6 +656,17 @@
                                     <div class="flex flex-col gap-2"> 
                                         <input type="text" id="input-tg-token" placeholder="Bot Token (Ex: 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11)" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-blue-500 transition-colors"> 
                                         <input type="text" id="input-tg-chat" placeholder="Chat ID (Ex: -100123456789)" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-blue-500 transition-colors"> 
+                                    </div> 
+                                </div>
+                                <div class="pt-4 border-t border-gray-800"> 
+                                    <div class="flex justify-between gap-4 mb-2"> 
+                                        <div class="text-sm font-semibold text-white flex items-center gap-2"><i data-lucide="message-circle" class="w-4 h-4 text-green-500"></i> Alertas no WhatsApp (API)</div> 
+                                    </div> 
+                                    <p class="text-xs text-gray-500 mb-2">Compatível com Meta Cloud, WATI ou Evolution API (Envio POST JSON).</p> 
+                                    <div class="flex flex-col gap-2"> 
+                                        <input type="text" id="input-wa-url" placeholder="URL da API (Ex: https://api.whatsapp ...)" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-green-500 transition-colors"> 
+                                        <input type="text" id="input-wa-token" placeholder="Bearer Token" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-green-500 transition-colors"> 
+                                        <input type="text" id="input-wa-phone" placeholder="Nº Destino (Ex: 5511999999999)" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-green-500 transition-colors"> 
                                     </div> 
                                 </div>
                             </div> 
@@ -828,10 +856,11 @@
         const defaultCamConfig = {
             faceRec: true, crowd: false, perimeter: false, vehicles: false, animals: false,
             detConf: 0.60, extConf: 0.60, liveness: 0.45, minSize: 110, motionSens: 10, customZones: [],
-            zoneMode: 'alarm',
+            zoneMode: 'alarm', heatmap: false,
             webhookUrl: '', flowCount: false,
             telegramToken: '', telegramChatId: '',
-            scheduleActive: false, scheduleStart: '18:00', scheduleEnd: '08:00'
+            scheduleActive: false, scheduleStart: '18:00', scheduleEnd: '08:00',
+            loiteringTime: 0, waUrl: '', waToken: '', waPhone: ''
         };
         let currentSettingsCamId = null;
         let globalFramesRendered = 0;
@@ -852,6 +881,7 @@
 
         window.cameraBuffers = {};
         window.activeRecords = {};
+        window.retailDemographics = { Homem: 0, Mulher: 0 };
 
         let audioCtx = null;
         let alarmOscillator = null;
@@ -1665,8 +1695,15 @@
 
         window.toggleHeatmap = (camId, e) => {
             if (e) e.stopPropagation();
-            window.showHeatmap[camId] = !window.showHeatmap[camId];
-            showToast(window.showHeatmap[camId] ? "Mapa de Calor Ativado" : "Mapa de Calor Oculto", "info");
+            if (!camConfigs[camId]) camConfigs[camId] = { ...defaultCamConfig, customZones: [] };
+            const nextState = !camConfigs[camId].heatmap;
+            camConfigs[camId].heatmap = nextState;
+            localStorage.setItem('vms_cam_configs', JSON.stringify(camConfigs));
+            showToast(nextState ? "Mapa de Calor Ativado" : "Mapa de Calor Oculto", "info");
+            if (currentSettingsCamId === camId) {
+                const chk = document.getElementById('mod-heatmap');
+                if (chk) chk.checked = nextState;
+            }
         };
 
         window.toggleDrawMode = (camId, e) => { 
@@ -2494,20 +2531,28 @@
 
                     let assignedId = target.id; 
                     let trackHistory = [{x: target.cx, y: target.cy}]; 
+                    let firstSeen = Date.now(); 
+                    let alertedLoitering = false; 
                     if (assignedId == null) { 
                         const match = currentTracks.find(t => Math.hypot(t.cx - target.cx, t.cy - target.cy) < 0.1); 
                         if (match) { 
                             assignedId = match.id; 
                             trackHistory = [...match.history, {x: target.cx, y: target.cy}].slice(-10); 
+                            firstSeen = match.firstSeen || Date.now(); 
+                            alertedLoitering = match.alertedLoitering || false; 
                         } else { 
                             assignedId = "tk_" + String(Math.floor(Math.random() * 9000) + 1000) + "_" + Date.now(); 
                         } 
                     } else { 
                         const match = currentTracks.find(t => t.id === assignedId); 
-                        if (match) trackHistory = [...match.history, {x: target.cx, y: target.cy}].slice(-10); 
+                        if (match) { 
+                            trackHistory = [...match.history, {x: target.cx, y: target.cy}].slice(-10); 
+                            firstSeen = match.firstSeen || Date.now(); 
+                            alertedLoitering = match.alertedLoitering || false; 
+                        } 
                     } 
                     target.id = assignedId; 
-                    nextTracks.push({ cx: target.cx, cy: target.cy, id: assignedId, lastSeen: Date.now(), history: trackHistory, hasCrossed: currentTracks.find(t => t.id === assignedId)?.hasCrossed || false }); 
+                    nextTracks.push({ cx: target.cx, cy: target.cy, id: assignedId, lastSeen: Date.now(), firstSeen, alertedLoitering, history: trackHistory, hasCrossed: currentTracks.find(t => t.id === assignedId)?.hasCrossed || false }); 
                 }); 
                 currentTracks.forEach(t => { 
                     if (!nextTracks.some(n => n.id === t.id) && (Date.now() - t.lastSeen < 2000)) { 
@@ -2525,6 +2570,15 @@
                         ctx.fillStyle = 'rgba(6, 182, 212, 0.2)'; 
                         ctx.font = 'bold 10px monospace'; 
                         ctx.fillText(`[${t.id}]`, tx + 5, ty - 5); 
+                    } 
+                    const loiteringLimit = (camCfg.loiteringTime || 0) * 1000; 
+                    if (loiteringLimit > 0 && !t.alertedLoitering && isAlarmArmed(cam.id)) { 
+                        if (Date.now() - (t.firstSeen || t.lastSeen) > loiteringLimit) { 
+                            t.alertedLoitering = true; 
+                            showToast(`⏱️ VADIAGEM DETETADA: Alvo [${t.id}] parado há mais de ${camCfg.loiteringTime}s!`, "error"); 
+                            if (camCfg.telegramToken && camCfg.telegramChatId) sendTelegramPhoto(camCfg.telegramToken, camCfg.telegramChatId, `⏱️ VADIAGEM: ${cam.name} (${camCfg.loiteringTime}s)`, ""); 
+                            if (camCfg.waUrl && camCfg.waPhone) window.sendWhatsAppAlert(camCfg.waUrl, camCfg.waToken, camCfg.waPhone, `🚨 VADIAGEM: Alvo na câmara ${cam.name} há mais de ${camCfg.loiteringTime}s.`); 
+                        } 
                     } 
                 }); 
 
@@ -2547,7 +2601,18 @@
                     if (!window.flowCounters) window.flowCounters = {}; 
                     if (!window.flowCounters[cam.id]) window.flowCounters[cam.id] = new Set(); 
                     countTargets.forEach(t => { 
-                        if (t.id != null) window.flowCounters[cam.id].add(t.id); 
+                        if (t.id != null && !window.flowCounters[cam.id].has(t.id)) { 
+                            window.flowCounters[cam.id].add(t.id); 
+                            let g = 'Desconhecido'; 
+                            const myFace = faces.find(f => { 
+                                if (!f?.boxRaw) return false; 
+                                const fx = f.boxRaw[0] * canvas.width, fw = f.boxRaw[2] * canvas.width; 
+                                return (t.cx * canvas.width) >= fx - 50 && (t.cx * canvas.width) <= fx + fw + 50; 
+                            }); 
+                            if (myFace && myFace.genderScore > 0.5) g = myFace.gender === 'male' ? 'Homem' : 'Mulher'; 
+                            if (g === 'Homem') window.retailDemographics.Homem++; 
+                            if (g === 'Mulher') window.retailDemographics.Mulher++; 
+                        } 
                     }); 
                     const totalFluxo = window.flowCounters[cam.id].size; 
                     uiOffsetY -= 35; 
@@ -2599,7 +2664,7 @@
                 }
 
                 { 
-                    if (window.showHeatmap[cam.id] && window.camHeatmaps[cam.id]) { 
+                    if (camCfg.heatmap && window.camHeatmaps[cam.id]) { 
                         const hts = window.camHeatmaps[cam.id]; 
                         hts.forEach(pt => { 
                             const hx = pt.x * canvas.width; 
@@ -2866,6 +2931,7 @@
 
             const camCfg = camConfigs[cam.id] || defaultCamConfig;
             if (camCfg.telegramToken && camCfg.telegramChatId) sendTelegramPhoto(camCfg.telegramToken, camCfg.telegramChatId, "🚨 AMEAÇA DETETADA: " + cam.name, snapshot);
+            if (camCfg.waUrl && camCfg.waPhone) window.sendWhatsAppAlert(camCfg.waUrl, camCfg.waToken, camCfg.waPhone, "🚨 AMEAÇA DETETADA: " + cam.name + " - Alvo: " + person.name);
 
             if (window.cameraBuffers[cam.id] && !window.activeRecords[cam.id]) {
                 window.activeRecords[cam.id] = true;
@@ -3022,12 +3088,29 @@
             document.getElementById('mod-perim').checked = cfg.perimeter === true;
             const zoneModeEl = document.getElementById('mod-zone-mode');
             if (zoneModeEl) zoneModeEl.value = cfg.zoneMode || 'alarm';
+            const hmEl = document.getElementById('mod-heatmap');
+            if (hmEl) hmEl.checked = cfg.heatmap === true;
+            const loitSlider = document.getElementById('slider-loitering');
+            const loitVal = document.getElementById('val-loitering');
+            if (loitSlider && loitVal) {
+                loitSlider.value = cfg.loiteringTime || 0;
+                loitVal.innerText = (cfg.loiteringTime || 0) + ' s';
+                loitSlider.oninput = (e) => {
+                    const val = Number(e.target.value);
+                    loitVal.innerText = val + ' s';
+                    window.saveCamSetting('loiteringTime', val);
+                };
+            }
             const scheduleEl = document.getElementById('mod-schedule');
             if (scheduleEl) scheduleEl.checked = cfg.scheduleActive === true;
             const startEl = document.getElementById('time-start');
             if (startEl) startEl.value = cfg.scheduleStart || '18:00';
             const endEl = document.getElementById('time-end');
             if (endEl) endEl.value = cfg.scheduleEnd || '08:00';
+            ['waUrl', 'waToken', 'waPhone'].forEach(k => {
+                const el = document.getElementById(`input-${k.replace(/[A-Z]/g, m => '-' + m.toLowerCase())}`);
+                if (el) { el.value = cfg[k] || ''; el.onchange = (e) => window.saveCamSetting(k, e.target.value.trim()); }
+            });
             
             document.getElementById('slider-det-conf').value = cfg.detConf; document.getElementById('val-det-conf').innerText = cfg.detConf.toFixed(2);
             document.getElementById('slider-ext-conf').value = cfg.extConf; document.getElementById('val-ext-conf').innerText = cfg.extConf.toFixed(2);
@@ -3465,6 +3548,17 @@
             } catch (err) { console.log("Erro no Telegram:", err); }
         }
 
+        window.sendWhatsAppAlert = async (url, token, phone, message) => {
+            if (!url || !phone) return;
+            try {
+                await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ number: phone, text: message })
+                });
+            } catch (err) { console.log("Erro WhatsApp:", err); }
+        };
+
         window.captureLiveFace = async (camId, event) => { 
             if (event) event.stopPropagation(); 
             if (!isAiReady) return showToast("A IA ainda não está pronta.", "warning"); 
@@ -3756,6 +3850,30 @@
                             x: { border: {display: false}, grid: {display: false}, ticks: {color: '#4b5563'} }
                         },
                         plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } }
+                    }
+                });
+            }
+            
+            const ctxDemo = document.getElementById('chart-demographics');
+            if (ctxDemo) {
+                if (window.chartDemoInstance) window.chartDemoInstance.destroy();
+                window.chartDemoInstance = new Chart(ctxDemo, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Homens', 'Mulheres'],
+                        datasets: [{
+                            data: [window.retailDemographics.Homem || 0, window.retailDemographics.Mulher || 0],
+                            backgroundColor: ['#3b82f6', '#ec4899'],
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, ticks: { stepSize: 1, color: '#4b5563' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                            x: { grid: { display: false }, ticks: { color: '#4b5563' } }
+                        }
                     }
                 });
             }
