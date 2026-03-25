@@ -780,6 +780,7 @@
             },
             body: { 
                 enabled: true, 
+                modelPath: 'movenet-multipose.json', // <-- FORÇA MULTIPOSE 
                 maxDetected: 50, // CORREÇÃO DO BUG: Força deteção de até 50 corpos (Multipose)
                 minConfidence: 0.15 // SENSIBILIDADE EXTREMA PARA ALVOS MUITO DISTANTES
             },
@@ -810,6 +811,7 @@
         let currentSettingsCamId = null;
         let globalFramesRendered = 0;
         window.flowCounters = {}; // Memória Global de Fluxo
+        window.spatialTrackers = {}; // Guarda as trajetórias espaciais persistentes
 
         let activeDrawCamId = null;
         let isDrawing = false;
@@ -2403,24 +2405,71 @@
                       }); 
                       } 
 
-                      let uiOffsetY = canvas.height - 10; // Ponto base inferior para empilhar UI 
+                      // --- PREPARAÇÃO DOS ALVOS DE CONTAGEM (Human.js + TF-SSD) ---
+                      let countTargets = [];
+                      
+                      // 1. Adiciona corpos do Human.js
+                      bodies.forEach(b => { 
+                          if (b?.boxRaw && b.boxRaw[2] * canvas.width >= 2) { 
+                              const cx = (b.boxRaw[0] + b.boxRaw[2] / 2); 
+                              const cy = (b.boxRaw[1] + b.boxRaw[3] / 2); 
+                              countTargets.push({ cx, cy, w: b.boxRaw[2], id: b.id }); 
+                          } 
+                      }); 
+                      
+                      // 2. Adiciona 'person' do TF-SSD (longuíssima distância) se ativado
+                      if (camCfg.vehicles === true && vehiclePredictions) { 
+                          vehiclePredictions.forEach(pred => { 
+                              if (pred.class === 'person' && pred.score >= 0.20) { 
+                                  const [px, py, pw, ph] = pred.bbox; 
+                                  const cx = (px + pw / 2) / canvas.width; 
+                                  const cy = (py + ph / 2) / canvas.height; 
+                                  const normW = pw / canvas.width; 
+                                  const alreadyExists = countTargets.some(t => Math.hypot(t.cx - cx, t.cy - cy) < 0.05); 
+                                  if (!alreadyExists && pw >= 2) { 
+                                      countTargets.push({ cx, cy, w: normW, id: null }); 
+                                  } 
+                              } 
+                          }); 
+                      } 
 
-                      // MÓDULO 2.1: CONTROLO DE MULTIDÕES (Sem piscar) 
+                      // --- RASTREAMENTO ESPACIAL INFALÍVEL (CENTROID TRACKER) ---
+                      if (!window.spatialTrackers[cam.id]) window.spatialTrackers[cam.id] = []; 
+                      let currentTracks = window.spatialTrackers[cam.id]; 
+                      let nextTracks = []; 
+
+                      countTargets.forEach(target => { 
+                          let assignedId = target.id; 
+                          if (assignedId == null) { 
+                              const match = currentTracks.find(t => Math.hypot(t.cx - target.cx, t.cy - target.cy) < 0.1); 
+                              assignedId = match ? match.id : "tk_" + Date.now() + "_" + Math.floor(Math.random()*1000); 
+                          } 
+                          target.id = assignedId; 
+                          nextTracks.push({ cx: target.cx, cy: target.cy, id: assignedId, lastSeen: Date.now() }); 
+                      }); 
+                      
+                      currentTracks.forEach(t => { 
+                          if (!nextTracks.some(n => n.id === t.id) && (Date.now() - t.lastSeen < 2000)) { 
+                              nextTracks.push(t); 
+                          } 
+                      }); 
+                      window.spatialTrackers[cam.id] = nextTracks; 
+
+                      let uiOffsetY = canvas.height - 10; 
+
+                      // MÓDULO 2.1: CONTROLO DE MULTIDÕES 
                       if (camCfg.crowd === true) { 
-                          const validBodies = bodies.filter(b => b?.boxRaw && b.boxRaw[2] * canvas.width >= 2); 
-                          const crowdCount = validBodies.length; 
-                          
+                          const crowdCount = countTargets.length; 
                           uiOffsetY -= 35; 
                           ctx.fillStyle = crowdCount >= 5 ? 'rgba(220, 38, 38, 1)' : (crowdCount > 0 ? 'rgba(37, 99, 235, 1)' : 'rgba(31, 41, 55, 1)'); 
                           ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; 
                           ctx.lineWidth = 1; 
                           ctx.fillRect(10, uiOffsetY, 180, 35); 
                           ctx.strokeRect(10, uiOffsetY, 180, 35); 
-                          
                           ctx.fillStyle = 'white'; 
                           ctx.font = 'bold 14px ui-monospace, monospace'; 
                           ctx.textBaseline = 'middle'; 
-                          ctx.fillText(`👥 MULTIDÃO: ${crowdCount}`, 20, uiOffsetY + 17); 
+                          ctx.fillText("👥 MULTIDÃO: " + crowdCount, 20, uiOffsetY + 17); 
                           uiOffsetY -= 5; 
                       } 
 
@@ -2429,26 +2478,21 @@
                           if (!window.flowCounters) window.flowCounters = {}; 
                           if (!window.flowCounters[cam.id]) window.flowCounters[cam.id] = new Set(); 
                           
-                          bodies.forEach(b => { 
-                              // Conta apenas se o corpo tiver uma largura mínima de 2px e possuir ID 
-                              if (b.id != null && b.boxRaw[2] * canvas.width >= 2) { 
-                                  window.flowCounters[cam.id].add(b.id); 
-                              } 
+                          countTargets.forEach(t => { 
+                              if (t.id != null) window.flowCounters[cam.id].add(t.id); 
                           }); 
                           
                           const totalFluxo = window.flowCounters[cam.id].size; 
                           uiOffsetY -= 35; 
-                          
                           ctx.fillStyle = 'rgba(16, 185, 129, 1)'; 
                           ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; 
                           ctx.lineWidth = 1; 
                           ctx.fillRect(10, uiOffsetY, 180, 35); 
                           ctx.strokeRect(10, uiOffsetY, 180, 35); 
-                          
                           ctx.fillStyle = 'white'; 
                           ctx.font = 'bold 14px ui-monospace, monospace'; 
                           ctx.textBaseline = 'middle'; 
-                          ctx.fillText(`🚶 FLUXO TOTAL: ${totalFluxo}`, 20, uiOffsetY + 17); 
+                          ctx.fillText("🚶 FLUXO TOTAL: " + totalFluxo, 20, uiOffsetY + 17); 
                           uiOffsetY -= 5; 
                       } 
 
