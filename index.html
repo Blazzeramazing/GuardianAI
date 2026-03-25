@@ -817,24 +817,26 @@
         let objectModel = null;
         let humanFaceDB = [];
         const humanConfig = {
+            backend: 'webgl',
+            async: true,
             modelBasePath: 'https://vladmandic.github.io/human/models/',
             filter: { equalization: false },
             tracker: { enabled: true }, // ESSENCIAL: Ativa o rastreamento global para gerar IDs únicos para contagem de fluxo
-            face: {
-                enabled: true,
-                detector: { rotation: true, return: true, minConfidence: getDetectorConf(), maxDetected: 50 }, // MAX 50 ROSTOS
-                mesh: { enabled: false },
-                iris: { enabled: false },
-                description: { enabled: true, minConfidence: getExtractConf() },
-                antispoof: { enabled: true },
-                tracker: { enabled: true },
-                emotion: { enabled: false }
-            },
+            face: { 
+                enabled: true, 
+                detector: { rotation: false, return: true, minConfidence: getDetectorConf(), maxDetected: 15 }, // Rotação desligada e limite de 15 rostos 
+                mesh: { enabled: false }, 
+                iris: { enabled: false }, 
+                description: { enabled: true, minConfidence: getExtractConf() }, 
+                antispoof: { enabled: true }, 
+                tracker: { enabled: true }, 
+                emotion: { enabled: false } 
+            }, 
             body: { 
                 enabled: true, 
-                maxDetected: 50, 
+                maxDetected: 15, 
                 minConfidence: 0.15 
-            },
+            }, 
             hand: { enabled: false },
             object: { enabled: false }
         };
@@ -2242,12 +2244,23 @@
                 
                 const startTime = Date.now(); 
                 const camCfg = camConfigs[cam.id] || defaultCamConfig; 
+                let waitTime = 150; // Poupança agressiva quando não há movimento (Standby) 
                 
                 try { 
                     syncCanvasToMedia(canvas, media); 
-                    if (sampleCanvas.width !== canvas.width) sampleCanvas.width = canvas.width; 
-                    if (sampleCanvas.height !== canvas.height) sampleCanvas.height = canvas.height; 
-                    sampleCtx.drawImage(media, 0, 0, sampleCanvas.width, sampleCanvas.height); 
+                    // OTIMIZAÇÃO EXTREMA: Reduzir a resolução da imagem enviada para a IA (Max 640px) 
+                    const MAX_AI_RES = 640; 
+                    let aiWidth = media.videoWidth || media.naturalWidth || media.clientWidth; 
+                    let aiHeight = media.videoHeight || media.naturalHeight || media.clientHeight; 
+                    
+                    if (aiWidth > MAX_AI_RES) { 
+                        aiHeight = Math.round((MAX_AI_RES / aiWidth) * aiHeight); 
+                        aiWidth = MAX_AI_RES; 
+                    } 
+                    
+                    if (sampleCanvas.width !== aiWidth) sampleCanvas.width = aiWidth; 
+                    if (sampleCanvas.height !== aiHeight) sampleCanvas.height = aiHeight; 
+                    sampleCtx.drawImage(media, 0, 0, aiWidth, aiHeight); 
 
                     motionCtx.drawImage(media, 0, 0, 64, 48); 
                     const currentMotionData = motionCtx.getImageData(0, 0, 64, 48).data; 
@@ -2263,22 +2276,29 @@
                     if (isAwake) sleepTimer = 15; else if (sleepTimer > 0) { sleepTimer--; isAwake = true; } 
 
                     if (isAwake) { 
-                        const result = await human.detect(sampleCanvas); 
-                        let vPreds = []; 
+                        // OTIMIZAÇÃO EXTREMA: Executa os modelos em Paralelo na GPU (Dual-Core AI) 
+                        const tasks = [human.detect(sampleCanvas)]; 
                         if ((camCfg.vehicles || camCfg.crowd || camCfg.flowCount) && objectModel) { 
-                            try { vPreds = await objectModel.detect(sampleCanvas); } catch(e){} 
+                            tasks.push(objectModel.detect(sampleCanvas).catch(() => [])); 
+                        } else { 
+                            tasks.push(Promise.resolve([])); 
                         } 
+                        
+                        const [result, vPreds] = await Promise.all(tasks); 
+                        
                         latestState = { faces: result.face || [], bodies: result.body || [], vehiclePredictions: vPreds, isAwake }; 
                         hadTargetsPrevFrame = ((result.body?.length || 0) > 0 || vPreds.length > 0); 
                         globalFramesRendered++; 
+                        
+                        waitTime = 1; // UNLEASH THE BEAST: Sem limite de FPS (0ms/1ms delay) 
                     } else { 
                         latestState = { faces: [], bodies: [], vehiclePredictions: [], isAwake: false }; 
                         hadTargetsPrevFrame = false; 
                     } 
                 } catch(e) {} 
-                
-                const elapsed = Date.now() - startTime; 
-                setTimeout(inferenceLoop, Math.max(10, 100 - elapsed)); 
+
+                // Dispara o próximo frame instantaneamente se acordado, ou aguarda se em Standby 
+                setTimeout(inferenceLoop, waitTime); 
             } 
 
             function renderLoop() { 
