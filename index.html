@@ -817,14 +817,17 @@
         let objectModel = null;
         let humanFaceDB = [];
         const humanConfig = {
-            backend: 'webgl',
+            // BACKEND NEXT-GEN: Bypassa o gargalo do CPU e fala diretamente com a RX 6600
+            backend: 'webgpu', 
             async: true,
+            cacheModels: true,      // Mantém os modelos na VRAM (Acaba com o tráfego PCIe constante)
+            cacheSensitivity: 0.75, // Otimiza a reutilização de memória da placa gráfica
             modelBasePath: 'https://vladmandic.github.io/human/models/',
             filter: { equalization: false },
-            tracker: { enabled: true }, // ESSENCIAL: Ativa o rastreamento global para gerar IDs únicos para contagem de fluxo
+            tracker: { enabled: true },
             face: { 
                 enabled: true, 
-                detector: { rotation: false, return: true, minConfidence: getDetectorConf(), maxDetected: 15 }, // Rotação desligada e limite de 15 rostos 
+                detector: { rotation: false, return: true, minConfidence: getDetectorConf(), maxDetected: 15 }, 
                 mesh: { enabled: false }, 
                 iris: { enabled: false }, 
                 description: { enabled: true, minConfidence: getExtractConf() }, 
