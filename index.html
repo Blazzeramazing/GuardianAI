@@ -243,7 +243,7 @@
                 </div>
 
                 <!-- VISTA 2: BASE DE DADOS DE FACES -->
-                <div id="tab-db" class="tab-content hidden flex-col h-full w-full bg-gray-950 overflow-y-auto p-4 md:p-6">
+                <div id="tab-db" class="tab-content hidden flex-col flex-1 min-h-0 w-full bg-gray-950 overflow-y-auto custom-scrollbar p-4 md:p-6">
                     <div class="max-w-7xl mx-auto w-full grid grid-cols-1 xl:grid-cols-2 gap-6 pb-10">
                         <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden shadow-2xl h-fit">
                             <div class="p-4 md:p-6 border-b border-gray-800 bg-black/50">
@@ -343,7 +343,7 @@
                 </div>
 
                 <!-- VISTA 3: LOGS -->
-                <div id="tab-logs" class="tab-content hidden flex-col h-full w-full bg-gray-950 p-4 md:p-6 overflow-y-auto">
+                <div id="tab-logs" class="tab-content hidden flex-col flex-1 min-h-0 w-full bg-gray-950 p-4 md:p-6 overflow-y-auto custom-scrollbar">
                     <div class="max-w-7xl mx-auto w-full bg-gray-900 rounded-xl border border-gray-800 shadow-2xl overflow-hidden pb-8">
                         <header class="p-4 md:p-6 border-b border-gray-800 bg-black/50 flex flex-col gap-4">
                             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -437,7 +437,7 @@
                         </div>
                         
                         <!-- Container Responsivo para Tabela -->
-                        <div id="logs-table-wrapper" class="w-full overflow-x-auto overflow-y-auto max-h-[60vh] relative custom-scrollbar">
+                        <div id="logs-table-wrapper" class="w-full overflow-x-auto relative">
                             <table class="w-full text-left border-collapse min-w-[600px]">
                                 <thead class="sticky top-0 bg-gray-950 z-10 shadow-md">
                                     <tr class="border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wider">
@@ -469,7 +469,7 @@
                 </div>
 
                 <!-- VISTA 4: CONFIGURAÇÕES -->
-                <div id="tab-settings" class="tab-content hidden flex-col h-full w-full bg-gray-950 p-4 md:p-6 overflow-y-auto">
+                <div id="tab-settings" class="tab-content hidden flex-col flex-1 min-h-0 w-full bg-gray-950 p-4 md:p-6 overflow-y-auto custom-scrollbar">
                     <div class="max-w-3xl mx-auto w-full bg-gray-900 rounded-xl border border-gray-800 shadow-2xl overflow-hidden">
                         <div class="p-4 md:p-6 border-b border-gray-800 bg-black/50 flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-20">
                             <div>
@@ -3919,7 +3919,8 @@
                         }]
                     },
                     options: {
-                        responsive: true, maintainAspectRatio: false,
+                        responsive: true,
+                        maintainAspectRatio: false,
                         plugins: { legend: { display: false } },
                         scales: {
                             y: { beginAtZero: true, ticks: { stepSize: 1, color: '#4b5563' }, grid: { color: 'rgba(255,255,255,0.05)' } },
