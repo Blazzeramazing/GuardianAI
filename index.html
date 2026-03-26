@@ -819,6 +819,7 @@
         let layout = Number(localStorage.getItem('vms_layout')) || 4;
         let faceMatcher = null;
         let human = null;
+        let humanFocus = null;
         let objectModel = null;
         let humanFaceDB = [];
         const humanConfig = {
@@ -1028,9 +1029,51 @@
                 const HumanCtor = (typeof Human === 'function') ? Human : (Human?.Human || Human?.default);
                 if (!HumanCtor) throw new Error('Human indisponível');
 
-                human = new HumanCtor(humanConfig);
+                const humanLiteConfig = {
+                    ...humanConfig,
+                    face: {
+                        ...humanConfig.face,
+                        description: { ...humanConfig.face.description, enabled: false },
+                        antispoof: { ...humanConfig.face.antispoof, enabled: false }
+                    }
+                };
+                human = new HumanCtor(humanLiteConfig);
+
+                try {
+                    human?.tf?.env?.()?.set?.('WEBGL_DELETE_TEXTURE_THRESHOLD', 0);
+                } catch (e) {}
+
                 await human.load();
                 await human.warmup();
+
+                const humanFocusConfig = {
+                    backend: 'webgl',
+                    async: true,
+                    modelBasePath: humanConfig.modelBasePath,
+                    filter: { equalization: false },
+                    tracker: { enabled: false },
+                    face: {
+                        enabled: true,
+                        detector: { rotation: false, return: true, minConfidence: getDetectorConf(), maxDetected: 1 },
+                        mesh: { enabled: false },
+                        iris: { enabled: false },
+                        description: { enabled: true, minConfidence: getExtractConf() },
+                        antispoof: { enabled: false },
+                        tracker: { enabled: false },
+                        emotion: { enabled: false }
+                    },
+                    body: { enabled: false },
+                    hand: { enabled: false },
+                    object: { enabled: false }
+                };
+                humanFocus = new HumanCtor(humanFocusConfig);
+
+                try {
+                    humanFocus?.tf?.env?.()?.set?.('WEBGL_DELETE_TEXTURE_THRESHOLD', 0);
+                } catch (e) {}
+
+                await humanFocus.load();
+                await humanFocus.warmup();
 
                 try { 
                     objectModel = await cocoSsd.load({ base: 'lite_mobilenet_v2' }); 
@@ -1401,7 +1444,8 @@
                         const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
                         offCtx.drawImage(img, 0, 0, img.width, img.height);
 
-                        const result = await human.detect(offCanvas);
+                        const focus = humanFocus || human;
+                        const result = await focus.detect(offCanvas);
 
                         if (result?.face?.length > 0 && result.face[0]?.embedding?.length) {
                             tempDescriptors.push(Array.from(result.face[0].embedding));
@@ -2249,9 +2293,13 @@
             const loopState = { active: true }; 
             aiLoops[cam.id] = loopState; 
              
-            const identityTracker = {}; // Buffer Temporal de Histerese por Identidade 
+            const faceFocusMemory = {};
+            let inferenceFrame = 0;
+            const uiCtx = canvas.getContext('2d');
             const sampleCanvas = document.createElement('canvas');
             const sampleCtx = sampleCanvas.getContext('2d', { willReadFrequently: true });
+            const focusCanvas = document.createElement('canvas');
+            const focusCtx = focusCanvas.getContext('2d', { willReadFrequently: true });
             const motionCanvas = document.createElement('canvas'); 
             motionCanvas.width = 64; motionCanvas.height = 48; // Ultra Low-Res para velocidade 
             const motionCtx = motionCanvas.getContext('2d', { willReadFrequently: true }); 
@@ -2286,10 +2334,16 @@
                 let waitTime = 150; // Poupança agressiva quando não há movimento (Standby) 
                 
                 try { 
+                    inferenceFrame++;
                     syncCanvasToMedia(canvas, media); 
-                    if (sampleCanvas.width !== canvas.width) sampleCanvas.width = canvas.width; 
-                    if (sampleCanvas.height !== canvas.height) sampleCanvas.height = canvas.height; 
-                    sampleCtx.drawImage(media, 0, 0, sampleCanvas.width, sampleCanvas.height); 
+                    const srcW = media.videoWidth || media.naturalWidth || media.clientWidth || 0;
+                    const srcH = media.videoHeight || media.naturalHeight || media.clientHeight || 0;
+                    const AI_TARGET_W = 416;
+                    const aiWidth = Math.max(1, Math.min(AI_TARGET_W, srcW || AI_TARGET_W));
+                    const aiHeight = Math.max(1, Math.round(srcW ? (aiWidth / srcW) * srcH : (media.clientHeight || aiWidth)));
+                    if (sampleCanvas.width !== aiWidth) sampleCanvas.width = aiWidth;
+                    if (sampleCanvas.height !== aiHeight) sampleCanvas.height = aiHeight;
+                    sampleCtx.drawImage(media, 0, 0, aiWidth, aiHeight);
 
                     motionCtx.drawImage(media, 0, 0, 64, 48); 
                     const currentMotionData = motionCtx.getImageData(0, 0, 64, 48).data; 
@@ -2319,6 +2373,108 @@
                         hadTargetsPrevFrame = ((result.body?.length || 0) > 0 || vPreds.length > 0); 
                         globalFramesRendered++; 
                         
+                        if (camCfg.faceRec !== false && humanFocus && focusCtx && humanFaceDB.length > 0 && Array.isArray(latestState.faces) && latestState.faces.length > 0) {
+                            const minSize = camCfg.minSize !== undefined ? camCfg.minSize : getMinFaceSize();
+                            let candidate = null;
+                            let candidateArea = 0;
+                            for (let i = 0; i < latestState.faces.length; i++) {
+                                const f = latestState.faces[i];
+                                const id = f?.id;
+                                const boxRaw = f?.boxRaw;
+                                if (!id || !Array.isArray(boxRaw) || boxRaw.length < 4) continue;
+                                const memo = faceFocusMemory[id];
+                                if (memo?.analyzing) continue;
+                                if (memo?.personId && memo.lockUntilFrame && inferenceFrame <= memo.lockUntilFrame) continue;
+                                if (memo?.retryAfterFrame && inferenceFrame < memo.retryAfterFrame) continue;
+                                const score = f.boxScore || f.score || 0;
+                                if (score < (camCfg.detConf !== undefined ? camCfg.detConf : 0.60)) continue;
+                                const w = boxRaw[2] * canvas.width;
+                                const h = boxRaw[3] * canvas.height;
+                                if (w < minSize || h < minSize) continue;
+                                const area = w * h;
+                                if (area > candidateArea) { candidate = f; candidateArea = area; }
+                            }
+
+                            if (candidate) {
+                                const id = candidate.id;
+                                if (!faceFocusMemory[id]) faceFocusMemory[id] = {};
+                                faceFocusMemory[id].analyzing = true;
+
+                                const boxRaw = candidate.boxRaw;
+                                const pad = 0.40;
+                                let sx = (boxRaw[0] - boxRaw[2] * pad) * srcW;
+                                let sy = (boxRaw[1] - boxRaw[3] * pad) * srcH;
+                                let sw = (boxRaw[2] + boxRaw[2] * pad * 2) * srcW;
+                                let sh = (boxRaw[3] + boxRaw[3] * pad * 2) * srcH;
+                                sx = Math.max(0, Math.floor(sx));
+                                sy = Math.max(0, Math.floor(sy));
+                                sw = Math.min(srcW - sx, Math.max(1, Math.floor(sw)));
+                                sh = Math.min(srcH - sy, Math.max(1, Math.floor(sh)));
+
+                                const MAX_CROP_W = 320;
+                                const cropW = Math.max(1, Math.min(MAX_CROP_W, sw));
+                                const cropH = Math.max(1, Math.round((cropW / sw) * sh));
+                                if (focusCanvas.width !== cropW) focusCanvas.width = cropW;
+                                if (focusCanvas.height !== cropH) focusCanvas.height = cropH;
+                                focusCtx.drawImage(media, sx, sy, sw, sh, 0, 0, cropW, cropH);
+
+                                const focusRes = await humanFocus.detect(focusCanvas);
+                                if (!focusRes || !focusRes.face || focusRes.face.length === 0) { faceFocusMemory[id].analyzing = false; continue; }
+
+                                const face0 = focusRes?.face?.[0];
+                                const embedding = face0?.embedding;
+                                let bestSim = 0;
+                                let bestDb = null;
+                                if (embedding && embedding.length > 0) {
+                                    for (let j = 0; j < humanFaceDB.length; j++) {
+                                        const dbFace = humanFaceDB[j];
+                                        if (!dbFace.descriptor || embedding.length !== dbFace.descriptor.length) continue;
+                                        try {
+                                            const matchResult = human.match.similarity(embedding, dbFace.descriptor);
+                                            const sim = typeof matchResult === 'number' ? matchResult : (matchResult?.similarity || 0);
+                                            if (sim > bestSim) { bestSim = sim; bestDb = dbFace; }
+                                        } catch(e) {}
+                                    }
+                                }
+
+                                const BASE_HUMANA = getBaseHumana();
+                                const MAX_MODELO = getMaxModelo();
+                                let certezaBiometrica = 0;
+                                if (bestSim > BASE_HUMANA) {
+                                    certezaBiometrica = (bestSim - BASE_HUMANA) / (MAX_MODELO - BASE_HUMANA);
+                                    certezaBiometrica = Math.max(0, Math.min(1, certezaBiometrica));
+                                }
+                                const pctUnica = Math.round(certezaBiometrica * 100);
+                                const rawUserThreshold = getAiConfidence();
+                                let limiteReal = 0;
+                                if (rawUserThreshold > BASE_HUMANA) {
+                                    limiteReal = (rawUserThreshold - BASE_HUMANA) / (MAX_MODELO - BASE_HUMANA);
+                                    limiteReal = Math.max(0, Math.min(1, limiteReal));
+                                }
+
+                                if (bestDb && certezaBiometrica >= limiteReal && pctUnica > 0) {
+                                    const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb;
+                                    faceFocusMemory[id] = {
+                                        personId: bestDb.id,
+                                        name: matchedPerson.name,
+                                        level: matchedPerson.level,
+                                        lastPct: pctUnica,
+                                        lockUntilFrame: inferenceFrame + 45,
+                                        retryAfterFrame: inferenceFrame + 45,
+                                        analyzing: false
+                                    };
+                                } else {
+                                    faceFocusMemory[id].personId = null;
+                                    faceFocusMemory[id].name = null;
+                                    faceFocusMemory[id].level = null;
+                                    faceFocusMemory[id].lastPct = null;
+                                    faceFocusMemory[id].lockUntilFrame = null;
+                                    faceFocusMemory[id].analyzing = false;
+                                    faceFocusMemory[id].retryAfterFrame = inferenceFrame + 15;
+                                }
+                            }
+                        }
+
                         waitTime = 1; // UNLEASH THE BEAST: Sem limite de FPS (0ms/1ms delay) 
                     } else { 
                         latestState = { faces: [], bodies: [], vehiclePredictions: [], isAwake: false }; 
@@ -2336,7 +2492,8 @@
                 if (document.hidden || activeTab !== 'live' || !media.clientWidth) return; 
                 
                 syncCanvasToMedia(canvas, media); 
-                const ctx = canvas.getContext('2d'); 
+                const ctx = uiCtx; 
+                if (!ctx) return;
                 ctx.clearRect(0, 0, canvas.width, canvas.height); 
                 
                 const camCfg = camConfigs[cam.id] || defaultCamConfig; 
@@ -2458,73 +2615,29 @@
                             if (myBody && sampleCtx) bodyColor = getClothingColor(sampleCtx, myBody.boxRaw, sampleCanvas.width, sampleCanvas.height); 
                             colorText = bodyColor ? ` [${bodyColor}]` : ''; 
                         } 
-                        let color = '#3b82f6';  
-                        let text = 'Desconhecido';  
-                        let person = null;  
-                        const embedding = face.embedding;  
-                        let bestSim = 0;  
-                        let bestDb = null;  
-                        const TAMANHO_MINIMO_RECONHECIMENTO = camCfg.minSize !== undefined ? camCfg.minSize : getMinFaceSize();  
-                        if (w >= TAMANHO_MINIMO_RECONHECIMENTO && h >= TAMANHO_MINIMO_RECONHECIMENTO) {  
-                            if (embedding && embedding.length > 0 && humanFaceDB.length > 0) {  
-                                for (let j = 0; j < humanFaceDB.length; j++) {  
-                                    const dbFace = humanFaceDB[j];  
-                                    if (!dbFace.descriptor || embedding.length !== dbFace.descriptor.length) continue;  
-                                    try {  
-                                        const matchResult = human.match.similarity(embedding, dbFace.descriptor);  
-                                        const sim = typeof matchResult === 'number' ? matchResult : (matchResult?.similarity || 0);  
-                                        if (sim > bestSim) { bestSim = sim; bestDb = dbFace; }  
-                                    } catch(e) {}  
-                                }  
-                            }  
-                            const BASE_HUMANA = getBaseHumana();  
-                            const MAX_MODELO = getMaxModelo();  
-                            let certezaBiometrica = 0;  
-                            if (bestSim > BASE_HUMANA) {  
-                                certezaBiometrica = (bestSim - BASE_HUMANA) / (MAX_MODELO - BASE_HUMANA);  
-                                certezaBiometrica = Math.max(0, Math.min(1, certezaBiometrica));  
-                            }  
-                            const pctUnica = Math.round(certezaBiometrica * 100);  
-                            const rawUserThreshold = getAiConfidence();  
-                            let limiteReal = 0;  
-                            if (rawUserThreshold > BASE_HUMANA) {  
-                                limiteReal = (rawUserThreshold - BASE_HUMANA) / (MAX_MODELO - BASE_HUMANA);  
-                                limiteReal = Math.max(0, Math.min(1, limiteReal));  
-                            }  
-                            let isConfirmed = false;  
-                            if (bestDb) {  
-                                const id = bestDb.id;  
-                                if (!identityTracker[id]) identityTracker[id] = { hits: 0, lastConfirmed: 0, lastPct: 0 };  
-                                const track = identityTracker[id];  
-                                if (certezaBiometrica >= limiteReal && pctUnica > 0) {  
-                                    track.hits = Math.min(10, track.hits + 1);  
-                                    track.lastConfirmed = Date.now();  
-                                    track.lastPct = pctUnica;  
-                                } else {  
-                                    track.hits = Math.max(0, track.hits - 1);  
-                                }  
-                                const timeSinceConfirm = Date.now() - track.lastConfirmed;  
-                                if (track.hits >= 3 || (track.hits > 0 && timeSinceConfirm < 1000)) {  
-                                    isConfirmed = true;  
-                                }  
-                            }  
-                            if (isConfirmed && bestDb) {  
-                                const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb;  
-                                const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981';  
-                                const displayPct = identityTracker[bestDb.id].lastPct;  
-                                text = `${matchedPerson.name} (${displayPct}%)${colorText}`;  
-                                color = dbColor;  
-                                person = matchedPerson;  
-                            } else if (bestDb && pctUnica > 5) {  
-                                text = `A analisar...`;  
-                                color = '#3b82f6';  
-                            } else {  
-                                text = `Desconhecido${demoText}${colorText}`;  
-                                color = '#3b82f6';  
-                            }  
-                        } else {  
-                            text = `Biometria Inativa${demoText}${colorText}`;  
-                            color = '#9ca3af';  
+                        let color = '#3b82f6';
+                        let text = `Desconhecido${demoText}${colorText}`;
+                        let person = null;
+                        const TAMANHO_MINIMO_RECONHECIMENTO = camCfg.minSize !== undefined ? camCfg.minSize : getMinFaceSize();
+                        if (w >= TAMANHO_MINIMO_RECONHECIMENTO && h >= TAMANHO_MINIMO_RECONHECIMENTO) {
+                            const memo = face?.id ? faceFocusMemory[face.id] : null;
+                            if (memo?.personId) {
+                                const matchedPerson = persons.find(p => p.id === memo.personId) || memo;
+                                const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981';
+                                const displayPct = Number.isFinite(memo.lastPct) ? memo.lastPct : 0;
+                                text = `${matchedPerson.name} (${displayPct}%)${colorText}`;
+                                color = dbColor;
+                                person = matchedPerson;
+                            } else if (memo?.analyzing) {
+                                text = `A analisar...`;
+                                color = '#3b82f6';
+                            } else {
+                                text = `Desconhecido${demoText}${colorText}`;
+                                color = '#3b82f6';
+                            }
+                        } else {
+                            text = `Biometria Inativa${demoText}${colorText}`;
+                            color = '#9ca3af';
                         }
                         ctx.lineWidth = 3; 
                         ctx.strokeStyle = color; 
