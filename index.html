@@ -394,48 +394,46 @@
                             </div>
                         </header>
 
-                        <div class="p-4 md:p-6 border-b border-gray-800 bg-gray-900/50">
-                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                <div class="flex flex-col gap-4">
-                                    <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 flex items-center justify-between shadow-lg relative overflow-hidden">
-                                        <div class="absolute left-0 top-0 w-1 h-full bg-blue-500"></div>
-                                        <div>
-                                            <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-1">Total de Eventos</p>
-                                            <h4 id="kpi-total" class="text-3xl font-black text-white">0</h4>
-                                        </div>
-                                        <i data-lucide="activity" class="w-8 h-8 text-blue-500/20"></i>
-                                    </div>
-                                    <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 flex items-center justify-between shadow-lg relative overflow-hidden">
-                                        <div class="absolute left-0 top-0 w-1 h-full bg-red-500"></div>
-                                        <div>
-                                            <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-1">Ameaças Críticas</p>
-                                            <h4 id="kpi-danger" class="text-2xl font-black text-red-400">0</h4>
-                                        </div>
-                                        <i data-lucide="shield-alert" class="w-8 h-8 text-red-500/20"></i>
-                                    </div>
-                                </div>
+                        <div class="p-4 md:p-6 border-b border-gray-800 bg-gray-900/50"> 
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6"> 
+                                <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 flex items-center justify-between shadow-lg relative overflow-hidden"> 
+                                    <div class="absolute left-0 top-0 w-1 h-full bg-blue-500"></div> 
+                                    <div> 
+                                        <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-1">Total de Eventos</p> 
+                                        <h4 id="kpi-total" class="text-3xl font-black text-white">0</h4> 
+                                    </div> 
+                                    <i data-lucide="activity" class="w-8 h-8 text-blue-500/20"></i> 
+                                </div> 
+                                <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 flex items-center justify-between shadow-lg relative overflow-hidden"> 
+                                    <div class="absolute left-0 top-0 w-1 h-full bg-red-500"></div> 
+                                    <div> 
+                                        <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-1">Ameaças Críticas</p> 
+                                        <h4 id="kpi-danger" class="text-2xl font-black text-red-400">0</h4> 
+                                    </div> 
+                                    <i data-lucide="shield-alert" class="w-8 h-8 text-red-500/20"></i> 
+                                </div> 
+                            </div> 
 
-                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 w-full"> 
-                                <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative w-full h-[320px]"> 
+                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full"> 
+                                <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative w-full h-[280px]"> 
                                     <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-2">Análise de Risco</p> 
                                     <div class="flex-1 relative w-full h-full"> 
                                         <canvas id="chart-levels"></canvas> 
                                     </div> 
                                 </div> 
-                                <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative w-full h-[320px]"> 
+                                <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative w-full h-[280px]"> 
                                     <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-2">Fluxo Tático por Hora</p> 
                                     <div class="flex-1 relative w-full h-full"> 
                                         <canvas id="chart-time"></canvas> 
                                     </div> 
                                 </div> 
-                                <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative w-full h-[320px]"> 
+                                <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative w-full h-[280px]"> 
                                     <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-2">Demografia</p> 
                                     <div class="flex-1 relative w-full h-full"> 
                                         <canvas id="chart-demographics"></canvas> 
                                     </div> 
                                 </div> 
-                            </div>
-                            </div>
+                            </div> 
                         </div>
                         
                         <!-- Container Responsivo para Tabela -->
@@ -1128,8 +1126,13 @@
         window.toggleLiveTicker = () => { 
             const ticker = document.getElementById('live-ticker-container'); 
             if(ticker) { 
-                ticker.classList.toggle('xl:flex'); 
-                ticker.classList.toggle('hidden'); 
+                // Força o estilo inline para ultrapassar as regras do Tailwind 
+                if (ticker.style.display === 'none') { 
+                    ticker.style.display = ''; 
+                } else { 
+                    ticker.style.display = 'none'; 
+                } 
+                // Atrasa o redimensionamento para dar tempo ao CSS de animar 
                 setTimeout(scheduleResizeAICanvases, 300); 
             } 
         }; 
