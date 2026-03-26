@@ -214,13 +214,20 @@
                             <button onclick="setLayout(1)" id="btn-layout-1" class="px-3 md:px-2 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors">1x1</button>
                             <button onclick="setLayout(4)" id="btn-layout-4" class="px-3 md:px-2 py-1.5 rounded-md bg-gray-800 text-blue-400 shadow transition-colors">2x2</button>
                             <button onclick="setLayout(9)" id="btn-layout-9" class="px-3 md:px-2 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors hidden sm:block">3x3</button>
+                            <div class="w-px h-4 bg-gray-700 mx-1"></div> 
+                            <button onclick="toggleLiveTicker()" class="px-2 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors" title="Esconder/Mostrar Painel Lateral"> 
+                                <i data-lucide="layout-panel-right" class="w-4 h-4"></i> 
+                            </button> 
+                            <button onclick="toggleAppFullscreen()" class="px-2 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors" title="Ecrã Inteiro"> 
+                                <i data-lucide="maximize" class="w-4 h-4"></i> 
+                            </button>
                         </div>
                     </header>
                     <div class="flex-1 flex overflow-hidden bg-black">
                         <div class="flex-1 p-1 md:p-2 overflow-y-auto md:overflow-hidden relative">
                             <div id="video-grid" class="w-full h-full grid gap-1 md:gap-2"></div>
                         </div>
-                        <div class="w-64 bg-gray-950 border-l border-gray-800 hidden xl:flex flex-col shrink-0 relative z-20 shadow-2xl">
+                        <div id="live-ticker-container" class="w-64 bg-gray-950 border-l border-gray-800 hidden xl:flex flex-col shrink-0 relative z-20 shadow-2xl">
                             <div class="p-3 border-b border-gray-800 flex items-center justify-between bg-gray-900 shadow-md">
                                 <div class="flex items-center gap-2">
                                     <i data-lucide="list-video" class="w-4 h-4 text-blue-500"></i>
@@ -408,22 +415,22 @@
                                     </div>
                                 </div>
 
-                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6"> 
-                                <div class="md:col-span-1 bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative"> 
+                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 w-full"> 
+                                <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative w-full h-[320px]"> 
                                     <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-2">Análise de Risco</p> 
-                                    <div class="flex-1 relative min-h-[160px] w-full"> 
+                                    <div class="flex-1 relative w-full h-full"> 
                                         <canvas id="chart-levels"></canvas> 
                                     </div> 
                                 </div> 
-                                <div class="md:col-span-2 bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative"> 
+                                <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative w-full h-[320px]"> 
                                     <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-2">Fluxo Tático por Hora</p> 
-                                    <div class="flex-1 relative min-h-[160px] w-full"> 
+                                    <div class="flex-1 relative w-full h-full"> 
                                         <canvas id="chart-time"></canvas> 
                                     </div> 
                                 </div> 
-                                <div class="md:col-span-1 bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative"> 
+                                <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col relative w-full h-[320px]"> 
                                     <p class="text-xs text-gray-500 font-bold tracking-widest uppercase mb-2">Demografia</p> 
-                                    <div class="flex-1 relative min-h-[160px] w-full"> 
+                                    <div class="flex-1 relative w-full h-full"> 
                                         <canvas id="chart-demographics"></canvas> 
                                     </div> 
                                 </div> 
@@ -1116,6 +1123,26 @@
                 setTimeout(() => { if (typeof window.updateAnalyticsDashboard === 'function') window.updateAnalyticsDashboard(); }, 100);
             }
             if (tab === 'settings') hydrateSettingsControls();
+        };
+
+        window.toggleLiveTicker = () => { 
+            const ticker = document.getElementById('live-ticker-container'); 
+            if(ticker) { 
+                ticker.classList.toggle('xl:flex'); 
+                ticker.classList.toggle('hidden'); 
+                setTimeout(scheduleResizeAICanvases, 300); 
+            } 
+        }; 
+
+        window.toggleAppFullscreen = () => { 
+            const elem = document.documentElement; 
+            if (!document.fullscreenElement) { 
+                elem.requestFullscreen().catch(err => { 
+                    showToast(`Erro ao ativar modo ecrã inteiro: ${err.message}`, "error"); 
+                }); 
+            } else { 
+                document.exitFullscreen(); 
+            } 
         };
 
         window.openSidebarDrawer = () => {
@@ -2248,19 +2275,9 @@
                 
                 try { 
                     syncCanvasToMedia(canvas, media); 
-                    // OTIMIZAÇÃO EXTREMA: Reduzir a resolução da imagem enviada para a IA (Max 640px) 
-                    const MAX_AI_RES = 640; 
-                    let aiWidth = media.videoWidth || media.naturalWidth || media.clientWidth; 
-                    let aiHeight = media.videoHeight || media.naturalHeight || media.clientHeight; 
-                    
-                    if (aiWidth > MAX_AI_RES) { 
-                        aiHeight = Math.round((MAX_AI_RES / aiWidth) * aiHeight); 
-                        aiWidth = MAX_AI_RES; 
-                    } 
-                    
-                    if (sampleCanvas.width !== aiWidth) sampleCanvas.width = aiWidth; 
-                    if (sampleCanvas.height !== aiHeight) sampleCanvas.height = aiHeight; 
-                    sampleCtx.drawImage(media, 0, 0, aiWidth, aiHeight); 
+                    if (sampleCanvas.width !== canvas.width) sampleCanvas.width = canvas.width; 
+                    if (sampleCanvas.height !== canvas.height) sampleCanvas.height = canvas.height; 
+                    sampleCtx.drawImage(media, 0, 0, sampleCanvas.width, sampleCanvas.height); 
 
                     motionCtx.drawImage(media, 0, 0, 64, 48); 
                     const currentMotionData = motionCtx.getImageData(0, 0, 64, 48).data; 
