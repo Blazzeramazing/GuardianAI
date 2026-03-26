@@ -85,7 +85,7 @@
     </div>
 
     <!-- APP SHELL (Oculto até iniciar sessão) -->
-    <div id="app-shell" class="hidden flex-1 flex flex-col overflow-hidden w-full h-full">
+    <div id="app-shell" class="hidden flex-1 min-h-0 flex flex-col overflow-hidden w-full h-full">
 
         <!-- OVERLAY DO MENU MOBILE -->
         <div id="sidebar-overlay" onclick="closeSidebarDrawer()" class="fixed inset-0 bg-black/70 z-40 hidden md:hidden backdrop-blur-sm transition-opacity"></div>
@@ -146,7 +146,7 @@
             </div>
         </div>
 
-        <div class="flex flex-1 relative overflow-hidden">
+        <div class="flex flex-1 min-h-0 relative overflow-hidden">
             
             <!-- BARRA LATERAL -->
             <aside id="sidebar" class="fixed inset-y-0 left-0 w-72 bg-gray-900 border-r border-gray-800 flex flex-col z-50 shadow-xl shrink-0 transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 ease-in-out">
@@ -202,7 +202,7 @@
             </aside>
 
             <!-- ÁREA PRINCIPAL -->
-            <main id="main-content" class="flex-1 flex flex-col z-0 relative bg-black overflow-hidden w-full">
+            <main id="main-content" class="flex-1 min-h-0 flex flex-col z-0 relative bg-black overflow-hidden w-full">
                 
                 <!-- VISTA 1: MONITORIZAÇÃO -->
                 <div id="tab-live" class="tab-content active flex-col h-full w-full">
@@ -216,7 +216,7 @@
                             <button onclick="setLayout(9)" id="btn-layout-9" class="px-3 md:px-2 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors hidden sm:block">3x3</button>
                             <div class="w-px h-4 bg-gray-700 mx-1"></div> 
                             <button onclick="toggleLiveTicker()" class="px-2 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors" title="Esconder/Mostrar Painel Lateral"> 
-                                <i data-lucide="layout-panel-right" class="w-4 h-4"></i> 
+                                <i id="live-ticker-toggle-icon" data-lucide="layout-panel-right" class="w-4 h-4"></i> 
                             </button> 
                             <button onclick="toggleAppFullscreen()" class="px-2 py-1.5 rounded-md text-gray-400 hover:text-white transition-colors" title="Ecrã Inteiro"> 
                                 <i data-lucide="maximize" class="w-4 h-4"></i> 
@@ -227,7 +227,7 @@
                         <div class="flex-1 p-1 md:p-2 overflow-y-auto md:overflow-hidden relative">
                             <div id="video-grid" class="w-full h-full grid gap-1 md:gap-2"></div>
                         </div>
-                        <div id="live-ticker-container" class="w-64 bg-gray-950 border-l border-gray-800 hidden xl:flex flex-col shrink-0 relative z-20 shadow-2xl">
+                        <div id="live-ticker-container" class="w-64 bg-gray-950 border-l border-gray-800 hidden xl:flex flex-col shrink-0 relative z-20 shadow-2xl overflow-hidden transition-[width] duration-300 ease-in-out">
                             <div class="p-3 border-b border-gray-800 flex items-center justify-between bg-gray-900 shadow-md">
                                 <div class="flex items-center gap-2">
                                     <i data-lucide="list-video" class="w-4 h-4 text-blue-500"></i>
@@ -1123,19 +1123,28 @@
             if (tab === 'settings') hydrateSettingsControls();
         };
 
-        window.toggleLiveTicker = () => { 
-            const ticker = document.getElementById('live-ticker-container'); 
-            if(ticker) { 
-                // Força o estilo inline para ultrapassar as regras do Tailwind 
-                if (ticker.style.display === 'none') { 
-                    ticker.style.display = ''; 
-                } else { 
-                    ticker.style.display = 'none'; 
-                } 
-                // Atrasa o redimensionamento para dar tempo ao CSS de animar 
-                setTimeout(scheduleResizeAICanvases, 300); 
-            } 
-        }; 
+        window.isLiveTickerOpen = true;
+        window.toggleLiveTicker = () => {
+            const ticker = document.getElementById('live-ticker-container');
+            if (!ticker) return;
+
+            const isNowClosed = ticker.classList.toggle('xl:w-0');
+            if (isNowClosed) {
+                ticker.classList.add('xl:border-l-0', 'xl:pointer-events-none');
+            } else {
+                ticker.classList.remove('xl:border-l-0', 'xl:pointer-events-none');
+            }
+
+            window.isLiveTickerOpen = !isNowClosed;
+
+            const icon = document.getElementById('live-ticker-toggle-icon');
+            if (icon && typeof lucide?.createIcons === 'function') {
+                icon.setAttribute('data-lucide', window.isLiveTickerOpen ? 'layout-panel-right' : 'layout-panel-left');
+                lucide.createIcons();
+            }
+
+            setTimeout(scheduleResizeAICanvases, 300);
+        };
 
         window.toggleAppFullscreen = () => { 
             const elem = document.documentElement; 
