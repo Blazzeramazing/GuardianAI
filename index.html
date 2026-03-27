@@ -873,6 +873,7 @@
         let globalFramesRendered = 0;
         window.flowCounters = {}; // Memória Global de Fluxo
         window.spatialTrackers = {}; // Guarda as trajetórias espaciais persistentes
+        window.smoothRenderBoxes = window.smoothRenderBoxes || {};
 
         let activeDrawCamId = null;
         let isDrawing = false;
@@ -2558,6 +2559,12 @@
                 const ctx = canvas.getContext('2d'); 
                 ctx.clearRect(0, 0, canvas.width, canvas.height); 
                 
+                const smoothBoxes = window.smoothRenderBoxes; 
+                const nowTs = Date.now(); 
+                for (const k in smoothBoxes) { 
+                    if (nowTs - smoothBoxes[k].ts > 500) delete smoothBoxes[k]; 
+                } 
+
                 const camCfg = camConfigs[cam.id] || defaultCamConfig; 
                 let faces = Array.isArray(latestState.faces) ? latestState.faces : []; 
                 let bodies = Array.isArray(latestState.bodies) ? latestState.bodies : []; 
@@ -2641,6 +2648,7 @@
                 });
 
                 if (camCfg.faceRec !== false) { 
+                    const activeTracks = window.spatialTrackers[cam.id] || []; 
                     faces.forEach((face) => { 
                         const boxRaw = face.boxRaw || [0, 0, 0, 0]; 
                         const x = boxRaw[0] * canvas.width; 
@@ -2648,16 +2656,33 @@
                         const w = boxRaw[2] * canvas.width; 
                         const h = boxRaw[3] * canvas.height; 
                         if (w < 40 || h < 40) return; 
+                        let myTracker = activeTracks.find(t => !t.isVehicle && Math.hypot(t.cx - (x+w/2)/canvas.width, t.cy - (y+h/2)/canvas.height) < 0.1); 
+                        let faceId = myTracker ? myTracker.id + "_face" : 'face_orph_' + Math.round(x) + '_' + Math.round(y); 
+ 
+                        let sb = smoothBoxes[faceId]; 
+                        if (!sb) { sb = { x, y, w, h, ts: nowTs }; smoothBoxes[faceId] = sb; } 
+                        else { sb.targetX = x; sb.targetY = y; sb.targetW = w; sb.targetH = h; sb.ts = nowTs; } 
+ 
+                        if (sb.targetX !== undefined) sb.x += (sb.targetX - sb.x) * 0.3; 
+                        if (sb.targetY !== undefined) sb.y += (sb.targetY - sb.y) * 0.3; 
+                        if (sb.targetW !== undefined) sb.w += (sb.targetW - sb.w) * 0.3; 
+                        if (sb.targetH !== undefined) sb.h += (sb.targetH - sb.h) * 0.3; 
+ 
+                        const sx = sb.x; 
+                        const sy = sb.y; 
+                        const sw = sb.w; 
+                        const sh = sb.h; 
+
                         const score = face.boxScore || face.score || 0; 
                         const detLimit = camCfg.detConf !== undefined ? camCfg.detConf : getDetectorConf(); 
                         if (score < detLimit) return; 
                         const isReal = face.real !== undefined ? face.real : 1.0; 
                         const livenessLimit = camCfg.liveness !== undefined ? camCfg.liveness : getLivenessConf(); 
                         if (isReal < livenessLimit) { 
-                            ctx.lineWidth = 4; ctx.strokeStyle = '#ef4444'; ctx.strokeRect(x, y, w, h); 
-                            ctx.fillStyle = '#ef4444'; ctx.fillRect(x, Math.max(0, y - 22), 150, 22); 
+                            ctx.lineWidth = 4; ctx.strokeStyle = '#ef4444'; ctx.strokeRect(sx, sy, sw, sh); 
+                            ctx.fillStyle = '#ef4444'; ctx.fillRect(sx, Math.max(0, sy - 22), 150, 22); 
                             ctx.fillStyle = 'white'; ctx.font = 'bold 12px ui-monospace, monospace'; 
-                            ctx.fillText("⚠️ FRAUDE/FOTO", x + 4, Math.max(16, y - 4)); 
+                            ctx.fillText("⚠️ FRAUDE/FOTO", sx + 4, Math.max(16, sy - 4)); 
                             return; 
                         } 
                         let demoText = ''; 
@@ -2747,14 +2772,14 @@
                         }
                         ctx.lineWidth = 3; 
                         ctx.strokeStyle = color; 
-                        ctx.strokeRect(x, y, w, h); 
+                        ctx.strokeRect(sx, sy, sw, sh); 
                         ctx.font = '14px ui-monospace, monospace'; 
                         ctx.textBaseline = 'bottom'; 
                         const textWidth = ctx.measureText(text).width; 
                         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; 
-                        ctx.fillRect(x, Math.max(0, y - 22), textWidth + 8, 22); 
+                        ctx.fillRect(sx, Math.max(0, sy - 22), textWidth + 8, 22); 
                         ctx.fillStyle = color; 
-                        ctx.fillText(text, x + 4, Math.max(16, y - 4)); 
+                        ctx.fillText(text, sx + 4, Math.max(16, sy - 4)); 
                         if (person) { 
                             const now = Date.now(); 
                             const lastTime = lastDetectionTime[person.id] || 0; 
@@ -2811,7 +2836,7 @@
                     } 
  
                     let bestMatch = null; 
-                    let bestDist = 0.10; // Raio máximo para rastrear a pessoa entre frames (10% do ecrã) 
+                    let bestDist = 0.25; // Raio máximo para rastrear a pessoa entre frames (10% do ecrã) 
  
                     // 🚀 3. PROCURA O RASTO MAIS PRÓXIMO (Exclusivo por Pessoa) 
                     currentTracks.forEach(t => { 
@@ -2848,7 +2873,7 @@
  
                 // 🚀 4. MEMÓRIA FANTASMA: Mantém a pessoa viva na RAM por 5 segundos mesmo que ela se esconda 
                 currentTracks.forEach(t => { 
-                    if (!claimedTrackIds.has(t.id) && (Date.now() - t.lastSeen < 5000)) { 
+                    if (!claimedTrackIds.has(t.id) && (Date.now() - t.lastSeen < 10000)) { 
                         nextTracks.push(t); 
                     } 
                 }); 
@@ -2937,14 +2962,30 @@
                         const y = pred.bbox[1] / scale; 
                         const w = pred.bbox[2] / scale; 
                         const h = pred.bbox[3] / scale; 
+                        const objKey = `${cam.id}_obj_${pred.class}_${Math.round((x + w / 2) / 60)}_${Math.round((y + h / 2) / 60)}`; 
+                        let objSmooth = smoothBoxes[objKey]; 
+                        if (!objSmooth) { 
+                            objSmooth = { x, y, w, h, ts: nowTs }; 
+                            smoothBoxes[objKey] = objSmooth; 
+                        } else { 
+                            objSmooth.x += (x - objSmooth.x) * 0.25; 
+                            objSmooth.y += (y - objSmooth.y) * 0.25; 
+                            objSmooth.w += (w - objSmooth.w) * 0.25; 
+                            objSmooth.h += (h - objSmooth.h) * 0.25; 
+                            objSmooth.ts = nowTs; 
+                        } 
+                        const sx = objSmooth.x; 
+                        const sy = objSmooth.y; 
+                        const sw = objSmooth.w; 
+                        const sh = objSmooth.h; 
                         const color = isVeh ? '#eab308' : '#ec4899'; 
                         const labelName = pred.class === 'car' ? 'CARRO' : pred.class === 'truck' ? 'CAMIÃO' : pred.class === 'motorcycle' ? 'MOTA' : pred.class === 'dog' ? 'CÃO' : pred.class === 'cat' ? 'GATO' : pred.class.toUpperCase(); 
                         const label = `${labelName} ${Math.round(pred.score * 100)}%`; 
-                        ctx.lineWidth = 3; ctx.strokeStyle = color; ctx.strokeRect(x, y, w, h); 
+                        ctx.lineWidth = 3; ctx.strokeStyle = color; ctx.strokeRect(sx, sy, sw, sh); 
                         ctx.font = 'bold 12px ui-monospace, monospace'; 
                         const textWidth = ctx.measureText(label).width; 
-                        ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(x, Math.max(0, y - 22), textWidth + 8, 22); 
-                        ctx.fillStyle = color; ctx.textBaseline = 'bottom'; ctx.fillText(label, x + 4, Math.max(16, y - 4)); 
+                        ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(sx, Math.max(0, sy - 22), textWidth + 8, 22); 
+                        ctx.fillStyle = color; ctx.textBaseline = 'bottom'; ctx.fillText(label, sx + 4, Math.max(16, sy - 4)); 
                     }); 
                     if (vCount > 0 || aCount > 0) { 
                         const boxHeight = (vCount > 0 && aCount > 0 ? 45 : 25); 
