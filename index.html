@@ -892,6 +892,7 @@
             constructor(opts = {}) {
                 this.iouThreshold = Number.isFinite(opts.iouThreshold) ? opts.iouThreshold : 0.3;
                 this.ttl = Number.isFinite(opts.ttl) ? opts.ttl : 30;
+                this.maxAgeMs = Number.isFinite(opts.maxAgeMs) ? opts.maxAgeMs : 2000;
                 this.tracks = [];
                 this.seq = 0;
             }
@@ -989,7 +990,9 @@
                     });
                 }
 
+                const now = Date.now();
                 this.tracks = this.tracks.filter(t => (t.missed || 0) <= this.ttl);
+                this.tracks = this.tracks.filter(t => t.visible === true || (now - (t.lastSeen || now)) <= this.maxAgeMs);
                 return this.tracks;
             }
         }
@@ -2618,6 +2621,7 @@
                         const vPreds = res[1] || [];
                     
                         const safeFaces = (humanResult.face || []).map(f => ({
+                          id: f.id,
                           boxRaw: f.boxRaw, boxScore: f.boxScore, score: f.score,
                           real: f.real, age: f.age, gender: f.gender, genderScore: f.genderScore,
                           embedding: f.embedding ? Array.from(f.embedding) : null
@@ -2908,7 +2912,6 @@
                 });
 
                 if (camCfg.faceRec !== false) { 
-                    const activeTracks = window.spatialTrackers[cam.id] || []; 
                     faces.forEach((face) => { 
                         const boxRaw = face.boxRaw || [0, 0, 0, 0]; 
                         const x = boxRaw[0] * canvas.width; 
@@ -2916,8 +2919,7 @@
                         const w = boxRaw[2] * canvas.width; 
                         const h = boxRaw[3] * canvas.height; 
                         if (w < 40 || h < 40) return; 
-                        let myTracker = activeTracks.find(t => !t.isVehicle && Math.hypot(t.cx - (x+w/2)/canvas.width, ((t.cyCenter !== undefined ? t.cyCenter : (t.cy - (t.bbox ? t.bbox[3] / 2 : 0)))) - (y+h/2)/canvas.height) < 0.1); 
-                        let faceId = myTracker ? myTracker.id + "_face" : 'face_orph_' + Math.round(x) + '_' + Math.round(y); 
+                        let faceId = face.id ? 'face_' + face.id : 'face_orph_' + Math.round(x/50) + '_' + Math.round(y/50); 
  
                         let sb = smoothBoxes[faceId]; 
                         if (!sb) { sb = { x, y, w, h, ts: nowTs, kind: 'face' }; smoothBoxes[faceId] = sb; } 
@@ -3115,7 +3117,8 @@
 
                 const showTracker = camCfg.flowCount === true || camCfg.perimeter === true || (camCfg.loiteringTime || 0) > 0; 
                 nextTracks.forEach(t => { 
-                    if (showTracker && Date.now() - t.lastSeen < 500) { 
+                    if (showTracker) { 
+                        if (Date.now() - t.lastSeen < 500) { 
                         const hist = t.history; 
                         if (Array.isArray(hist) && hist.length > 1) { 
                             for (let i = 1; i < hist.length; i++) { 
@@ -3137,6 +3140,7 @@
                         ctx.fillStyle = 'rgba(6, 182, 212, 0.2)'; 
                         ctx.font = 'bold 10px monospace'; 
                         ctx.fillText(`[${t.id}]`, tx + 5, ty - 5); 
+                        } 
                     } 
                     const loiteringLimit = (camCfg.loiteringTime || 0) * 1000; 
                     if (loiteringLimit > 0 && !t.alertedLoitering && isAlarmArmed(cam.id)) { 
