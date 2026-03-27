@@ -204,8 +204,7 @@ async function processFrame(imageData, camId, configOverrides) {
     }
 
     const tasks = [human.detect(imageData)];
-    if (configOverrides?.vehicles || configOverrides?.crowd || configOverrides?.flowCount) tasks.push(yoloDetect(imageData).catch(() => []));
-    else tasks.push(Promise.resolve([]));
+    tasks.push(yoloDetect(imageData).catch(() => []));
 
     const [humanResult, vPreds] = await Promise.all(tasks);
 
