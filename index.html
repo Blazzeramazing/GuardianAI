@@ -831,7 +831,7 @@
             tracker: { enabled: true }, 
             face: { 
                 enabled: true, 
-                detector: { rotation: false, return: true, minConfidence: getDetectorConf(), maxDetected: 15 }, 
+                detector: { rotation: false, return: true, minConfidence: getDetectorConf(), maxDetected: 50 }, 
                 mesh: { enabled: false }, 
                 iris: { enabled: false }, 
                 description: { enabled: true, minConfidence: getExtractConf() }, 
@@ -840,7 +840,7 @@
                 emotion: { enabled: false } 
             }, 
             body: { 
-                enabled: true, maxDetected: 15, minConfidence: 0.15 
+                enabled: true, maxDetected: 50, minConfidence: 0.10 
             }, 
             hand: { enabled: false },
             object: { enabled: false }
@@ -2506,13 +2506,15 @@
                         if (!isWaitingForWorker) { 
                             isWaitingForWorker = true; 
                             try { 
-                                const MAX_DIM = 640; 
+                                const MAX_DIM = 960; 
                                 const scale = Math.min(1, MAX_DIM / sampleCanvas.width, MAX_DIM / sampleCanvas.height); 
+                                loopState.inferScale = scale; 
                                 const w = Math.max(1, Math.round(sampleCanvas.width * scale)); 
                                 const h = Math.max(1, Math.round(sampleCanvas.height * scale)); 
                                 if (inferenceCanvas.width !== w) { inferenceCanvas.width = w; inferenceCanvas.height = h; } 
                                 infCtx.drawImage(sampleCanvas, 0, 0, w, h); 
                                 const imageData = infCtx.getImageData(0, 0, w, h); 
+                                
                                 
                                 aiWorkers[cam.id].postMessage({ type: 'PROCESS_FRAME', payload: { imageData, camId: cam.id, configOverrides: camCfg } }); 
                                 
@@ -2775,11 +2777,15 @@
                 if (vehiclePredictions && vehiclePredictions.length > 0) { 
                     vehiclePredictions.forEach(pred => { 
                         if (pred.class === 'person' && pred.score >= 0.20) { 
-                            const [px, py, pw, ph] = pred.bbox; 
+                            const scale = loopState.inferScale || 1; 
+                            const px = pred.bbox[0] / scale; 
+                            const py = pred.bbox[1] / scale; 
+                            const pw = pred.bbox[2] / scale; 
+                            const ph = pred.bbox[3] / scale; 
                             const cx = (px + pw / 2) / canvas.width; 
                             const cy = (py + ph / 2) / canvas.height; 
                             const normW = pw / canvas.width; 
-                            const alreadyExists = countTargets.some(t => Math.hypot(t.cx - cx, t.cy - cy) < 0.05); 
+                            const alreadyExists = countTargets.some(t => Math.hypot(t.cx - cx, t.cy - cy) < 0.08); 
                             if (!alreadyExists && pw >= 2) { 
                                 countTargets.push({ cx, cy, w: normW, id: null }); 
                             } 
@@ -2806,7 +2812,7 @@
                     let firstSeen = Date.now(); 
                     let alertedLoitering = false; 
                     if (assignedId == null) { 
-                        const match = currentTracks.find(t => Math.hypot(t.cx - target.cx, t.cy - target.cy) < 0.1); 
+                        const match = currentTracks.find(t => Math.hypot(t.cx - target.cx, t.cy - target.cy) < 0.15); 
                         if (match) { 
                             assignedId = match.id; 
                             trackHistory = [...match.history, {x: target.cx, y: target.cy}].slice(-10); 
@@ -2904,6 +2910,7 @@
                     const vehicleClasses = ['car', 'truck', 'bus', 'motorcycle', 'bicycle']; 
                     const animalClasses = ['dog', 'cat', 'bird', 'horse', 'cow', 'sheep', 'bear']; 
                     let vCount = 0; let aCount = 0; 
+                    const scale = loopState.inferScale || 1; 
                     vehiclePredictions.forEach(pred => { 
                         if (pred.score < 0.20) return; 
                         const isVeh = vehicleClasses.includes(pred.class); 
@@ -2911,7 +2918,10 @@
                         if (!isVeh && !isAni) return; 
                         if (isVeh) vCount++; 
                         if (isAni) aCount++; 
-                        const [x, y, w, h] = pred.bbox; 
+                        const x = pred.bbox[0] / scale; 
+                        const y = pred.bbox[1] / scale; 
+                        const w = pred.bbox[2] / scale; 
+                        const h = pred.bbox[3] / scale; 
                         const color = isVeh ? '#eab308' : '#ec4899'; 
                         const labelName = pred.class === 'car' ? 'CARRO' : pred.class === 'truck' ? 'CAMIÃO' : pred.class === 'motorcycle' ? 'MOTA' : pred.class === 'dog' ? 'CÃO' : pred.class === 'cat' ? 'GATO' : pred.class.toUpperCase(); 
                         const label = `${labelName} ${Math.round(pred.score * 100)}%`; 
