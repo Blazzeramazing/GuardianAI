@@ -47,14 +47,8 @@ function nms(boxes, scores, iouThreshold, maxDet) {
 async function initYolo() {
   if (typeof ort === 'undefined') return;
   ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
-  const providers = ['webgpu', 'webgl', 'wasm'];
-  for (const ep of providers) {
-    try {
-      yoloSession = await ort.InferenceSession.create(YOLO_MODEL_URL, { executionProviders: [ep] });
-      yoloInputName = yoloSession.inputNames[0];
-      break;
-    } catch (e) {}
-  }
+  yoloSession = await ort.InferenceSession.create(YOLO_MODEL_URL, { executionProviders: ['wasm'] });
+  yoloInputName = yoloSession.inputNames[0];
 }
 
 async function yoloDetect(imageData) {
@@ -216,6 +210,7 @@ async function processFrame(imageData, camId, configOverrides) {
     const [humanResult, vPreds] = await Promise.all(tasks);
 
     const safeFaces = (humanResult.face || []).map(f => ({
+      id: f.id,
       boxRaw: f.boxRaw, boxScore: f.boxScore, score: f.score,
       real: f.real, age: f.age, gender: f.gender, genderScore: f.genderScore,
       embedding: f.embedding ? Array.from(f.embedding) : null
