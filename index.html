@@ -2300,14 +2300,99 @@
             const canvas = document.getElementById(`canvas-${cam.id}`); 
             if (!media || !canvas) return; 
 
-            // GESTÃO DO WORKER POOL: 1 Worker = 1 Núcleo de Processamento 
+            // 1. SUBSTITUIR A GESTÃO DO WORKER POOL POR ESTE BLOCO (INLINE BLOB)
             if (!aiWorkers[cam.id]) { 
-                aiWorkers[cam.id] = new Worker('ai-worker.js'); 
+                const workerCode = `
+                    importScripts('https://cdn.jsdelivr.net/npm/@vladmandic/human@3.2.2/dist/human.js');
+                    importScripts('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs');
+                    importScripts('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd');
+ 
+                    let human = null;
+                    let objectModel = null;
+                    let isReady = false;
+ 
+                    async function initEngine(config, requestedBackend) {
+                        try {
+                            const HumanCtor = (typeof Human === 'function') ? Human : (Human?.Human || Human?.default);
+                            human = new HumanCtor(config);
+ 
+                            const backends = [requestedBackend, 'webgl', 'wasm'].filter(Boolean);
+                            let loaded = false;
+ 
+                            for (const b of backends) {
+                                try {
+                                    human.config.backend = b;
+                                    await human.load();
+                                    await human.warmup();
+                                    loaded = true;
+                                    break; 
+                                } catch (e) { }
+                            }
+ 
+                            if (!loaded) throw new Error("Hardware bloqueado ou não suportado.");
+ 
+                            try { objectModel = await cocoSsd.load({ base: 'lite_mobilenet_v2' }); } 
+                            catch (e) {}
+ 
+                            isReady = true;
+                            postMessage({ type: 'INIT_SUCCESS', backend: human.config.backend });
+                        } catch (error) {
+                            postMessage({ type: 'INIT_ERROR', error: error.message || String(error) });
+                        }
+                    }
+ 
+                    async function processFrame(imageData, camId, configOverrides) {
+                        if (!isReady || !human) {
+                            postMessage({ type: 'PROCESS_RESULT', camId, error: 'Not Ready' });
+                            return;
+                        }
+ 
+                        try {
+                            if (configOverrides) {
+                                if (configOverrides.detConf !== undefined) human.config.face.detector.minConfidence = configOverrides.detConf;
+                                if (configOverrides.extConf !== undefined) human.config.face.description.minConfidence = configOverrides.extConf;
+                            }
+ 
+                            const tasks = [human.detect(imageData)];
+                            if (configOverrides?.vehicles || configOverrides?.crowd || configOverrides?.flowCount) {
+                                 if (objectModel) tasks.push(objectModel.detect(imageData).catch(() => []));
+                                 else tasks.push(Promise.resolve([]));
+                            } else {
+                                 tasks.push(Promise.resolve([]));
+                            }
+ 
+                            const [humanResult, vPreds] = await Promise.all(tasks);
+ 
+                            const safeFaces = (humanResult.face || []).map(f => ({
+                                boxRaw: f.boxRaw, boxScore: f.boxScore, score: f.score,
+                                real: f.real, age: f.age, gender: f.gender, genderScore: f.genderScore,
+                                embedding: f.embedding ? Array.from(f.embedding) : null 
+                            }));
+ 
+                            const safeBodies = (humanResult.body || []).map(b => ({ boxRaw: b.boxRaw, id: b.id }));
+ 
+                            postMessage({ type: 'PROCESS_RESULT', camId, result: { faces: safeFaces, bodies: safeBodies, vehiclePredictions: vPreds } });
+                        } catch (error) {
+                            postMessage({ type: 'PROCESS_RESULT', camId, error: error.message || String(error) });
+                        }
+                    }
+ 
+                    onmessage = async (e) => {
+                        const { type, payload } = e.data;
+                        if (type === 'INIT_ENGINE') await initEngine(payload.config, payload.backend);
+                        if (type === 'PROCESS_FRAME') await processFrame(payload.imageData, payload.camId, payload.configOverrides);
+                    };
+                `;
+                 
+                const blob = new Blob([workerCode], { type: 'application/javascript' });
+                const workerUrl = URL.createObjectURL(blob);
+                 
+                aiWorkers[cam.id] = new Worker(workerUrl); 
                 aiWorkers[cam.id].onmessage = (e) => { 
                     const { type, backend, result, error } = e.data; 
-                     
                     if (type === 'INIT_SUCCESS') { 
-                        console.log(`[Guardian SJN] 🧠 Worker dedicado para [${cam.name}] online via: ${backend.toUpperCase()}`); 
+                        console.log(`[Guardian SJN] 🧠 Worker [${cam.name}] online via: ${backend.toUpperCase()}`); 
+                        showToast(`Motor IA Ativado: ${cam.name} (${backend.toUpperCase()})`, "success");
                     } 
                     else if (type === 'PROCESS_RESULT') { 
                         window.latestWorkerResults[cam.id] = result || { faces: [], bodies: [], vehiclePredictions: [] }; 
@@ -2315,10 +2400,10 @@
                     } 
                     else if (type === 'INIT_ERROR') { 
                         console.error(`Erro no Worker da câmara ${cam.name}:`, error); 
+                        showToast(`Falha Crítica na IA (${cam.name}): ${error}`, "error");
                     } 
                 }; 
- 
-                // Tenta forçar WebGPU para tirar partido da Radeon RX 6600 
+  
                 aiWorkers[cam.id].postMessage({ 
                     type: 'INIT_ENGINE', 
                     payload: { config: humanConfig, backend: 'webgpu' } 
@@ -2417,6 +2502,7 @@
                     } 
  
                     if (isAwake) { 
+                        latestState.isAwake = true; // Quebra o fantasma do ecrã imediatamente 
                         if (!isWaitingForWorker) { 
                             isWaitingForWorker = true; 
                             try { 
