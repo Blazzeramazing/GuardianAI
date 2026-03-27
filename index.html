@@ -2766,12 +2766,13 @@
                     }); 
                 } 
 
-                let countTargets = [];
+                let countTargets = []; 
+                // 🚀 1. FORÇA ID NULL (Para que o nosso Tracker Assuma Controlo Absoluto) 
                 bodies.forEach(b => { 
                     if (b?.boxRaw && b.boxRaw[2] * canvas.width >= 2) { 
                         const cx = (b.boxRaw[0] + b.boxRaw[2] / 2); 
                         const cy = (b.boxRaw[1] + b.boxRaw[3] / 2); 
-                        countTargets.push({ cx, cy, w: b.boxRaw[2], id: b.id }); 
+                        countTargets.push({ cx, cy, w: b.boxRaw[2], id: null }); 
                     } 
                 }); 
                 if (vehiclePredictions && vehiclePredictions.length > 0) { 
@@ -2785,55 +2786,69 @@
                             const cx = (px + pw / 2) / canvas.width; 
                             const cy = (py + ph / 2) / canvas.height; 
                             const normW = pw / canvas.width; 
-                            const alreadyExists = countTargets.some(t => Math.hypot(t.cx - cx, t.cy - cy) < 0.08); 
+                            
+                            // Evitar duplicar pessoas (Não junta Human.js com TF-SSD se for a mesma pessoa) 
+                            const alreadyExists = countTargets.some(t => Math.hypot(t.cx - cx, t.cy - cy) < 0.05); 
                             if (!alreadyExists && pw >= 2) { 
                                 countTargets.push({ cx, cy, w: normW, id: null }); 
                             } 
                         } 
                     }); 
                 } 
-
+ 
                 if (!window.spatialTrackers[cam.id]) window.spatialTrackers[cam.id] = []; 
                 let currentTracks = window.spatialTrackers[cam.id]; 
                 let nextTracks = []; 
-
+                let claimedTrackIds = new Set(); // 🚀 2. BLOQUEIO DE ROUBO DE ID 
+ 
                 countTargets.forEach(target => { 
-                    // PERFORMANCE: Só regista e processa pontos se o Mapa de Calor estiver LIGADO 
                     if (camCfg.heatmap) { 
                         if (!window.camHeatmaps[cam.id]) window.camHeatmaps[cam.id] = []; 
                         window.camHeatmaps[cam.id].push({x: target.cx, y: target.cy, ts: Date.now()}); 
                         window.camHeatmaps[cam.id] = window.camHeatmaps[cam.id].filter(p => Date.now() - p.ts < 600000); 
                     } else if (window.camHeatmaps[cam.id] && window.camHeatmaps[cam.id].length > 0) { 
-                        window.camHeatmaps[cam.id] = []; // Esvazia a memória imediatamente ao desligar 
+                        window.camHeatmaps[cam.id] = []; 
                     } 
-
-                    let assignedId = target.id; 
-                    let trackHistory = [{x: target.cx, y: target.cy}]; 
+ 
+                    let bestMatch = null; 
+                    let bestDist = 0.10; // Raio máximo para rastrear a pessoa entre frames (10% do ecrã) 
+ 
+                    // 🚀 3. PROCURA O RASTO MAIS PRÓXIMO (Exclusivo por Pessoa) 
+                    currentTracks.forEach(t => { 
+                        if (claimedTrackIds.has(t.id)) return; // Se alguém já apanhou este rasto, ignora 
+                        let dist = Math.hypot(t.cx - target.cx, t.cy - target.cy); 
+                        if (dist < bestDist) { 
+                            bestDist = dist; 
+                            bestMatch = t; 
+                        } 
+                    }); 
+ 
+                    let assignedId; 
+                    let trackHistory; 
                     let firstSeen = Date.now(); 
                     let alertedLoitering = false; 
-                    if (assignedId == null) { 
-                        const match = currentTracks.find(t => Math.hypot(t.cx - target.cx, t.cy - target.cy) < 0.15); 
-                        if (match) { 
-                            assignedId = match.id; 
-                            trackHistory = [...match.history, {x: target.cx, y: target.cy}].slice(-10); 
-                            firstSeen = match.firstSeen || Date.now(); 
-                            alertedLoitering = match.alertedLoitering || false; 
-                        } else { 
-                            assignedId = "tk_" + String(Math.floor(Math.random() * 9000) + 1000) + "_" + Date.now(); 
-                        } 
+                    let hasCrossed = false; 
+ 
+                    if (bestMatch) { 
+                        assignedId = bestMatch.id; 
+                        claimedTrackIds.add(assignedId); // Tranca este ID 
+                        trackHistory = [...bestMatch.history, {x: target.cx, y: target.cy}].slice(-20); // Aumenta tamanho da "cauda" direcional 
+                        firstSeen = bestMatch.firstSeen || Date.now(); 
+                        alertedLoitering = bestMatch.alertedLoitering || false; 
+                        hasCrossed = bestMatch.hasCrossed || false; 
                     } else { 
-                        const match = currentTracks.find(t => t.id === assignedId); 
-                        if (match) { 
-                            trackHistory = [...match.history, {x: target.cx, y: target.cy}].slice(-10); 
-                            firstSeen = match.firstSeen || Date.now(); 
-                            alertedLoitering = match.alertedLoitering || false; 
-                        } 
+                        // Pessoa Nova! Gera ID 
+                        assignedId = "tk_" + String(Math.floor(Math.random() * 9000) + 1000) + "_" + Date.now(); 
+                        trackHistory = [{x: target.cx, y: target.cy}]; 
                     } 
+ 
                     target.id = assignedId; 
-                    nextTracks.push({ cx: target.cx, cy: target.cy, id: assignedId, lastSeen: Date.now(), firstSeen, alertedLoitering, history: trackHistory, hasCrossed: currentTracks.find(t => t.id === assignedId)?.hasCrossed || false }); 
+                    nextTracks.push({ cx: target.cx, cy: target.cy, id: assignedId, lastSeen: Date.now(), firstSeen, alertedLoitering, history: trackHistory, hasCrossed }); 
                 }); 
+ 
+                // 🚀 4. MEMÓRIA FANTASMA: Mantém a pessoa viva na RAM por 5 segundos mesmo que ela se esconda 
                 currentTracks.forEach(t => { 
-                    if (!nextTracks.some(n => n.id === t.id) && (Date.now() - t.lastSeen < 2000)) { 
+                    if (!claimedTrackIds.has(t.id) && (Date.now() - t.lastSeen < 5000)) { 
                         nextTracks.push(t); 
                     } 
                 }); 
