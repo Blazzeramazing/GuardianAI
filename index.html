@@ -2380,7 +2380,7 @@
                     if (sampleCanvas.width !== canvas.width) sampleCanvas.width = canvas.width; 
                     if (sampleCanvas.height !== canvas.height) sampleCanvas.height = canvas.height; 
                     sampleCtx.drawImage(media, 0, 0, sampleCanvas.width, sampleCanvas.height); 
-
+ 
                     motionCtx.drawImage(media, 0, 0, 64, 48); 
                     const currentMotionData = motionCtx.getImageData(0, 0, 64, 48).data; 
                     let motionScore = 0; 
@@ -2393,19 +2393,26 @@
                     const wakeThreshold = camCfg.motionSens !== undefined ? camCfg.motionSens : getMotionSens(); 
                     let isAwake = (activeDrawCamId === cam.id || hadTargetsPrevFrame || motionScore >= wakeThreshold); 
                     if (isAwake) sleepTimer = 15; else if (sleepTimer > 0) { sleepTimer--; isAwake = true; } 
-
+ 
                     if (isAwake) { 
                         if (!isWaitingForWorker) { 
                             isWaitingForWorker = true; 
-                            const MAX_DIM = 640; 
-                            const scale = Math.min(1, MAX_DIM / sampleCanvas.width, MAX_DIM / sampleCanvas.height); 
-                            const w = Math.max(1, Math.round(sampleCanvas.width * scale)); 
-                            const h = Math.max(1, Math.round(sampleCanvas.height * scale)); 
-                            if (inferenceCanvas.width !== w) { inferenceCanvas.width = w; inferenceCanvas.height = h; } 
-                            infCtx.drawImage(sampleCanvas, 0, 0, w, h); 
-                            const imageData = infCtx.getImageData(0, 0, w, h); 
-                            aiWorkers[cam.id].postMessage({ type: 'PROCESS_FRAME', payload: { imageData, camId: cam.id, configOverrides: camCfg } }); 
+                            try { 
+                                const MAX_DIM = 640; 
+                                const scale = Math.min(1, MAX_DIM / sampleCanvas.width, MAX_DIM / sampleCanvas.height); 
+                                const w = Math.max(1, Math.round(sampleCanvas.width * scale)); 
+                                const h = Math.max(1, Math.round(sampleCanvas.height * scale)); 
+                                if (inferenceCanvas.width !== w) { inferenceCanvas.width = w; inferenceCanvas.height = h; } 
+                                infCtx.drawImage(sampleCanvas, 0, 0, w, h); 
+                                const imageData = infCtx.getImageData(0, 0, w, h); 
+                                
+                                aiWorkers[cam.id].postMessage({ type: 'PROCESS_FRAME', payload: { imageData, camId: cam.id, configOverrides: camCfg } }); 
+                            } catch (err) { 
+                                console.warn("[Guardian SJN] Aviso de Imagem: O vídeo pode estar protegido por CORS.", err); 
+                                isWaitingForWorker = false; 
+                            } 
                         } 
+                        
                         if (window.latestWorkerResults[cam.id].isReady) { 
                             latestState = { 
                                 faces: window.latestWorkerResults[cam.id].faces || [], 
@@ -2416,15 +2423,17 @@
                             hadTargetsPrevFrame = (latestState.bodies.length > 0 || latestState.vehiclePredictions.length > 0); 
                             globalFramesRendered++; 
                             window.latestWorkerResults[cam.id].isReady = false; 
-                            isWaitingForWorker = false; 
+                            isWaitingForWorker = false; // Tudo OK, desbloqueia para o próximo frame! 
                         } 
                         waitTime = 1; 
                     } else { 
                         latestState = { faces: [], bodies: [], vehiclePredictions: [], isAwake: false }; 
                         hadTargetsPrevFrame = false; 
                     } 
-                } catch(e) {} 
-
+                } catch(e) { 
+                    isWaitingForWorker = false; // Em caso de falha genérica extrema, quebra o Deadlock 
+                } 
+ 
                 setTimeout(inferenceLoop, waitTime); 
             } 
 
