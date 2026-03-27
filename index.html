@@ -535,7 +535,7 @@
                                     </label>
 
                                     <label class="flex items-center justify-between p-3 rounded-lg border border-gray-800 bg-gray-900 hover:bg-gray-800 cursor-pointer transition-colors">
-                                        <div><div class="text-sm font-bold text-white flex items-center gap-1">Controlo de Perímetro <span class="bg-blue-900 text-blue-300 text-[8px] px-1 rounded">EM BREVE</span></div><div class="text-[10px] text-gray-400">Linhas virtuais (Tripwires) e zonas de intrusão.</div></div>
+                                        <div><div class="text-sm font-bold text-white flex items-center gap-1">Controlo de Perímetro (Tripwire)</div><div class="text-[10px] text-gray-400">Ativa o cruzamento direcional de linhas (Entrada/Saída).</div></div>
                                         <input type="checkbox" id="mod-perim" class="w-5 h-5 accent-indigo-500" onchange="saveCamSetting('perimeter', this.checked)">
                                     </label>
 
@@ -815,21 +815,23 @@
         let hasBootedApp = false;
         
         let isAiReady = false;
+        const aiWorkers = {}; 
+        window.latestWorkerResults = {}; 
         let activeTab = 'live';
         let layout = Number(localStorage.getItem('vms_layout')) || 4;
         let faceMatcher = null;
         let human = null;
         let objectModel = null;
         let humanFaceDB = [];
-        const humanConfig = {
-            backend: 'webgl',
+        let humanConfig = {
+            // Removido backend estático para deteção dinâmica
             async: true,
             modelBasePath: 'https://vladmandic.github.io/human/models/',
             filter: { equalization: false },
-            tracker: { enabled: true }, // ESSENCIAL: Ativa o rastreamento global para gerar IDs únicos para contagem de fluxo
+            tracker: { enabled: true }, 
             face: { 
                 enabled: true, 
-                detector: { rotation: false, return: true, minConfidence: getDetectorConf(), maxDetected: 15 }, // Rotação desligada e limite de 15 rostos 
+                detector: { rotation: false, return: true, minConfidence: getDetectorConf(), maxDetected: 15 }, 
                 mesh: { enabled: false }, 
                 iris: { enabled: false }, 
                 description: { enabled: true, minConfidence: getExtractConf() }, 
@@ -838,9 +840,7 @@
                 emotion: { enabled: false } 
             }, 
             body: { 
-                enabled: true, 
-                maxDetected: 15, 
-                minConfidence: 0.15 
+                enabled: true, maxDetected: 15, minConfidence: 0.15 
             }, 
             hand: { enabled: false },
             object: { enabled: false }
@@ -889,6 +889,61 @@
         window.cameraBuffers = {};
         window.activeRecords = {};
         window.retailDemographics = { Homem: 0, Mulher: 0 };
+
+        const initDB = () => { 
+            return new Promise((resolve) => { 
+                const req = indexedDB.open('GuardianVideoBuffer', 1); 
+                req.onupgradeneeded = (e) => { 
+                    const db = e.target.result; 
+                    if (!db.objectStoreNames.contains('chunks')) { 
+                        db.createObjectStore('chunks', { keyPath: 'id' }); 
+                    } 
+                }; 
+                req.onsuccess = (e) => resolve(e.target.result); 
+            }); 
+        }; 
+        const dbPromise = initDB(); 
+
+        async function saveChunk(camId, chunkId, blob) { 
+            const db = await dbPromise; 
+            const tx = db.transaction('chunks', 'readwrite'); 
+            tx.objectStore('chunks').put({ id: `${camId}_${chunkId}`, blob }); 
+        } 
+
+        async function getChunks(camId, chunkIds) { 
+            const db = await dbPromise; 
+            const tx = db.transaction('chunks', 'readonly'); 
+            const store = tx.objectStore('chunks'); 
+            const blobs = []; 
+            for (const id of chunkIds) { 
+                const data = await new Promise(r => { const req = store.get(`${camId}_${id}`); req.onsuccess = () => r(req.result?.blob); }); 
+                if (data) blobs.push(data); 
+            } 
+            return blobs; 
+        } 
+
+        async function cleanupChunks(camId, chunkIdsToKeep) { 
+            const db = await dbPromise; 
+            const tx = db.transaction('chunks', 'readwrite'); 
+            const store = tx.objectStore('chunks'); 
+            const keep = chunkIdsToKeep.map(String); 
+            const req = store.getAllKeys(); 
+            req.onsuccess = () => { 
+                const keys = req.result.filter(k => k.startsWith(`${camId}_`) && !keep.includes(k.replace(`${camId}_`, ''))); 
+                keys.forEach(k => store.delete(k)); 
+            }; 
+        } 
+
+        async function clearAllVideoCache() { 
+            try { 
+                const db = await dbPromise; 
+                const tx = db.transaction('chunks', 'readwrite'); 
+                tx.objectStore('chunks').clear(); 
+                console.log("[Guardian SJN] 🧹 Cache de vídeo IndexedDB purgada com sucesso (Prevenção de Disk Leak)."); 
+            } catch (e) { 
+                console.warn("[Guardian SJN] Aviso: Não foi possível limpar a cache de vídeo.", e); 
+            } 
+        } 
 
         let audioCtx = null;
         let alarmOscillator = null;
@@ -1023,35 +1078,34 @@
             showToast(showContext ? "Análise de Contexto Ativada." : "Análise de Contexto Ocultada.", "info");
         };
 
-        async function initAI() {
-            try {
-                const HumanCtor = (typeof Human === 'function') ? Human : (Human?.Human || Human?.default);
-                if (!HumanCtor) throw new Error('Human indisponível');
-
-                human = new HumanCtor(humanConfig);
-                await human.load();
-                await human.warmup();
-
-                try { 
-                    objectModel = await cocoSsd.load({ base: 'lite_mobilenet_v2' }); 
-                } catch(e) { console.error("Erro ao carregar TF-SSD:", e); }
-                
-                isAiReady = true;
-                const statusElems = [document.getElementById('ai-status-desktop'), document.getElementById('ai-status-mobile')];
-                statusElems.forEach(el => {
-                    if(el) {
-                        el.innerHTML = '<i data-lucide="brain" class="w-4 h-4 inline mr-1"></i> IA Pronta';
-                        el.classList.replace('text-amber-500', 'text-green-500');
-                    }
-                });
-                lucide.createIcons();
-                if (typeof updateRegisterScanButtonUi === 'function') updateRegisterScanButtonUi();
-                
-                updateFaceMatcher();
+        async function initAI() { 
+            try { 
+                const HumanCtor = (typeof Human === 'function') ? Human : (Human?.Human || Human?.default); 
+                if (!HumanCtor) throw new Error('Biblioteca Human.js indisponível'); 
+  
+                human = new HumanCtor(humanConfig); 
+                human.config.backend = 'wasm'; // Main thread fica levíssima 
+                await human.load(); 
+  
+                // A inicialização do Worker foi movida para o startCameraAI para criar um Worker por câmara! 
+                isAiReady = true; 
+                 
+                const statusElems = [document.getElementById('ai-status-desktop'), document.getElementById('ai-status-mobile')]; 
+                statusElems.forEach(el => { 
+                    if(el) { 
+                        el.innerHTML = `<i data-lucide="cpu" class="w-4 h-4 inline mr-1"></i> IA Pronta (Múltiplos Núcleos)`; 
+                        el.classList.replace('text-amber-500', 'text-green-500'); 
+                    } 
+                }); 
+                lucide.createIcons(); 
+                if (typeof updateRegisterScanButtonUi === 'function') updateRegisterScanButtonUi(); 
+                updateFaceMatcher(); 
                 if(!document.hidden && activeTab === 'live') renderGrid(); 
-            } catch (err) {
-                console.error("Erro na IA:", err);
-            }
+                if (!window.__globalAiOrchestratorStarted) { window.__globalAiOrchestratorStarted = true; if(typeof runGlobalAIOrchestrator === 'function') runGlobalAIOrchestrator(); } 
+            } catch (err) { 
+                console.error("Erro Fatal na IA:", err); 
+                showToast(`Erro Crítico de IA: ${err.message}`, "error"); 
+            } 
         }
 
         function updateFaceMatcher() {
@@ -2245,6 +2299,31 @@
             const media = document.getElementById(`media-${cam.id}`); 
             const canvas = document.getElementById(`canvas-${cam.id}`); 
             if (!media || !canvas) return; 
+
+            // GESTÃO DO WORKER POOL: 1 Worker = 1 Núcleo de Processamento 
+            if (!aiWorkers[cam.id]) { 
+                aiWorkers[cam.id] = new Worker('ai-worker.js'); 
+                aiWorkers[cam.id].onmessage = (e) => { 
+                    const { type, backend, result, error } = e.data; 
+                     
+                    if (type === 'INIT_SUCCESS') { 
+                        console.log(`[Guardian SJN] 🧠 Worker dedicado para [${cam.name}] online via: ${backend.toUpperCase()}`); 
+                    } 
+                    else if (type === 'PROCESS_RESULT') { 
+                        window.latestWorkerResults[cam.id] = result || { faces: [], bodies: [], vehiclePredictions: [] }; 
+                        window.latestWorkerResults[cam.id].isReady = true; 
+                    } 
+                    else if (type === 'INIT_ERROR') { 
+                        console.error(`Erro no Worker da câmara ${cam.name}:`, error); 
+                    } 
+                }; 
+ 
+                // Tenta forçar WebGPU para tirar partido da Radeon RX 6600 
+                aiWorkers[cam.id].postMessage({ 
+                    type: 'INIT_ENGINE', 
+                    payload: { config: humanConfig, backend: 'webgpu' } 
+                }); 
+            } 
  
             const loopState = { active: true }; 
             aiLoops[cam.id] = loopState; 
@@ -2255,35 +2334,46 @@
             const motionCanvas = document.createElement('canvas'); 
             motionCanvas.width = 64; motionCanvas.height = 48; // Ultra Low-Res para velocidade 
             const motionCtx = motionCanvas.getContext('2d', { willReadFrequently: true }); 
+            const inferenceCanvas = document.createElement('canvas'); 
+            const infCtx = inferenceCanvas.getContext('2d', { willReadFrequently: true }); 
             let lastMotionData = null; 
             let sleepTimer = 0; 
             let hadTargetsPrevFrame = false;
 
             // ROLLING BUFFER: Guarda sempre os últimos 10 segundos na memória 
             if (!window.cameraBuffers[cam.id]) window.cameraBuffers[cam.id] = []; 
+            let chunkCounter = 0; 
             let mediaRecorder = null; 
             try { 
                 const stream = canvas.captureStream(15); 
                 mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp8' }); 
                 mediaRecorder.ondataavailable = (e) => { 
-                    if (e.data.size > 0) { 
-                        window.cameraBuffers[cam.id].push(e.data); 
-                        if (window.cameraBuffers[cam.id].length > 10) window.cameraBuffers[cam.id].shift(); 
+                    if (e.data.size > 0 && !window.activeRecords[cam.id]) { 
+                        const chunkId = chunkCounter++; 
+                        window.cameraBuffers[cam.id].push(chunkId); 
+                        saveChunk(cam.id, chunkId, e.data); 
+ 
+                        if (window.cameraBuffers[cam.id].length > 10) { 
+                            window.cameraBuffers[cam.id].shift(); 
+                            // Limpa disco de forma assíncrona 
+                            cleanupChunks(cam.id, window.cameraBuffers[cam.id]); 
+                        } 
                     } 
                 }; 
                 mediaRecorder.start(1000); 
-            } catch (err) { console.log("MediaRecorder não suportado nesta câmara."); } 
+            } catch (err) { console.log("Gravação suspensa: MediaRecorder não suportado."); } 
              
             let latestState = { faces: [], bodies: [], vehiclePredictions: [], isAwake: true }; 
+            window.latestWorkerResults[cam.id] = { faces: [], bodies: [], vehiclePredictions: [], isReady: false }; 
+            let isWaitingForWorker = false; 
 
             async function inferenceLoop() { 
                 if (!loopState.active) return; 
-                if (document.hidden || activeTab !== 'live' || !media.clientWidth || !human) { setTimeout(inferenceLoop, 1000); return; } 
+                if (document.hidden || activeTab !== 'live' || !media.clientWidth || !aiWorkers[cam.id]) { setTimeout(inferenceLoop, 1000); return; } 
                 if (media.tagName === 'VIDEO' && media.readyState < 2) { setTimeout(inferenceLoop, 500); return; } 
                 
-                const startTime = Date.now(); 
                 const camCfg = camConfigs[cam.id] || defaultCamConfig; 
-                let waitTime = 150; // Poupança agressiva quando não há movimento (Standby) 
+                let waitTime = 150; 
                 
                 try { 
                     syncCanvasToMedia(canvas, media); 
@@ -2305,28 +2395,36 @@
                     if (isAwake) sleepTimer = 15; else if (sleepTimer > 0) { sleepTimer--; isAwake = true; } 
 
                     if (isAwake) { 
-                        // OTIMIZAÇÃO EXTREMA: Executa os modelos em Paralelo na GPU (Dual-Core AI) 
-                        const tasks = [human.detect(sampleCanvas)]; 
-                        if ((camCfg.vehicles || camCfg.crowd || camCfg.flowCount) && objectModel) { 
-                            tasks.push(objectModel.detect(sampleCanvas).catch(() => [])); 
-                        } else { 
-                            tasks.push(Promise.resolve([])); 
+                        if (!isWaitingForWorker) { 
+                            isWaitingForWorker = true; 
+                            const MAX_DIM = 640; 
+                            const scale = Math.min(1, MAX_DIM / sampleCanvas.width, MAX_DIM / sampleCanvas.height); 
+                            const w = Math.max(1, Math.round(sampleCanvas.width * scale)); 
+                            const h = Math.max(1, Math.round(sampleCanvas.height * scale)); 
+                            if (inferenceCanvas.width !== w) { inferenceCanvas.width = w; inferenceCanvas.height = h; } 
+                            infCtx.drawImage(sampleCanvas, 0, 0, w, h); 
+                            const imageData = infCtx.getImageData(0, 0, w, h); 
+                            aiWorkers[cam.id].postMessage({ type: 'PROCESS_FRAME', payload: { imageData, camId: cam.id, configOverrides: camCfg } }); 
                         } 
-                        
-                        const [result, vPreds] = await Promise.all(tasks); 
-                        
-                        latestState = { faces: result.face || [], bodies: result.body || [], vehiclePredictions: vPreds, isAwake }; 
-                        hadTargetsPrevFrame = ((result.body?.length || 0) > 0 || vPreds.length > 0); 
-                        globalFramesRendered++; 
-                        
-                        waitTime = 1; // UNLEASH THE BEAST: Sem limite de FPS (0ms/1ms delay) 
+                        if (window.latestWorkerResults[cam.id].isReady) { 
+                            latestState = { 
+                                faces: window.latestWorkerResults[cam.id].faces || [], 
+                                bodies: window.latestWorkerResults[cam.id].bodies || [], 
+                                vehiclePredictions: window.latestWorkerResults[cam.id].vehiclePredictions || [], 
+                                isAwake 
+                            }; 
+                            hadTargetsPrevFrame = (latestState.bodies.length > 0 || latestState.vehiclePredictions.length > 0); 
+                            globalFramesRendered++; 
+                            window.latestWorkerResults[cam.id].isReady = false; 
+                            isWaitingForWorker = false; 
+                        } 
+                        waitTime = 1; 
                     } else { 
                         latestState = { faces: [], bodies: [], vehiclePredictions: [], isAwake: false }; 
                         hadTargetsPrevFrame = false; 
                     } 
                 } catch(e) {} 
 
-                // Dispara o próximo frame instantaneamente se acordado, ou aguarda se em Standby 
                 setTimeout(inferenceLoop, waitTime); 
             } 
 
@@ -2988,28 +3086,40 @@
             if (camCfg.telegramToken && camCfg.telegramChatId) sendTelegramPhoto(camCfg.telegramToken, camCfg.telegramChatId, "🚨 AMEAÇA DETETADA: " + cam.name, snapshot);
             if (camCfg.waUrl && camCfg.waPhone) window.sendWhatsAppAlert(camCfg.waUrl, camCfg.waToken, camCfg.waPhone, "🚨 AMEAÇA DETETADA: " + cam.name + " - Alvo: " + person.name);
 
-            if (window.cameraBuffers[cam.id] && !window.activeRecords[cam.id]) {
-                window.activeRecords[cam.id] = true;
-                const preChunks = window.cameraBuffers[cam.id].slice();
-                showToast(`Gravação de Vídeo iniciada em ${cam.name} (10s Pre + 10s Post)`, "info");
+            if (window.cameraBuffers[cam.id] && !window.activeRecords[cam.id]) { 
+                window.activeRecords[cam.id] = true; 
+                const preChunkIds = [...window.cameraBuffers[cam.id]]; // Bloqueia a lista de IDs atual 
+                showToast(`Gravação de Vídeo iniciada em ${cam.name} (10s Pre + 10s Post)`, "info"); 
                 
-                setTimeout(() => {
-                    const postChunks = window.cameraBuffers[cam.id] ? window.cameraBuffers[cam.id].slice() : [];
-                    const blob = new Blob([...preChunks, ...postChunks], { type: 'video/webm' });
-                    const videoUrl = URL.createObjectURL(blob);
-                    window.activeRecords[cam.id] = false;
-                    
-                    const logRows = document.querySelectorAll('#logs-table-body tr');
-                    if (logRows.length > 0) {
-                        const firstRow = logRows[0];
-                        const td = document.createElement('td');
-                        td.innerHTML = `<a href="${videoUrl}" download="Evento_${cam.name}_${Date.now()}.webm" class="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-500 font-bold"><i data-lucide="video" class="inline w-3 h-3 mr-1"></i>Baixar Clipe</a>`;
-                        firstRow.appendChild(td);
-                        lucide.createIcons();
-                    }
-                    showToast(`Clipe de segurança gravado e disponível em Relatórios!`, "success");
-                }, 10000);
-            }
+                // Força o gravador a guardar os frames do alarme numa memória temporária 
+                const postChunksBlobs = []; 
+                const tempHandler = (e) => { if (e.data.size > 0) postChunksBlobs.push(e.data); }; 
+                
+                try { 
+                    const stream = document.getElementById(`canvas-${cam.id}`).captureStream(15); 
+                    const tempRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp8' }); 
+                    tempRecorder.ondataavailable = tempHandler; 
+                    tempRecorder.start(1000); 
+ 
+                    setTimeout(async () => { 
+                        tempRecorder.stop(); 
+                        const preBlobs = await getChunks(cam.id, preChunkIds); 
+                        const blob = new Blob([...preBlobs, ...postChunksBlobs], { type: 'video/webm' }); 
+                        const videoUrl = URL.createObjectURL(blob); 
+                        window.activeRecords[cam.id] = false; 
+                        
+                        const logRows = document.querySelectorAll('#logs-table-body tr'); 
+                        if (logRows.length > 0) { 
+                            const firstRow = logRows[0]; 
+                            const td = document.createElement('td'); 
+                            td.innerHTML = `<a href="${videoUrl}" download="Evento_${cam.name}_${Date.now()}.webm" class="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-500 font-bold"><i data-lucide="video" class="inline w-3 h-3 mr-1"></i>Baixar Clipe</a>`; 
+                            firstRow.appendChild(td); 
+                            lucide.createIcons(); 
+                        } 
+                        showToast(`Clipe de segurança gravado e disponível em Relatórios!`, "success"); 
+                    }, 10000); 
+                } catch(e) { window.activeRecords[cam.id] = false; } 
+            } 
 
             if (!isMuted) {
                 if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -3951,6 +4061,7 @@
         }, 1000);
 
         function bootApp() {
+            clearAllVideoCache(); // Limpa o lixo de sessões anteriores/crashes 
             if (![1, 4, 9].includes(layout)) layout = 4;
             [1, 4, 9].forEach(n => {
                 const btn = document.getElementById(`btn-layout-${n}`);
