@@ -2367,6 +2367,8 @@
             window.latestWorkerResults[cam.id] = { faces: [], bodies: [], vehiclePredictions: [], isReady: false }; 
             let isWaitingForWorker = false; 
 
+            let framesSinceLastAwake = 0; // NOVO: Heartbeat 
+
             async function inferenceLoop() { 
                 if (!loopState.active) return; 
                 if (document.hidden || activeTab !== 'live' || !media.clientWidth || !aiWorkers[cam.id]) { setTimeout(inferenceLoop, 1000); return; } 
@@ -2385,14 +2387,34 @@
                     const currentMotionData = motionCtx.getImageData(0, 0, 64, 48).data; 
                     let motionScore = 0; 
                     if (lastMotionData) { 
-                        for (let i = 0; i < currentMotionData.length; i += 4) motionScore += Math.abs(currentMotionData[i] - lastMotionData[i]); 
-                        motionScore = motionScore / (64 * 48); 
+                        let changedPixels = 0; 
+                        for (let i = 0; i < currentMotionData.length; i += 4) { 
+                            const diff = Math.abs(currentMotionData[i] - lastMotionData[i]) + 
+                                         Math.abs(currentMotionData[i+1] - lastMotionData[i+1]) + 
+                                         Math.abs(currentMotionData[i+2] - lastMotionData[i+2]); 
+                            if (diff > 45) changedPixels++; 
+                        } 
+                        motionScore = (changedPixels / 3072) * 100; 
                     } 
-                    lastMotionData = currentMotionData; 
                     
-                    const wakeThreshold = camCfg.motionSens !== undefined ? camCfg.motionSens : getMotionSens(); 
-                    let isAwake = (activeDrawCamId === cam.id || hadTargetsPrevFrame || motionScore >= wakeThreshold); 
-                    if (isAwake) sleepTimer = 15; else if (sleepTimer > 0) { sleepTimer--; isAwake = true; } 
+                    // CORREÇÃO CRÍTICA: Deep Copy do Array para não passar por referência! 
+                    lastMotionData = new Uint8ClampedArray(currentMotionData); 
+                    
+                    const rawSens = camCfg.motionSens !== undefined ? camCfg.motionSens : getMotionSens(); 
+                    const wakeThreshold = rawSens / 10; 
+                    
+                    framesSinceLastAwake++; 
+                    
+                    // ACORDA SE: Há movimento OU desenhou linha OU tinha alvos no frame anterior OU o Heartbeat forçou (15 loops) 
+                    let isAwake = (activeDrawCamId === cam.id || hadTargetsPrevFrame || motionScore >= wakeThreshold || framesSinceLastAwake > 15); 
+                    
+                    if (isAwake) { 
+                        framesSinceLastAwake = 0; // Reset ao Heartbeat 
+                        sleepTimer = 30; 
+                    } else if (sleepTimer > 0) { 
+                        sleepTimer--; 
+                        isAwake = true; 
+                    } 
  
                     if (isAwake) { 
                         if (!isWaitingForWorker) { 
@@ -2407,8 +2429,10 @@
                                 const imageData = infCtx.getImageData(0, 0, w, h); 
                                 
                                 aiWorkers[cam.id].postMessage({ type: 'PROCESS_FRAME', payload: { imageData, camId: cam.id, configOverrides: camCfg } }); 
+                                
+                                setTimeout(() => { isWaitingForWorker = false; }, 2000); 
                             } catch (err) { 
-                                console.warn("[Guardian SJN] Aviso de Imagem: O vídeo pode estar protegido por CORS.", err); 
+                                console.warn("[Guardian SJN] Erro ao enviar frame para o Worker:", err); 
                                 isWaitingForWorker = false; 
                             } 
                         } 
@@ -2423,7 +2447,7 @@
                             hadTargetsPrevFrame = (latestState.bodies.length > 0 || latestState.vehiclePredictions.length > 0); 
                             globalFramesRendered++; 
                             window.latestWorkerResults[cam.id].isReady = false; 
-                            isWaitingForWorker = false; // Tudo OK, desbloqueia para o próximo frame! 
+                            isWaitingForWorker = false; 
                         } 
                         waitTime = 1; 
                     } else { 
@@ -2431,7 +2455,7 @@
                         hadTargetsPrevFrame = false; 
                     } 
                 } catch(e) { 
-                    isWaitingForWorker = false; // Em caso de falha genérica extrema, quebra o Deadlock 
+                    isWaitingForWorker = false; 
                 } 
  
                 setTimeout(inferenceLoop, waitTime); 
