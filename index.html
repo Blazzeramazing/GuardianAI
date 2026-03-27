@@ -2455,14 +2455,10 @@
                     async function initYolo() {
                       if (typeof ort === 'undefined') return;
                       ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
-                      const providers = ['webgpu', 'webgl', 'wasm'];
-                      for (const ep of providers) {
-                        try {
-                          yoloSession = await ort.InferenceSession.create(YOLO_MODEL_URL, { executionProviders: [ep] });
-                          yoloInputName = yoloSession.inputNames[0];
-                          break;
-                        } catch (e) {}
-                      }
+                      try {
+                        yoloSession = await ort.InferenceSession.create(YOLO_MODEL_URL, { executionProviders: ['wasm'] });
+                        yoloInputName = yoloSession.inputNames[0];
+                      } catch (e) {}
                     }
                     
                     async function yoloDetect(imageData) {
@@ -2766,7 +2762,7 @@
                         if (!isWaitingForWorker) { 
                             isWaitingForWorker = true; 
                             try { 
-                                const MAX_DIM = 960; 
+                                const MAX_DIM = 1280; 
                                 const scale = Math.min(1, MAX_DIM / sampleCanvas.width, MAX_DIM / sampleCanvas.height); 
                                 loopState.inferScale = scale; 
                                 const w = Math.max(1, Math.round(sampleCanvas.width * scale)); 
@@ -2924,29 +2920,27 @@
                         let faceId = myTracker ? myTracker.id + "_face" : 'face_orph_' + Math.round(x) + '_' + Math.round(y); 
  
                         let sb = smoothBoxes[faceId]; 
-                        if (!sb) { sb = { x, y, w, h, ts: nowTs }; smoothBoxes[faceId] = sb; } 
-                        else { sb.targetX = x; sb.targetY = y; sb.targetW = w; sb.targetH = h; sb.ts = nowTs; } 
+                        if (!sb) { sb = { x, y, w, h, ts: nowTs, kind: 'face' }; smoothBoxes[faceId] = sb; } 
+                        sb.kind = 'face'; 
+                        sb.targetX = x; sb.targetY = y; sb.targetW = w; sb.targetH = h; sb.ts = nowTs; 
  
                         if (sb.targetX !== undefined) sb.x += (sb.targetX - sb.x) * 0.3; 
                         if (sb.targetY !== undefined) sb.y += (sb.targetY - sb.y) * 0.3; 
                         if (sb.targetW !== undefined) sb.w += (sb.targetW - sb.w) * 0.3; 
                         if (sb.targetH !== undefined) sb.h += (sb.targetH - sb.h) * 0.3; 
  
-                        const sx = sb.x; 
-                        const sy = sb.y; 
-                        const sw = sb.w; 
-                        const sh = sb.h; 
-
                         const score = face.boxScore || face.score || 0; 
                         const detLimit = camCfg.detConf !== undefined ? camCfg.detConf : getDetectorConf(); 
                         if (score < detLimit) return; 
                         const isReal = face.real !== undefined ? face.real : 1.0; 
                         const livenessLimit = camCfg.liveness !== undefined ? camCfg.liveness : getLivenessConf(); 
                         if (isReal < livenessLimit) { 
-                            ctx.lineWidth = 4; ctx.strokeStyle = '#ef4444'; ctx.strokeRect(sx, sy, sw, sh); 
-                            ctx.fillStyle = '#ef4444'; ctx.fillRect(sx, Math.max(0, sy - 22), 150, 22); 
-                            ctx.fillStyle = 'white'; ctx.font = 'bold 12px ui-monospace, monospace'; 
-                            ctx.fillText("⚠️ FRAUDE/FOTO", sx + 4, Math.max(16, sy - 4)); 
+                            sb.color = '#ef4444'; 
+                            sb.text = "⚠️ FRAUDE/FOTO"; 
+                            sb.lineWidth = 4; 
+                            sb.bannerBg = '#ef4444'; 
+                            sb.textColor = 'white'; 
+                            sb.font = 'bold 12px ui-monospace, monospace'; 
                             return; 
                         } 
                         let demoText = ''; 
@@ -3034,16 +3028,12 @@
                             text = `Biometria Inativa${demoText}${colorText}`;  
                             color = '#9ca3af';  
                         }
-                        ctx.lineWidth = 3; 
-                        ctx.strokeStyle = color; 
-                        ctx.strokeRect(sx, sy, sw, sh); 
-                        ctx.font = '14px ui-monospace, monospace'; 
-                        ctx.textBaseline = 'bottom'; 
-                        const textWidth = ctx.measureText(text).width; 
-                        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; 
-                        ctx.fillRect(sx, Math.max(0, sy - 22), textWidth + 8, 22); 
-                        ctx.fillStyle = color; 
-                        ctx.fillText(text, sx + 4, Math.max(16, sy - 4)); 
+                        sb.color = color; 
+                        sb.text = text; 
+                        sb.lineWidth = 3; 
+                        sb.bannerBg = 'rgba(0, 0, 0, 0.6)'; 
+                        sb.textColor = color; 
+                        sb.font = '14px ui-monospace, monospace'; 
                         if (person) { 
                             const now = Date.now(); 
                             const lastTime = lastDetectionTime[person.id] || 0; 
@@ -3053,33 +3043,32 @@
                             } 
                         }
                     }); 
+                    Object.values(smoothBoxes).forEach(sb => { 
+                        if (!sb || sb.kind !== 'face') return; 
+                        if (nowTs - sb.ts > 500) return; 
+                        const sx = sb.x; 
+                        const sy = sb.y; 
+                        const sw = sb.w; 
+                        const sh = sb.h; 
+                        ctx.lineWidth = sb.lineWidth || 3; 
+                        ctx.strokeStyle = sb.color || '#3b82f6'; 
+                        ctx.strokeRect(sx, sy, sw, sh); 
+                        const text = sb.text || ''; 
+                        if (text) { 
+                            ctx.font = sb.font || '14px ui-monospace, monospace'; 
+                            ctx.textBaseline = 'bottom'; 
+                            const textWidth = ctx.measureText(text).width; 
+                            ctx.fillStyle = sb.bannerBg || 'rgba(0, 0, 0, 0.6)'; 
+                            ctx.fillRect(sx, Math.max(0, sy - 22), textWidth + 8, 22); 
+                            ctx.fillStyle = sb.textColor || sb.color || '#3b82f6'; 
+                            ctx.fillText(text, sx + 4, Math.max(16, sy - 4)); 
+                        } 
+                    }); 
                 } 
 
                 const detections = []; 
-                bodies.forEach(b => { 
-                    const box = b?.boxRaw; 
-                    if (!Array.isArray(box) || box.length < 4) return; 
-                    if (box[2] * canvas.width < 2) return; 
-                    detections.push({ bbox: [box[0], box[1], box[2], box[3]], cls: 'person', score: 1, isVehicle: false }); 
-                }); 
                 if (vehiclePredictions && vehiclePredictions.length > 0) { 
                     const scale = loopState.inferScale || 1; 
-                    const iouBox = (a, b) => { 
-                        const ax1 = a[0], ay1 = a[1], ax2 = a[0] + a[2], ay2 = a[1] + a[3]; 
-                        const bx1 = b[0], by1 = b[1], bx2 = b[0] + b[2], by2 = b[1] + b[3]; 
-                        const ix1 = Math.max(ax1, bx1); 
-                        const iy1 = Math.max(ay1, by1); 
-                        const ix2 = Math.min(ax2, bx2); 
-                        const iy2 = Math.min(ay2, by2); 
-                        const iw = Math.max(0, ix2 - ix1); 
-                        const ih = Math.max(0, iy2 - iy1); 
-                        const inter = iw * ih; 
-                        const areaA = Math.max(0, a[2]) * Math.max(0, a[3]); 
-                        const areaB = Math.max(0, b[2]) * Math.max(0, b[3]); 
-                        const union = areaA + areaB - inter; 
-                        if (union <= 0) return 0; 
-                        return inter / union; 
-                    }; 
                     vehiclePredictions.forEach(pred => { 
                         if (!pred?.bbox || pred.score < 0.20) return; 
                         const px = pred.bbox[0] / scale; 
@@ -3093,10 +3082,6 @@
                         if (!Number.isFinite(nx) || !Number.isFinite(ny) || !Number.isFinite(nw) || !Number.isFinite(nh)) return; 
                         const bbox = [nx, ny, nw, nh]; 
                         const cls = pred.class || 'object'; 
-                        if (cls === 'person') { 
-                            const overlaps = detections.some(d => d.isVehicle !== true && iouBox(d.bbox, bbox) > 0.40); 
-                            if (overlaps) return; 
-                        } 
                         detections.push({ bbox, cls, score: pred.score || 0, isVehicle: (cls !== 'person') }); 
                     }); 
                 } 
@@ -3128,8 +3113,9 @@
                     countTargets.push({ cx: t.cx, cy: t.cy, w: t.w || (t.bbox ? t.bbox[2] : 0), id: t.id }); 
                 }); 
 
+                const showTracker = camCfg.flowCount === true || camCfg.perimeter === true || (camCfg.loiteringTime || 0) > 0; 
                 nextTracks.forEach(t => { 
-                    if (Date.now() - t.lastSeen < 500) { 
+                    if (showTracker && Date.now() - t.lastSeen < 500) { 
                         const hist = t.history; 
                         if (Array.isArray(hist) && hist.length > 1) { 
                             for (let i = 1; i < hist.length; i++) { 
