@@ -1445,14 +1445,8 @@
                         offCtx.drawImage(img, 0, 0, img.width, img.height);
 
                         const focus = humanFocus || human;
-                        const tf = focus?.tf;
-                        tf?.engine?.startScope?.();
-                        let result = null;
-                        try {
-                            result = await focus.detect(offCanvas);
-                        } finally {
-                            tf?.engine?.endScope?.();
-                        }
+                        if (!focus || typeof focus.detect !== 'function') throw new Error('IA indisponível');
+                        const result = await focus.detect(offCanvas);
 
                         if (result?.face?.length > 0 && result.face[0]?.embedding?.length) {
                             tempDescriptors.push(Array.from(result.face[0].embedding));
@@ -2367,11 +2361,7 @@
 
                     if (isAwake) { 
                         // OTIMIZAÇÃO EXTREMA: Executa os modelos em Paralelo na GPU (Dual-Core AI) 
-                        const tfLite = human?.tf;
-                        const tasks = [(async () => {
-                            tfLite?.engine?.startScope?.();
-                            try { return await human.detect(sampleCanvas); } finally { tfLite?.engine?.endScope?.(); }
-                        })()]; 
+                        const tasks = [human.detect(sampleCanvas)]; 
                         if ((camCfg.vehicles || camCfg.crowd || camCfg.flowCount) && objectModel) { 
                             tasks.push(objectModel.detect(sampleCanvas).catch(() => [])); 
                         } else { 
@@ -2398,7 +2388,7 @@
                                 if (memo?.personId && memo.lockUntilFrame && inferenceFrame <= memo.lockUntilFrame) continue;
                                 if (memo?.retryAfterFrame && inferenceFrame < memo.retryAfterFrame) continue;
                                 const score = f.boxScore || f.score || 0;
-                                if (score < 0.7) continue;
+                                if (score < (camCfg.detConf !== undefined ? camCfg.detConf : 0.60)) continue;
                                 const w = boxRaw[2] * canvas.width;
                                 const h = boxRaw[3] * canvas.height;
                                 if (w < minSize || h < minSize) continue;
@@ -2412,7 +2402,7 @@
                                 faceFocusMemory[id].analyzing = true;
 
                                 const boxRaw = candidate.boxRaw;
-                                const pad = 0.25;
+                                const pad = 0.40;
                                 let sx = (boxRaw[0] - boxRaw[2] * pad) * srcW;
                                 let sy = (boxRaw[1] - boxRaw[3] * pad) * srcH;
                                 let sw = (boxRaw[2] + boxRaw[2] * pad * 2) * srcW;
@@ -2429,67 +2419,62 @@
                                 if (focusCanvas.height !== cropH) focusCanvas.height = cropH;
                                 focusCtx.drawImage(media, sx, sy, sw, sh, 0, 0, cropW, cropH);
 
-                                const tfFocus = humanFocus?.tf;
-                                tfFocus?.engine?.startScope?.();
-                                let focusRes = null;
-                                try {
-                                    focusRes = await humanFocus.detect(focusCanvas);
-                                } catch (e) {
-                                    focusRes = null;
-                                } finally {
-                                    tfFocus?.engine?.endScope?.();
-                                }
-
-                                const face0 = focusRes?.face?.[0];
-                                const embedding = face0?.embedding;
-                                let bestSim = 0;
-                                let bestDb = null;
-                                if (embedding && embedding.length > 0) {
-                                    for (let j = 0; j < humanFaceDB.length; j++) {
-                                        const dbFace = humanFaceDB[j];
-                                        if (!dbFace.descriptor || embedding.length !== dbFace.descriptor.length) continue;
-                                        try {
-                                            const matchResult = human.match.similarity(embedding, dbFace.descriptor);
-                                            const sim = typeof matchResult === 'number' ? matchResult : (matchResult?.similarity || 0);
-                                            if (sim > bestSim) { bestSim = sim; bestDb = dbFace; }
-                                        } catch(e) {}
-                                    }
-                                }
-
-                                const BASE_HUMANA = getBaseHumana();
-                                const MAX_MODELO = getMaxModelo();
-                                let certezaBiometrica = 0;
-                                if (bestSim > BASE_HUMANA) {
-                                    certezaBiometrica = (bestSim - BASE_HUMANA) / (MAX_MODELO - BASE_HUMANA);
-                                    certezaBiometrica = Math.max(0, Math.min(1, certezaBiometrica));
-                                }
-                                const pctUnica = Math.round(certezaBiometrica * 100);
-                                const rawUserThreshold = getAiConfidence();
-                                let limiteReal = 0;
-                                if (rawUserThreshold > BASE_HUMANA) {
-                                    limiteReal = (rawUserThreshold - BASE_HUMANA) / (MAX_MODELO - BASE_HUMANA);
-                                    limiteReal = Math.max(0, Math.min(1, limiteReal));
-                                }
-
-                                if (bestDb && certezaBiometrica >= limiteReal && pctUnica > 0) {
-                                    const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb;
-                                    faceFocusMemory[id] = {
-                                        personId: bestDb.id,
-                                        name: matchedPerson.name,
-                                        level: matchedPerson.level,
-                                        lastPct: pctUnica,
-                                        lockUntilFrame: inferenceFrame + 45,
-                                        retryAfterFrame: inferenceFrame + 45,
-                                        analyzing: false
-                                    };
-                                } else {
-                                    faceFocusMemory[id].personId = null;
-                                    faceFocusMemory[id].name = null;
-                                    faceFocusMemory[id].level = null;
-                                    faceFocusMemory[id].lastPct = null;
-                                    faceFocusMemory[id].lockUntilFrame = null;
+                                const focusRes = await humanFocus.detect(focusCanvas);
+                                if (!focusRes || !focusRes.face || focusRes.face.length === 0) {
                                     faceFocusMemory[id].analyzing = false;
                                     faceFocusMemory[id].retryAfterFrame = inferenceFrame + 15;
+                                } else {
+                                    const face0 = focusRes?.face?.[0];
+                                    const embedding = face0?.embedding;
+                                    let bestSim = 0;
+                                    let bestDb = null;
+                                    if (embedding && embedding.length > 0) {
+                                        for (let j = 0; j < humanFaceDB.length; j++) {
+                                            const dbFace = humanFaceDB[j];
+                                            if (!dbFace.descriptor || embedding.length !== dbFace.descriptor.length) continue;
+                                            try {
+                                                const matchResult = human.match.similarity(embedding, dbFace.descriptor);
+                                                const sim = typeof matchResult === 'number' ? matchResult : (matchResult?.similarity || 0);
+                                                if (sim > bestSim) { bestSim = sim; bestDb = dbFace; }
+                                            } catch(e) {}
+                                        }
+                                    }
+
+                                    const BASE_HUMANA = getBaseHumana();
+                                    const MAX_MODELO = getMaxModelo();
+                                    let certezaBiometrica = 0;
+                                    if (bestSim > BASE_HUMANA) {
+                                        certezaBiometrica = (bestSim - BASE_HUMANA) / (MAX_MODELO - BASE_HUMANA);
+                                        certezaBiometrica = Math.max(0, Math.min(1, certezaBiometrica));
+                                    }
+                                    const pctUnica = Math.round(certezaBiometrica * 100);
+                                    const rawUserThreshold = getAiConfidence();
+                                    let limiteReal = 0;
+                                    if (rawUserThreshold > BASE_HUMANA) {
+                                        limiteReal = (rawUserThreshold - BASE_HUMANA) / (MAX_MODELO - BASE_HUMANA);
+                                        limiteReal = Math.max(0, Math.min(1, limiteReal));
+                                    }
+
+                                    if (bestDb && certezaBiometrica >= limiteReal && pctUnica > 0) {
+                                        const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb;
+                                        faceFocusMemory[id] = {
+                                            personId: bestDb.id,
+                                            name: matchedPerson.name,
+                                            level: matchedPerson.level,
+                                            lastPct: pctUnica,
+                                            lockUntilFrame: inferenceFrame + 45,
+                                            retryAfterFrame: inferenceFrame + 45,
+                                            analyzing: false
+                                        };
+                                    } else {
+                                        faceFocusMemory[id].personId = null;
+                                        faceFocusMemory[id].name = null;
+                                        faceFocusMemory[id].level = null;
+                                        faceFocusMemory[id].lastPct = null;
+                                        faceFocusMemory[id].lockUntilFrame = null;
+                                        faceFocusMemory[id].analyzing = false;
+                                        faceFocusMemory[id].retryAfterFrame = inferenceFrame + 15;
+                                    }
                                 }
                             }
                         }
