@@ -2639,17 +2639,40 @@
                     
                       if (dims.length === 3 && (dims[1] === 8400 || dims[2] === 8400)) {
                         const numClasses = cols - 4;
+                        let useSigmoid = false;
+                        {
+                          let sMin = Infinity;
+                          let sMax = -Infinity;
+                          const rMax = Math.min(rows, 10);
+                          const cMax = Math.min(numClasses, 6);
+                          for (let r = 0; r < rMax; r++) {
+                            const base = transposed ? r : r * strideRow;
+                            for (let c = 0; c < cMax; c++) {
+                              const v = transposed ? raw[(4 + c) * strideCol + r] : raw[base + 4 + c];
+                              if (v < sMin) sMin = v;
+                              if (v > sMax) sMax = v;
+                            }
+                          }
+                          if (sMax > 1 || sMin < 0) useSigmoid = true;
+                        }
                         for (let r = 0; r < rows; r++) {
                           const base = transposed ? r : r * strideRow;
-                          const xc = transposed ? raw[0 * strideCol + r] : raw[base + 0];
-                          const yc = transposed ? raw[1 * strideCol + r] : raw[base + 1];
-                          const w = transposed ? raw[2 * strideCol + r] : raw[base + 2];
-                          const h = transposed ? raw[3 * strideCol + r] : raw[base + 3];
+                          let xc = transposed ? raw[0 * strideCol + r] : raw[base + 0];
+                          let yc = transposed ? raw[1 * strideCol + r] : raw[base + 1];
+                          let w = transposed ? raw[2 * strideCol + r] : raw[base + 2];
+                          let h = transposed ? raw[3 * strideCol + r] : raw[base + 3];
+                          if (xc <= 1.5 && yc <= 1.5 && w <= 1.5 && h <= 1.5) {
+                            xc *= YOLO_INPUT_SIZE;
+                            yc *= YOLO_INPUT_SIZE;
+                            w *= YOLO_INPUT_SIZE;
+                            h *= YOLO_INPUT_SIZE;
+                          }
                       
                           let best = -1;
                           let bestScore = 0;
                           for (let c = 0; c < numClasses; c++) {
-                            const s = transposed ? raw[(4 + c) * strideCol + r] : raw[base + 4 + c];
+                            let s = transposed ? raw[(4 + c) * strideCol + r] : raw[base + 4 + c];
+                            if (useSigmoid) s = 1 / (1 + Math.exp(-s));
                             if (s > bestScore) { bestScore = s; best = c; }
                           }
                           if (bestScore < scoreThreshold) continue;
@@ -2663,14 +2686,34 @@
                           classIds.push(best);
                         }
                       } else {
+                        let useSigmoid = false;
+                        {
+                          let sMin = Infinity;
+                          let sMax = -Infinity;
+                          const rMax = Math.min(rows, 20);
+                          for (let r = 0; r < rMax; r++) {
+                            const base = r * strideRow;
+                            const v = raw[base + 4];
+                            if (v < sMin) sMin = v;
+                            if (v > sMax) sMax = v;
+                          }
+                          if (sMax > 1 || sMin < 0) useSigmoid = true;
+                        }
                         for (let r = 0; r < rows; r++) {
                           const base = r * strideRow;
-                          const x1 = raw[base + 0];
-                          const y1 = raw[base + 1];
-                          const x2 = raw[base + 2];
-                          const y2 = raw[base + 3];
-                          const s = raw[base + 4];
+                          let x1 = raw[base + 0];
+                          let y1 = raw[base + 1];
+                          let x2 = raw[base + 2];
+                          let y2 = raw[base + 3];
+                          let s = raw[base + 4];
                           const cls = raw[base + 5];
+                          if (useSigmoid) s = 1 / (1 + Math.exp(-s));
+                          if (x2 <= 1.5 && y2 <= 1.5) {
+                            x1 *= YOLO_INPUT_SIZE;
+                            y1 *= YOLO_INPUT_SIZE;
+                            x2 *= YOLO_INPUT_SIZE;
+                            y2 *= YOLO_INPUT_SIZE;
+                          }
                           if (s < scoreThreshold) continue;
                           boxes.push([x1, y1, x2, y2]);
                           scores.push(s);
