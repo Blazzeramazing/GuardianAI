@@ -520,6 +520,29 @@
                                 </div>
                                 <input id="min-face-size" type="range" min="10" max="250" step="5" class="w-full accent-blue-500">
                             </div>
+
+                            <div class="bg-gray-950 border border-gray-800 rounded-xl p-5">
+                                <div class="flex items-center justify-between gap-4 mb-3">
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-semibold text-white">Presets de Biometria (Distância)</div>
+                                        <div class="text-xs text-gray-400">Aplica um conjunto de parâmetros para alcance e percentagem alvo.</div>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                    <button onclick="applyBiometryPreset('near')" class="bg-gray-900 hover:bg-blue-900/20 border border-gray-700 hover:border-blue-500 text-gray-200 py-3 rounded-lg flex flex-col items-center justify-center gap-1 transition-all">
+                                        <span class="font-black text-sm text-white">Perto (1m)</span>
+                                        <span class="text-[10px] uppercase tracking-wider text-gray-500">≥ 95,5% certeza</span>
+                                    </button>
+                                    <button onclick="applyBiometryPreset('mid')" class="bg-gray-900 hover:bg-blue-900/20 border border-gray-700 hover:border-blue-500 text-gray-200 py-3 rounded-lg flex flex-col items-center justify-center gap-1 transition-all">
+                                        <span class="font-black text-sm text-white">Média (3m)</span>
+                                        <span class="text-[10px] uppercase tracking-wider text-gray-500">≥ 70–80% certeza</span>
+                                    </button>
+                                    <button onclick="applyBiometryPreset('far')" class="bg-gray-900 hover:bg-blue-900/20 border border-gray-700 hover:border-blue-500 text-gray-200 py-3 rounded-lg flex flex-col items-center justify-center gap-1 transition-all">
+                                        <span class="font-black text-sm text-white">Distante (5m)</span>
+                                        <span class="text-[10px] uppercase tracking-wider text-gray-500">≥ 55–65% certeza</span>
+                                    </button>
+                                </div>
+                            </div>
                             
                             <div class="bg-gray-950 border border-gray-800 rounded-xl p-5">
                                 <div class="flex items-center justify-between gap-4 mb-3">
@@ -2157,6 +2180,60 @@
             }
             updateMuteButton();
             showToast(isMuted ? "Sons desativados." : "Sons ativados.", "success");
+        };
+
+        window.applyBiometryPreset = (mode) => {
+            const presets = {
+                near: {
+                    vms_det_conf: 0.15,
+                    vms_ghost_conf: 0.35,
+                    vms_ext_conf: 0.60,
+                    vms_liveness_on: '1',
+                    vms_liveness_conf: 0.45,
+                    vms_min_face_size: 140,
+                    vms_ai_maxdim: 1280,
+                    vms_heavy_interval: 100,
+                    vms_base_humana: 0.45,
+                    vms_max_modelo: 0.87,
+                    vms_ai_confidence: 0.85,
+                    vms_max_detected: 20
+                },
+                mid: {
+                    vms_det_conf: 0.12,
+                    vms_ghost_conf: 0.30,
+                    vms_ext_conf: 0.50,
+                    vms_liveness_on: '1',
+                    vms_liveness_conf: 0.45,
+                    vms_min_face_size: 90,
+                    vms_ai_maxdim: 1440,
+                    vms_heavy_interval: 100,
+                    vms_base_humana: 0.45,
+                    vms_max_modelo: 0.85,
+                    vms_ai_confidence: 0.75,
+                    vms_max_detected: 30
+                },
+                far: {
+                    vms_det_conf: 0.10,
+                    vms_ghost_conf: 0.25,
+                    vms_ext_conf: 0.45,
+                    vms_liveness_on: '1',
+                    vms_liveness_conf: 0.45,
+                    vms_min_face_size: 55,
+                    vms_ai_maxdim: 1600,
+                    vms_heavy_interval: 100,
+                    vms_base_humana: 0.45,
+                    vms_max_modelo: 0.85,
+                    vms_ai_confidence: 0.65,
+                    vms_max_detected: 35
+                }
+            };
+            const p = presets[String(mode)] || presets.mid;
+            for (const [k, v] of Object.entries(p)) localStorage.setItem(k, String(v));
+            applyHumanSettings();
+            try { updateFaceMatcher(); } catch {}
+            hydrateSettingsControls();
+            const label = mode === 'near' ? 'Perto (1m)' : mode === 'far' ? 'Distante (5m)' : 'Média (3m)';
+            showToast(`Preset aplicado: ${label}`, "success");
         };
 
         function hydrateSettingsControls() {
