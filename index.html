@@ -2495,6 +2495,7 @@
                 yoloInterval = isFocus ? Math.max(80, Math.round(yoloInterval * 0.6)) : Math.min(2500, Math.round(yoloInterval * 1.8));
             }
             configOverrides.yoloIntervalMs = yoloInterval;
+            if (isFocus) configOverrides.fastFaceTrack = true;
 
             let dimCap = Number(camCfg?.aiMaxDim ?? defaultCamConfig.aiMaxDim);
             if (!Number.isFinite(dimCap)) dimCap = defaultCamConfig.aiMaxDim;
@@ -2926,7 +2927,23 @@
                         const res = await Promise.all(tasks);
                         const humanResult = res[0] || {};
                         const vPreds = res[1] || [];
-                    
+                // Alternância leve/pesada para rastreamento suave
+                const nowTs = Date.now();
+                const heavyIntervalMs = 800;
+                const doHeavy = (!self.__lastHeavyFaceRun) || ((nowTs - self.__lastHeavyFaceRun) > heavyIntervalMs);
+                try {
+                  if (doHeavy) {
+                    human.config.face.description.enabled = true;
+                    human.config.face.antispoof.enabled = true;
+                    human.config.body.enabled = true;
+                  } else {
+                    human.config.face.description.enabled = false;
+                    human.config.face.antispoof.enabled = false;
+                    human.config.body.enabled = false;
+                  }
+                } catch(_) {}
+                if (doHeavy) self.__lastHeavyFaceRun = nowTs;
+
                         const safeFaces = (humanResult.face || []).map(f => ({
                           id: f.id,
                           boxRaw: f.boxRaw, boxScore: f.boxScore, score: f.score,
@@ -3326,11 +3343,14 @@
                         let text = 'Desconhecido';  
                         let person = null;  
                         const embedding = face.embedding;  
+                        const hadEmbedding = Array.isArray(embedding) && embedding.length > 0;
+                        const prevText = sb.text;
+                        const prevColor = sb.color;
                         let bestSim = 0;  
                         let bestDb = null;  
                         const TAMANHO_MINIMO_RECONHECIMENTO = camCfg.minSize !== undefined ? camCfg.minSize : getMinFaceSize();  
                         if (w >= TAMANHO_MINIMO_RECONHECIMENTO && h >= TAMANHO_MINIMO_RECONHECIMENTO) {  
-                            if (embedding && embedding.length > 0 && humanFaceDB.length > 0) {  
+                            if (hadEmbedding && humanFaceDB.length > 0) {  
                                 for (let j = 0; j < humanFaceDB.length; j++) {  
                                     const dbFace = humanFaceDB[j];  
                                     if (!dbFace.descriptor || embedding.length !== dbFace.descriptor.length) continue;  
@@ -3372,16 +3392,17 @@
                                     isConfirmed = true;  
                                 }  
                             }  
-                            if (isConfirmed && bestDb) {  
+                            if (hadEmbedding && isConfirmed && bestDb) {  
                                 const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb;  
                                 const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981';  
                                 const displayPct = identityTracker[bestDb.id].lastPct;  
                                 text = `${matchedPerson.name} (${displayPct}%)${colorText}`;  
                                 color = dbColor;  
                                 person = matchedPerson;  
-                            } else if (bestDb && pctUnica > 5) {  
-                                text = `A analisar...`;  
-                                color = '#3b82f6';  
+                            } else if (!hadEmbedding) {  
+                                // Em modo leve (sem embedding), preserva texto/cor anteriores para evitar flicker  
+                                if (prevText) text = prevText;  
+                                if (prevColor) color = prevColor;  
                             } else {  
                                 text = `Desconhecido${demoText}${colorText}`;  
                                 color = '#3b82f6';  
