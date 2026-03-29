@@ -2591,30 +2591,44 @@
                       }
                       const tensor = new ort.Tensor('float32', input, [1, 3, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE]);
                       const outputs = await yoloSession.run({ [yoloInputName]: tensor });
-                      const outName = yoloSession.outputNames[0];
-                      const out = outputs[outName];
-                      const dims = out.dims;
-                      const raw = out.data;
-                      if (!dims || dims.length !== 3) return [];
+                      let outName = yoloSession.outputNames[0];
+                      let out = outputs[outName];
+                      for (const name of yoloSession.outputNames) {
+                        const cand = outputs[name];
+                        const d = cand?.dims;
+                        if (!d) continue;
+                        if (d.length === 3 && (d[1] === 8400 || d[2] === 8400 || d[2] === 6 || d[2] === 7)) { outName = name; out = cand; break; }
+                        if (d.length === 4 && (d[3] === 6 || d[3] === 7)) { outName = name; out = cand; break; }
+                      }
+                      const dims = out?.dims;
+                      const raw = out?.data;
+                      if (!dims || !raw) return [];
                     
                       let rows = 0;
                       let cols = 0;
                       let strideRow = 0;
                       let strideCol = 0;
                       let transposed = false;
-                      if (dims[1] === 8400) {
+                      if (dims.length === 3 && dims[1] === 8400) {
                         rows = dims[1];
                         cols = dims[2];
                         strideRow = cols;
-                      } else if (dims[2] === 8400) {
+                      } else if (dims.length === 3 && dims[2] === 8400) {
                         rows = dims[2];
                         cols = dims[1];
                         strideCol = rows;
                         transposed = true;
+                      } else if (dims.length === 3 && (dims[2] === 6 || dims[2] === 7)) {
+                        rows = dims[1];
+                        cols = dims[2];
+                        strideRow = cols;
+                      } else if (dims.length === 4 && (dims[3] === 6 || dims[3] === 7)) {
+                        rows = dims[2];
+                        cols = dims[3];
+                        strideRow = cols;
                       } else {
                         return [];
                       }
-                      const numClasses = cols - 4;
                       const scoreThreshold = (typeof threshold === 'number' && Number.isFinite(threshold)) ? threshold : 0.25;
                       const iouThreshold = 0.45;
                       const maxDet = 100;
@@ -2623,28 +2637,45 @@
                       const scores = [];
                       const classIds = [];
                     
-                      for (let r = 0; r < rows; r++) {
-                        const base = transposed ? r : r * strideRow;
-                        const xc = transposed ? raw[0 * strideCol + r] : raw[base + 0];
-                        const yc = transposed ? raw[1 * strideCol + r] : raw[base + 1];
-                        const w = transposed ? raw[2 * strideCol + r] : raw[base + 2];
-                        const h = transposed ? raw[3 * strideCol + r] : raw[base + 3];
-                    
-                        let best = -1;
-                        let bestScore = 0;
-                        for (let c = 0; c < numClasses; c++) {
-                          const s = transposed ? raw[(4 + c) * strideCol + r] : raw[base + 4 + c];
-                          if (s > bestScore) { bestScore = s; best = c; }
+                      if (dims.length === 3 && (dims[1] === 8400 || dims[2] === 8400)) {
+                        const numClasses = cols - 4;
+                        for (let r = 0; r < rows; r++) {
+                          const base = transposed ? r : r * strideRow;
+                          const xc = transposed ? raw[0 * strideCol + r] : raw[base + 0];
+                          const yc = transposed ? raw[1 * strideCol + r] : raw[base + 1];
+                          const w = transposed ? raw[2 * strideCol + r] : raw[base + 2];
+                          const h = transposed ? raw[3 * strideCol + r] : raw[base + 3];
+                      
+                          let best = -1;
+                          let bestScore = 0;
+                          for (let c = 0; c < numClasses; c++) {
+                            const s = transposed ? raw[(4 + c) * strideCol + r] : raw[base + 4 + c];
+                            if (s > bestScore) { bestScore = s; best = c; }
+                          }
+                          if (bestScore < scoreThreshold) continue;
+                      
+                          const x1 = xc - w / 2;
+                          const y1 = yc - h / 2;
+                          const x2 = xc + w / 2;
+                          const y2 = yc + h / 2;
+                          boxes.push([x1, y1, x2, y2]);
+                          scores.push(bestScore);
+                          classIds.push(best);
                         }
-                        if (bestScore < scoreThreshold) continue;
-                    
-                        const x1 = xc - w / 2;
-                        const y1 = yc - h / 2;
-                        const x2 = xc + w / 2;
-                        const y2 = yc + h / 2;
-                        boxes.push([x1, y1, x2, y2]);
-                        scores.push(bestScore);
-                        classIds.push(best);
+                      } else {
+                        for (let r = 0; r < rows; r++) {
+                          const base = r * strideRow;
+                          const x1 = raw[base + 0];
+                          const y1 = raw[base + 1];
+                          const x2 = raw[base + 2];
+                          const y2 = raw[base + 3];
+                          const s = raw[base + 4];
+                          const cls = raw[base + 5];
+                          if (s < scoreThreshold) continue;
+                          boxes.push([x1, y1, x2, y2]);
+                          scores.push(s);
+                          classIds.push(Math.round(cls));
+                        }
                       }
                     
                       const keep = nms(boxes, scores, iouThreshold, maxDet);
