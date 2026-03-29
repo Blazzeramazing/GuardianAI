@@ -424,6 +424,132 @@
                                 </div>
                                 <input id="ai-confidence" type="range" min="0.1" max="0.9" step="0.05" class="w-full accent-blue-500">
                             </div>
+                            
+                            <div class="bg-gray-950 border border-gray-800 rounded-xl p-5">
+                                <div class="flex items-center justify-between gap-4 mb-3">
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-semibold text-white">Sensibilidade do Detector (Rosto)</div>
+                                        <div class="text-xs text-gray-400">Mais baixo deteta mais longe, mas pode aumentar falsos positivos.</div>
+                                    </div>
+                                    <div id="det-conf-value" class="text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-900/40 px-2 py-1 rounded">0.20</div>
+                                </div>
+                                <input id="det-conf" type="range" min="0.1" max="0.9" step="0.05" class="w-full accent-blue-500">
+                            </div>
+                            
+                            <div class="bg-gray-950 border border-gray-800 rounded-xl p-5">
+                                <div class="flex items-center justify-between gap-4 mb-3">
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-semibold text-white">Nitidez Biométrica (Extrator)</div>
+                                        <div class="text-xs text-gray-400">Mais alto exige rosto mais limpo para extrair biometria (melhor acerto).</div>
+                                    </div>
+                                    <div id="ext-conf-value" class="text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-900/40 px-2 py-1 rounded">0.40</div>
+                                </div>
+                                <input id="ext-conf" type="range" min="0.1" max="0.9" step="0.05" class="w-full accent-blue-500">
+                            </div>
+                            
+                            <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 space-y-3">
+                                <div class="flex items-center justify-between gap-4">
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-semibold text-white">Equalização de Imagem</div>
+                                        <div class="text-xs text-gray-400">Melhora contraste em ambientes escuros, mas pode consumir mais.</div>
+                                    </div>
+                                    <label class="flex items-center gap-2 text-xs font-medium text-gray-300">
+                                        <input id="equalization" type="checkbox" class="w-4 h-4 accent-blue-500">
+                                        Ativo
+                                    </label>
+                                </div>
+                                <div class="flex items-center justify-between gap-4">
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-semibold text-white">Rotação do Detector</div>
+                                        <div class="text-xs text-gray-400">Deteta rostos inclinados, mas reduz FPS.</div>
+                                    </div>
+                                    <label class="flex items-center gap-2 text-xs font-medium text-gray-300">
+                                        <input id="det-rotation" type="checkbox" class="w-4 h-4 accent-blue-500">
+                                        Ativo
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-gray-950 border border-gray-800 rounded-xl p-5">
+                                <div class="flex items-center justify-between gap-4 mb-3">
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-semibold text-white">Máximo de Rostos por Frame</div>
+                                        <div class="text-xs text-gray-400">Limita carga quando há multidões.</div>
+                                    </div>
+                                    <div id="max-detected-value" class="text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-900/40 px-2 py-1 rounded">10</div>
+                                </div>
+                                <input id="max-detected" type="range" min="1" max="50" step="1" class="w-full accent-blue-500">
+                            </div>
+
+                            <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 space-y-3">
+                                <div class="flex items-center justify-between gap-4">
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-semibold text-white">Anti-Fraude (Liveness)</div>
+                                        <div class="text-xs text-gray-400">Bloqueia tentativas com foto/vídeo quando ativo.</div>
+                                    </div>
+                                    <label class="flex items-center gap-2 text-xs font-medium text-gray-300">
+                                        <input id="liveness-enabled" type="checkbox" class="w-4 h-4 accent-blue-500">
+                                        Ativo
+                                    </label>
+                                </div>
+                                <div class="flex items-center justify-between gap-4">
+                                    <div class="text-xs text-gray-400">Limite de liveness (real)</div>
+                                    <div id="liveness-conf-value" class="text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-900/40 px-2 py-1 rounded">0.45</div>
+                                </div>
+                                <input id="liveness-conf" type="range" min="0.1" max="0.9" step="0.05" class="w-full accent-blue-500">
+                            </div>
+                            
+                            <div class="bg-gray-950 border border-gray-800 rounded-xl p-5">
+                                <div class="flex items-center justify-between gap-4 mb-3">
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-semibold text-white">Tamanho Mínimo do Rosto (px)</div>
+                                        <div class="text-xs text-gray-400">Define a distância mínima para tentar reconhecimento biométrico.</div>
+                                    </div>
+                                    <div id="min-face-size-value" class="text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-900/40 px-2 py-1 rounded">90 px</div>
+                                </div>
+                                <input id="min-face-size" type="range" min="20" max="250" step="5" class="w-full accent-blue-500">
+                            </div>
+                            
+                            <div class="bg-gray-950 border border-gray-800 rounded-xl p-5">
+                                <div class="flex items-center justify-between gap-4 mb-3">
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-semibold text-white">Qualidade de Imagem para IA (px)</div>
+                                        <div class="text-xs text-gray-400">Cap de resolução para análise. Para 4MP, 1280–1600 costuma ser o ponto ideal.</div>
+                                    </div>
+                                    <div id="ai-maxdim-value" class="text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-900/40 px-2 py-1 rounded">1280 px</div>
+                                </div>
+                                <input id="ai-maxdim" type="range" min="640" max="1920" step="160" class="w-full accent-blue-500">
+                            </div>
+                            
+                            <div class="bg-gray-950 border border-gray-800 rounded-xl p-5">
+                                <div class="flex items-center justify-between gap-4 mb-3">
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-semibold text-white">Intervalo de Biometria (ms)</div>
+                                        <div class="text-xs text-gray-400">Menor = identifica mais rápido; maior = mais fluidez e menos CPU.</div>
+                                    </div>
+                                    <div id="heavy-interval-value" class="text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-900/40 px-2 py-1 rounded">350 ms</div>
+                                </div>
+                                <input id="heavy-interval" type="range" min="200" max="2000" step="50" class="w-full accent-blue-500">
+                            </div>
+                            
+                            <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 space-y-3">
+                                <div class="flex items-center justify-between gap-4">
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-semibold text-white">Calibração de Percentual (0–100%)</div>
+                                        <div class="text-xs text-gray-400">Ajusta como a semelhança vira percentagem exibida.</div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between gap-4">
+                                    <div class="text-xs text-gray-400">Base Humana</div>
+                                    <div id="base-humana-value" class="text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-900/40 px-2 py-1 rounded">0.45</div>
+                                </div>
+                                <input id="base-humana" type="range" min="0.1" max="0.8" step="0.05" class="w-full accent-blue-500">
+                                <div class="flex items-center justify-between gap-4 pt-2">
+                                    <div class="text-xs text-gray-400">Teto Biométrico</div>
+                                    <div id="max-modelo-value" class="text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-900/40 px-2 py-1 rounded">0.75</div>
+                                </div>
+                                <input id="max-modelo" type="range" min="0.5" max="1.0" step="0.01" class="w-full accent-blue-500">
+                            </div>
 
                             <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 flex items-center justify-between gap-4 flex-wrap">
                                 <div class="min-w-0">
@@ -522,15 +648,17 @@
         let human = null;
         let humanFaceDB = [];
         const humanConfig = {
-            // Removemos o 'backend' para ele auto-detetar o melhor (WASM ou WebGL)
+            async: true,
+            backend: 'webgl',
             modelBasePath: 'https://vladmandic.github.io/human/models/', // CDN Oficial e Seguro
             filter: { equalization: true },
             face: {
                 enabled: true,
-                detector: { rotation: true, return: true },
+                detector: { rotation: false, return: true, minConfidence: 0.20, maxDetected: 10 },
+                antispoof: { enabled: true },
                 mesh: { enabled: false },
                 iris: { enabled: false },
-                description: { enabled: true },
+                description: { enabled: true, minConfidence: 0.40 },
                 emotion: { enabled: false }
             },
             body: { enabled: false },
@@ -678,14 +806,90 @@
             return Number.isFinite(v) && v > 0 ? Math.min(0.9, Math.max(0.1, v)) : 0.40;
         }
 
+        function getDetectorConf() {
+            const v = Number(localStorage.getItem('vms_det_conf'));
+            return Number.isFinite(v) && v > 0 ? Math.min(0.9, Math.max(0.1, v)) : 0.20;
+        }
+
+        function getExtractConf() {
+            const v = Number(localStorage.getItem('vms_ext_conf'));
+            return Number.isFinite(v) && v > 0 ? Math.min(0.9, Math.max(0.1, v)) : 0.40;
+        }
+
+        function getEqualizationEnabled() {
+            return (localStorage.getItem('vms_equalization') ?? '1') !== '0';
+        }
+
+        function getRotationEnabled() {
+            return (localStorage.getItem('vms_det_rotation') ?? '0') === '1';
+        }
+
+        function getMaxDetected() {
+            const v = Number(localStorage.getItem('vms_max_detected'));
+            return Number.isFinite(v) && v > 0 ? Math.min(50, Math.max(1, Math.round(v))) : 10;
+        }
+
+        function getLivenessEnabled() {
+            return (localStorage.getItem('vms_liveness_on') ?? '1') !== '0';
+        }
+
+        function getLivenessConf() {
+            const v = Number(localStorage.getItem('vms_liveness_conf'));
+            return Number.isFinite(v) && v > 0 ? Math.min(0.9, Math.max(0.1, v)) : 0.45;
+        }
+
+        function getMinFaceSize() {
+            const v = Number(localStorage.getItem('vms_min_face_size'));
+            return Number.isFinite(v) && v > 0 ? Math.min(250, Math.max(20, Math.round(v))) : 90;
+        }
+
+        function getAiMaxDim() {
+            const v = Number(localStorage.getItem('vms_ai_maxdim'));
+            return Number.isFinite(v) && v > 0 ? Math.min(1920, Math.max(640, Math.round(v))) : 1280;
+        }
+
+        function getHeavyIntervalMs() {
+            const v = Number(localStorage.getItem('vms_heavy_interval'));
+            return Number.isFinite(v) && v > 0 ? Math.min(2000, Math.max(200, Math.round(v))) : 350;
+        }
+
+        function getBaseHumana() {
+            const v = Number(localStorage.getItem('vms_base_humana'));
+            return Number.isFinite(v) && v > 0 ? Math.min(0.8, Math.max(0.1, v)) : 0.45;
+        }
+
+        function getMaxModelo() {
+            const v = Number(localStorage.getItem('vms_max_modelo'));
+            return Number.isFinite(v) && v > 0 ? Math.min(1.0, Math.max(0.5, v)) : 0.75;
+        }
+
+        function applyHumanSettings() {
+            if (!human) return;
+            try {
+                human.config.filter.equalization = getEqualizationEnabled();
+                human.config.face.detector.minConfidence = getDetectorConf();
+                human.config.face.detector.maxDetected = getMaxDetected();
+                human.config.face.detector.rotation = getRotationEnabled();
+                human.config.face.description.minConfidence = getExtractConf();
+                if (human.config.face.antispoof) human.config.face.antispoof.enabled = getLivenessEnabled();
+            } catch {}
+        }
+
         async function initAI() {
             try {
                 const HumanCtor = (typeof Human === 'function') ? Human : (Human?.Human || Human?.default);
                 if (!HumanCtor) throw new Error('Human indisponível');
 
-                human = new HumanCtor(humanConfig);
-                await human.load();
-                await human.warmup();
+                try {
+                    human = new HumanCtor(humanConfig);
+                    await human.load();
+                    await human.warmup();
+                } catch (e) {
+                    human = new HumanCtor({ ...humanConfig, backend: 'wasm' });
+                    await human.load();
+                    await human.warmup();
+                }
+                applyHumanSettings();
                 
                 isAiReady = true;
                 const statusElems = [document.getElementById('ai-status-desktop'), document.getElementById('ai-status-mobile')];
@@ -1497,6 +1701,127 @@
                 if (normA === 0 || normB === 0) return 0; 
                 return dot / (Math.sqrt(normA) * Math.sqrt(normB)); 
             } 
+
+            const procCanvas = document.createElement('canvas');
+            const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
+            const faceTracks = [];
+            let faceTrackSeq = 0;
+            let lastHeavyTs = 0;
+            let lastFacesSeenTs = 0;
+            let avgDetectMs = 120;
+
+            const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+            const rectIoU = (a, b) => {
+                const ax2 = a.x + a.w, ay2 = a.y + a.h;
+                const bx2 = b.x + b.w, by2 = b.y + b.h;
+                const ix1 = Math.max(a.x, b.x);
+                const iy1 = Math.max(a.y, b.y);
+                const ix2 = Math.min(ax2, bx2);
+                const iy2 = Math.min(ay2, by2);
+                const iw = Math.max(0, ix2 - ix1);
+                const ih = Math.max(0, iy2 - iy1);
+                const inter = iw * ih;
+                const union = (a.w * a.h) + (b.w * b.h) - inter;
+                return union > 0 ? (inter / union) : 0;
+            };
+
+            const isFocusNow = () => maximizedSlotId === cam.id || (layout === 1 && cameras[0] && cameras[0].id === cam.id);
+
+            const getProcMaxDim = (now) => {
+                const focus = isFocusNow();
+                const userCap = getAiMaxDim();
+                const srcW = media.videoWidth || media.naturalWidth || canvas.width || 640;
+                const srcH = media.videoHeight || media.naturalHeight || canvas.height || 480;
+                const srcMax = Math.max(srcW, srcH);
+                const is4mpish = srcMax >= 2000;
+                const isStrained = avgDetectMs > 150;
+                const baseRaw = focus ? (is4mpish ? (isStrained ? 960 : 1280) : (isStrained ? 960 : 1152)) : 960;
+                const base = Math.min(baseRaw, userCap);
+                if (!focus) return base;
+                if (now - lastFacesSeenTs > 900) {
+                    const scanRaw = is4mpish ? (isStrained ? 1280 : 1600) : (isStrained ? 1152 : 1440);
+                    return Math.min(scanRaw, userCap);
+                }
+                return base;
+            };
+
+            const updateProcFrame = (maxDim) => {
+                if (!Number.isFinite(maxDim)) maxDim = getProcMaxDim(Date.now());
+                const srcW = media.videoWidth || media.naturalWidth || canvas.width || 640;
+                const srcH = media.videoHeight || media.naturalHeight || canvas.height || 480;
+                const scale = Math.min(1, maxDim / srcW, maxDim / srcH);
+                const w = Math.max(1, Math.round(srcW * scale));
+                const h = Math.max(1, Math.round(srcH * scale));
+                if (procCanvas.width !== w) procCanvas.width = w;
+                if (procCanvas.height !== h) procCanvas.height = h;
+                procCtx.drawImage(media, 0, 0, w, h);
+            };
+
+            const matchDetectionsToTracks = (dets, now) => {
+                const usedTracks = new Set();
+                const usedDets = new Set();
+                const matches = [];
+                for (let ti = 0; ti < faceTracks.length; ti++) {
+                    const t = faceTracks[ti];
+                    if (!t) continue;
+                    for (let di = 0; di < dets.length; di++) {
+                        const d = dets[di];
+                        const iou = rectIoU(t, d);
+                        if (iou >= 0.25) matches.push({ ti, di, iou });
+                    }
+                }
+                matches.sort((a, b) => b.iou - a.iou);
+                for (const m of matches) {
+                    if (usedTracks.has(m.ti) || usedDets.has(m.di)) continue;
+                    usedTracks.add(m.ti);
+                    usedDets.add(m.di);
+                    const t = faceTracks[m.ti];
+                    const d = dets[m.di];
+                    t.targetX = d.x; t.targetY = d.y; t.targetW = d.w; t.targetH = d.h;
+                    t.score = d.score;
+                    t.embedding = d.embedding || null;
+                        t.real = d.real ?? null;
+                    t.lastSeen = now;
+                    t.visible = true;
+                }
+                for (let ti = 0; ti < faceTracks.length; ti++) {
+                    if (usedTracks.has(ti)) continue;
+                    const t = faceTracks[ti];
+                    if (!t) continue;
+                    t.visible = false;
+                }
+                for (let di = 0; di < dets.length; di++) {
+                    if (usedDets.has(di)) continue;
+                    const d = dets[di];
+                    faceTracks.push({
+                        id: "ft_" + (faceTrackSeq++) + "_" + Date.now(),
+                        x: d.x, y: d.y, w: d.w, h: d.h,
+                        targetX: d.x, targetY: d.y, targetW: d.w, targetH: d.h,
+                        lastTs: now,
+                        firstSeen: now,
+                        lastSeen: now,
+                        visible: true,
+                        score: d.score,
+                        embedding: d.embedding || null,
+                            real: d.real ?? null,
+                        labelText: 'Desconhecido',
+                        labelColor: '#3b82f6',
+                        labelTs: 0,
+                            person: null,
+                            lastBestId: null,
+                            bestHits: 0,
+                            lastBestTs: 0,
+                            lastBestSim: 0,
+                            lastAttemptTs: 0,
+                            lastScanTs: 0
+                    });
+                }
+                for (let i = faceTracks.length - 1; i >= 0; i--) {
+                    const t = faceTracks[i];
+                    if (!t) continue;
+                    if ((now - (t.lastSeen || now)) > 2000) faceTracks.splice(i, 1);
+                }
+            };
  
             async function processFrame() { 
                  if (!loopState.active) return; 
@@ -1518,98 +1843,182 @@
                   
                  try { 
                      syncCanvasToMedia(canvas, media); 
-                      
-                     const result = await human.detect(media); 
+                     
+                     const now = Date.now();
+                     const focus = isFocusNow();
+                    const maxDim = getProcMaxDim(now);
+                    const heavyFocusMs = getHeavyIntervalMs();
+                    const heavyIntervalBase = focus ? heavyFocusMs : Math.round(heavyFocusMs * 2.5);
+                    const idleHeavyIntervalBase = focus ? Math.round(heavyFocusMs * 2.0) : Math.round(heavyFocusMs * 3.5);
+                    const heavyInterval = maxDim >= 1600 ? Math.round(heavyIntervalBase * 1.25) : heavyIntervalBase;
+                    const idleHeavyInterval = maxDim >= 1600 ? Math.round(idleHeavyIntervalBase * 1.25) : idleHeavyIntervalBase;
+                     const heavyGap = faceTracks.length ? heavyInterval : idleHeavyInterval;
+                     const minBase = getMinFaceSize();
+                     const minRecPx = focus ? Math.max(20, Math.round(minBase * 0.75)) : minBase;
+                     const scanStaleMs = focus ? Math.max(250, Math.round(heavyFocusMs * 1.1)) : Math.max(900, Math.round(heavyIntervalBase * 1.2));
+                     const hasPendingScan = faceTracks.some(t =>
+                        t && t.visible === true &&
+                        t.w >= minRecPx && t.h >= minRecPx &&
+                        (now - (t.lastScanTs || 0)) >= scanStaleMs
+                     );
+                     const doHeavy = ((now - lastHeavyTs) >= heavyGap) || (hasPendingScan && (now - lastHeavyTs) >= 150);
+                     
+                    human.config.filter.equalization = getEqualizationEnabled();
+                    human.config.face.detector.minConfidence = getDetectorConf();
+                    human.config.face.detector.maxDetected = getMaxDetected();
+                    human.config.face.detector.rotation = getRotationEnabled();
+                     human.config.face.description.enabled = doHeavy;
+                    human.config.face.description.minConfidence = getExtractConf();
+                     if (human.config.face.antispoof) human.config.face.antispoof.enabled = getLivenessEnabled() && doHeavy;
+                     
+                    updateProcFrame(maxDim);
+                    const result = await human.detect(procCanvas); 
                      const faces = Array.isArray(result?.face) ? result.face : []; 
+                     if (doHeavy) lastHeavyTs = now;
+                     if (faces.length) lastFacesSeenTs = now;
+                    avgDetectMs = (avgDetectMs * 0.9) + ((Date.now() - now) * 0.1);
  
                      const ctx = canvas.getContext('2d'); 
                      ctx.clearRect(0, 0, canvas.width, canvas.height); 
                       
-                     // Limiares de Reconhecimento ajustados para a nova matemática 
-                     const matchThreshold = 0.40; 
-                     const sureThreshold = Math.max(0.50, Math.min(0.85, 1 - getAiConfidence() + 0.1)); 
-                      
-                     faces.forEach((face) => { 
-                         const boxRaw = face.boxRaw || [0, 0, 0, 0]; 
-                         const x = boxRaw[0] * canvas.width; 
-                         const y = boxRaw[1] * canvas.height; 
-                         const w = boxRaw[2] * canvas.width; 
-                         const h = boxRaw[3] * canvas.height; 
-                          
-                         if (w < 15 || h < 15) return; 
+                     const baseHumana = getBaseHumana();
+                     const maxModelo = Math.max(baseHumana + 0.01, getMaxModelo());
+                     const rawAi = getAiConfidence();
+                     const sureThreshold = clamp(rawAi, baseHumana, 0.95);
+                     const matchThreshold = baseHumana;
+                     const livenessOn = getLivenessEnabled();
+                     const livenessLimit = getLivenessConf();
+                     
+                     const dets = [];
+                     for (const face of faces) {
+                         const boxRaw = face.boxRaw || [0, 0, 0, 0];
+                         const x = boxRaw[0] * canvas.width;
+                         const y = boxRaw[1] * canvas.height;
+                         const w = boxRaw[2] * canvas.width;
+                         const h = boxRaw[3] * canvas.height;
+                         if (w < 10 || h < 10) continue;
+                         dets.push({
+                             x, y, w, h,
+                             score: (face.boxScore ?? face.score ?? 0),
+                             embedding: doHeavy ? (face.embedding || null) : null,
+                             real: (livenessOn && doHeavy) ? (face.real ?? null) : null
+                         });
+                     }
+                     
+                     matchDetectionsToTracks(dets, now);
+                     
+                     for (const t of faceTracks) {
+                         if (!t) continue;
+                         const dt = Math.max(1, now - (t.lastTs || now));
+                         t.lastTs = now;
+                         const tau = focus ? 55 : 85;
+                         let a = 1 - Math.exp(-dt / tau);
+                         a = clamp(a, 0.10, 0.75);
+                         t.x += (t.targetX - t.x) * a;
+                         t.y += (t.targetY - t.y) * a;
+                         t.w += (t.targetW - t.w) * a;
+                         t.h += (t.targetH - t.h) * a;
+                         
+                        if (doHeavy && livenessOn && Number.isFinite(t.real) && t.real < livenessLimit) {
+                            t.labelText = 'FRAUDE/FOTO';
+                            t.labelColor = '#ef4444';
+                            t.person = null;
+                            t.labelTs = now;
+                            t.lastScanTs = now;
+                            t.lastAttemptTs = now;
+                            continue;
+                        }
+
+                        if (!doHeavy && t.visible === true && t.person === null && t.w >= minRecPx && t.h >= minRecPx) {
+                            if ((now - (t.lastAttemptTs || 0)) > 900 && (now - (t.labelTs || 0)) > 900) {
+                                t.labelText = 'A analisar...';
+                                t.labelColor = '#3b82f6';
+                                t.labelTs = now;
+                            }
+                        }
+
+                        if (doHeavy && t.embedding && t.embedding.length > 0 && t.w >= minRecPx && t.h >= minRecPx && humanFaceDB.length > 0) {
+                             let bestSim = 0;
+                             let bestDb = null;
+                             for (let j = 0; j < humanFaceDB.length; j++) {
+                                 const dbFace = humanFaceDB[j];
+                                 if (!dbFace.descriptor || t.embedding.length !== dbFace.descriptor.length) continue;
+                                 const sim = calcSimilarity(t.embedding, dbFace.descriptor);
+                                 if (sim > bestSim) { bestSim = sim; bestDb = dbFace; }
+                             }
+                             
+                             if (bestDb && bestSim >= matchThreshold) {
+                                 const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb;
+                                let certeza = 0;
+                                if (bestSim > baseHumana) certeza = (bestSim - baseHumana) / (maxModelo - baseHumana);
+                                certeza = Math.max(0, Math.min(1, certeza));
+                                const certainty = Math.max(0, Math.min(100, Math.round(certeza * 100)));
+                                 const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981';
+                                if (t.lastBestId === bestDb.id && (now - (t.lastBestTs || 0)) < 2000) t.bestHits = Math.min(5, (t.bestHits || 0) + 1);
+                                else t.bestHits = 1;
+                                t.lastBestId = bestDb.id;
+                                t.lastBestTs = now;
+                                t.lastBestSim = bestSim;
+                                const requiredHits = focus ? 2 : 3;
+                                const isConfirmed = bestSim >= sureThreshold || (t.bestHits >= requiredHits);
+                                if (!isConfirmed) {
+                                    t.labelText = `Analisando: ${matchedPerson.name} (${certainty}%)`;
+                                    t.labelColor = '#eab308';
+                                    t.person = null;
+                                } else {
+                                     t.labelText = `${matchedPerson.name} (${certainty}%)`;
+                                     t.labelColor = dbColor;
+                                     t.person = matchedPerson;
+                                 }
+                                 t.labelTs = now;
+                                t.lastScanTs = now;
+                                t.lastAttemptTs = now;
+                             } else {
+                                t.bestHits = Math.max(0, (t.bestHits || 0) - 1);
+                                 if ((now - (t.labelTs || 0)) > 1500) {
+                                     t.labelText = 'Desconhecido';
+                                     t.labelColor = '#3b82f6';
+                                     t.person = null;
+                                 }
+                                t.lastAttemptTs = now;
+                             }
+                        } else if (doHeavy && t.visible === true && t.w >= minRecPx && t.h >= minRecPx) {
+                            t.lastAttemptTs = now;
+                         }
+                         
+                         if (!t.visible && (now - (t.lastSeen || now)) > 600) continue;
+                         
+                         ctx.lineWidth = 3;
+                         ctx.strokeStyle = t.labelColor || '#3b82f6';
+                         ctx.strokeRect(t.x, t.y, t.w, t.h);
+                         
+                         const text = t.labelText || '';
+                         if (text) {
+                             ctx.font = '14px ui-monospace, monospace';
+                             ctx.textBaseline = 'bottom';
+                             const textWidth = ctx.measureText(text).width;
+                             ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                             ctx.fillRect(t.x, Math.max(0, t.y - 22), textWidth + 8, 22);
+                             ctx.fillStyle = t.labelColor || '#3b82f6';
+                             ctx.fillText(text, t.x + 4, Math.max(16, t.y - 4));
+                         }
  
-                         let color = '#3b82f6'; // Azul 
-                         let text = 'Desconhecido'; 
-                         let person = null; 
- 
-                         const embedding = face.embedding; 
-                          
-                         if (embedding && embedding.length > 0 && humanFaceDB.length > 0) { 
-                             let bestSim = 0; 
-                             let bestDb = null; 
-                              
-                             for (let j = 0; j < humanFaceDB.length; j++) { 
-                                 const dbFace = humanFaceDB[j]; 
-                                  
-                                 if (!dbFace.descriptor || embedding.length !== dbFace.descriptor.length) continue; 
-                                  
-                                 // Matemática nativa - Sem erros de biblioteca! 
-                                 const sim = calcSimilarity(embedding, dbFace.descriptor); 
-                                  
-                                 if (sim > bestSim) { 
-                                     bestSim = sim; 
-                                     bestDb = dbFace; 
-                                 } 
-                             } 
- 
-                             if (bestDb && bestSim >= matchThreshold) { 
-                                 const matchedPerson = persons.find(p => p.id === bestDb.id) || bestDb; 
-                                 const certainty = Math.max(0, Math.min(100, Math.round(bestSim * 100))); 
-                                 const dbColor = matchedPerson.level === 'danger' ? '#ef4444' : matchedPerson.level === 'suspect' ? '#eab308' : '#10b981'; 
- 
-                                 if (bestSim < sureThreshold) { 
-                                     text = `Analisando: ${matchedPerson.name} (${certainty}%)`; 
-                                     color = '#eab308'; 
-                                 } else { 
-                                     text = `${matchedPerson.name} (${certainty}%)`; 
-                                     color = dbColor; 
-                                     person = matchedPerson; 
-                                 } 
-                             } 
-                         } 
- 
-                         // Renderização Profissional Limpa 
-                         ctx.lineWidth = 3; 
-                         ctx.strokeStyle = color; 
-                         ctx.strokeRect(x, y, w, h); 
-                          
-                         ctx.font = '14px ui-monospace, monospace'; 
-                         ctx.textBaseline = 'bottom'; 
-                          
-                         const textWidth = ctx.measureText(text).width; 
-                         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; 
-                         ctx.fillRect(x, Math.max(0, y - 22), textWidth + 8, 22); 
-                          
-                         ctx.fillStyle = color; 
-                         ctx.fillText(text, x + 4, Math.max(16, y - 4)); 
- 
-                         // Alarme 
-                         if (person) { 
-                             const now = Date.now(); 
-                             const lastTime = lastDetectionTime[person.id] || 0; 
+                         if (t.person) { 
+                             const lastTime = lastDetectionTime[t.person.id] || 0; 
                              if (now - lastTime > 20000) { 
-                                 lastDetectionTime[person.id] = now; 
-                                 processDetection(person, cam, media); 
+                                 lastDetectionTime[t.person.id] = now; 
+                                 processDetection(t.person, cam, media); 
                              } 
                          } 
-                     }); 
+                     }
  
                  } catch (e) { 
                      console.warn("Erro no processamento da câmara", cam.id, e); 
                  } 
  
                  const elapsed = Date.now() - startTime; 
-                 const delay = Math.max(30, 100 - elapsed); 
+                 const targetMs = isFocusNow() ? 33 : 80;
+                 const delay = Math.max(10, targetMs - elapsed); 
                   
                  if (loopState.active) { 
                      setTimeout(processFrame, delay); 
@@ -1746,6 +2155,166 @@
             const current = getAiConfidence();
             if (slider) slider.value = String(current);
             if (label) label.innerText = current.toFixed(2);
+
+            const detSlider = document.getElementById('det-conf');
+            const detLabel = document.getElementById('det-conf-value');
+            if (detSlider && detSlider.dataset.hydrated !== '1') {
+                detSlider.dataset.hydrated = '1';
+                detSlider.addEventListener('input', (e) => {
+                    const v = Math.min(0.9, Math.max(0.1, Number(e.target.value) || 0.20));
+                    localStorage.setItem('vms_det_conf', String(v));
+                    if (detLabel) detLabel.innerText = v.toFixed(2);
+                    applyHumanSettings();
+                });
+            }
+            const detCurrent = getDetectorConf();
+            if (detSlider) detSlider.value = String(detCurrent);
+            if (detLabel) detLabel.innerText = detCurrent.toFixed(2);
+
+            const extSlider = document.getElementById('ext-conf');
+            const extLabel = document.getElementById('ext-conf-value');
+            if (extSlider && extSlider.dataset.hydrated !== '1') {
+                extSlider.dataset.hydrated = '1';
+                extSlider.addEventListener('input', (e) => {
+                    const v = Math.min(0.9, Math.max(0.1, Number(e.target.value) || 0.40));
+                    localStorage.setItem('vms_ext_conf', String(v));
+                    if (extLabel) extLabel.innerText = v.toFixed(2);
+                    applyHumanSettings();
+                });
+            }
+            const extCurrent = getExtractConf();
+            if (extSlider) extSlider.value = String(extCurrent);
+            if (extLabel) extLabel.innerText = extCurrent.toFixed(2);
+
+            const eqEl = document.getElementById('equalization');
+            if (eqEl && eqEl.dataset.hydrated !== '1') {
+                eqEl.dataset.hydrated = '1';
+                eqEl.addEventListener('change', (e) => {
+                    localStorage.setItem('vms_equalization', e.target.checked ? '1' : '0');
+                    applyHumanSettings();
+                });
+            }
+            if (eqEl) eqEl.checked = getEqualizationEnabled();
+
+            const rotEl = document.getElementById('det-rotation');
+            if (rotEl && rotEl.dataset.hydrated !== '1') {
+                rotEl.dataset.hydrated = '1';
+                rotEl.addEventListener('change', (e) => {
+                    localStorage.setItem('vms_det_rotation', e.target.checked ? '1' : '0');
+                    applyHumanSettings();
+                });
+            }
+            if (rotEl) rotEl.checked = getRotationEnabled();
+
+            const maxDetSlider = document.getElementById('max-detected');
+            const maxDetLabel = document.getElementById('max-detected-value');
+            if (maxDetSlider && maxDetSlider.dataset.hydrated !== '1') {
+                maxDetSlider.dataset.hydrated = '1';
+                maxDetSlider.addEventListener('input', (e) => {
+                    const v = Math.min(50, Math.max(1, Math.round(Number(e.target.value) || 10)));
+                    localStorage.setItem('vms_max_detected', String(v));
+                    if (maxDetLabel) maxDetLabel.innerText = String(v);
+                    applyHumanSettings();
+                });
+            }
+            const maxDetCurrent = getMaxDetected();
+            if (maxDetSlider) maxDetSlider.value = String(maxDetCurrent);
+            if (maxDetLabel) maxDetLabel.innerText = String(maxDetCurrent);
+
+            const livEnabled = document.getElementById('liveness-enabled');
+            if (livEnabled && livEnabled.dataset.hydrated !== '1') {
+                livEnabled.dataset.hydrated = '1';
+                livEnabled.addEventListener('change', (e) => {
+                    localStorage.setItem('vms_liveness_on', e.target.checked ? '1' : '0');
+                    applyHumanSettings();
+                });
+            }
+            if (livEnabled) livEnabled.checked = getLivenessEnabled();
+
+            const livSlider = document.getElementById('liveness-conf');
+            const livLabel = document.getElementById('liveness-conf-value');
+            if (livSlider && livSlider.dataset.hydrated !== '1') {
+                livSlider.dataset.hydrated = '1';
+                livSlider.addEventListener('input', (e) => {
+                    const v = Math.min(0.9, Math.max(0.1, Number(e.target.value) || 0.45));
+                    localStorage.setItem('vms_liveness_conf', String(v));
+                    if (livLabel) livLabel.innerText = v.toFixed(2);
+                });
+            }
+            const livCurrent = getLivenessConf();
+            if (livSlider) livSlider.value = String(livCurrent);
+            if (livLabel) livLabel.innerText = livCurrent.toFixed(2);
+
+            const minSlider = document.getElementById('min-face-size');
+            const minLabel = document.getElementById('min-face-size-value');
+            if (minSlider && minSlider.dataset.hydrated !== '1') {
+                minSlider.dataset.hydrated = '1';
+                minSlider.addEventListener('input', (e) => {
+                    const v = Math.min(250, Math.max(20, Math.round(Number(e.target.value) || 90)));
+                    localStorage.setItem('vms_min_face_size', String(v));
+                    if (minLabel) minLabel.innerText = v + ' px';
+                });
+            }
+            const minCurrent = getMinFaceSize();
+            if (minSlider) minSlider.value = String(minCurrent);
+            if (minLabel) minLabel.innerText = minCurrent + ' px';
+
+            const maxDimSlider = document.getElementById('ai-maxdim');
+            const maxDimLabel = document.getElementById('ai-maxdim-value');
+            if (maxDimSlider && maxDimSlider.dataset.hydrated !== '1') {
+                maxDimSlider.dataset.hydrated = '1';
+                maxDimSlider.addEventListener('input', (e) => {
+                    const v = Math.min(1920, Math.max(640, Math.round(Number(e.target.value) || 1280)));
+                    localStorage.setItem('vms_ai_maxdim', String(v));
+                    if (maxDimLabel) maxDimLabel.innerText = v + ' px';
+                });
+            }
+            const maxDimCurrent = getAiMaxDim();
+            if (maxDimSlider) maxDimSlider.value = String(maxDimCurrent);
+            if (maxDimLabel) maxDimLabel.innerText = maxDimCurrent + ' px';
+
+            const heavySlider = document.getElementById('heavy-interval');
+            const heavyLabel = document.getElementById('heavy-interval-value');
+            if (heavySlider && heavySlider.dataset.hydrated !== '1') {
+                heavySlider.dataset.hydrated = '1';
+                heavySlider.addEventListener('input', (e) => {
+                    const v = Math.min(2000, Math.max(200, Math.round(Number(e.target.value) || 350)));
+                    localStorage.setItem('vms_heavy_interval', String(v));
+                    if (heavyLabel) heavyLabel.innerText = v + ' ms';
+                });
+            }
+            const heavyCurrent = getHeavyIntervalMs();
+            if (heavySlider) heavySlider.value = String(heavyCurrent);
+            if (heavyLabel) heavyLabel.innerText = heavyCurrent + ' ms';
+
+            const baseSlider = document.getElementById('base-humana');
+            const baseLabel = document.getElementById('base-humana-value');
+            if (baseSlider && baseSlider.dataset.hydrated !== '1') {
+                baseSlider.dataset.hydrated = '1';
+                baseSlider.addEventListener('input', (e) => {
+                    const v = Math.min(0.8, Math.max(0.1, Number(e.target.value) || 0.45));
+                    localStorage.setItem('vms_base_humana', String(v));
+                    if (baseLabel) baseLabel.innerText = v.toFixed(2);
+                });
+            }
+            const baseCurrent = getBaseHumana();
+            if (baseSlider) baseSlider.value = String(baseCurrent);
+            if (baseLabel) baseLabel.innerText = baseCurrent.toFixed(2);
+
+            const maxSlider = document.getElementById('max-modelo');
+            const maxLabel = document.getElementById('max-modelo-value');
+            if (maxSlider && maxSlider.dataset.hydrated !== '1') {
+                maxSlider.dataset.hydrated = '1';
+                maxSlider.addEventListener('input', (e) => {
+                    const v = Math.min(1.0, Math.max(0.5, Number(e.target.value) || 0.75));
+                    localStorage.setItem('vms_max_modelo', String(v));
+                    if (maxLabel) maxLabel.innerText = v.toFixed(2);
+                });
+            }
+            const maxCurrent = getMaxModelo();
+            if (maxSlider) maxSlider.value = String(maxCurrent);
+            if (maxLabel) maxLabel.innerText = maxCurrent.toFixed(2);
+
             updateMuteButton();
         }
 
