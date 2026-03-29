@@ -2446,6 +2446,7 @@
 
             // 1. SUBSTITUIR A GESTÃO DO WORKER POOL POR ESTE BLOCO (INLINE BLOB)
             if (!aiWorkers[cam.id]) { 
+                const absoluteModelPath = new URL('yolov8n.onnx', window.location.href).href;
                 const workerCode = `
                     importScripts('https://cdn.jsdelivr.net/npm/@vladmandic/human@3.2.2/dist/human.js');
                     importScripts('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js');
@@ -2499,7 +2500,7 @@
 
                       // Matriz de Redundância: Tenta Local primeiro, depois CDNs de alta disponibilidade
                       const mirrors = [
-                        'yolov8n.onnx',
+                        '${absoluteModelPath}',
                         'https://huggingface.co/bofenghuang/yolov8n-onnx/resolve/main/yolov8n.onnx',
                         'https://huggingface.co/spaces/jofthomas/YOLOv8-Object-Detection/resolve/main/yolov8n.onnx',
                         'https://cdn.jsdelivr.net/gh/zaigie/yolov8-onnx-js/public/yolov8n.onnx'
