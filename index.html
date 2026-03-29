@@ -2467,6 +2467,11 @@
                     let isReady = false;
                     let yoloSession = null;
                     let yoloInputName = null;
+                    let lastYoloPreds = [];
+                    let lastYoloRun = 0;
+                    let yoloCanvas = null;
+                    let yoloCtx = null;
+                    let yoloInput = null;
                     
                     const YOLO_INPUT_SIZE = 640;
                     const YOLO_MODEL_URL = 'https://huggingface.co/SpotLab/YOLOv8Detection/resolve/main/yolov8n.onnx';
@@ -2566,8 +2571,11 @@
                       const padX = Math.floor((YOLO_INPUT_SIZE - newW) / 2);
                       const padY = Math.floor((YOLO_INPUT_SIZE - newH) / 2);
                     
-                      const canvas = new OffscreenCanvas(YOLO_INPUT_SIZE, YOLO_INPUT_SIZE);
-                      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                      if (!yoloCanvas) {
+                        yoloCanvas = new OffscreenCanvas(YOLO_INPUT_SIZE, YOLO_INPUT_SIZE);
+                        yoloCtx = yoloCanvas.getContext('2d', { willReadFrequently: true });
+                      }
+                      const ctx = yoloCtx;
                       ctx.clearRect(0, 0, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE);
                       ctx.fillStyle = 'black';
                       ctx.fillRect(0, 0, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE);
@@ -2583,13 +2591,13 @@
                       const data = ctx.getImageData(0, 0, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE).data;
                     
                       const size = YOLO_INPUT_SIZE * YOLO_INPUT_SIZE;
-                      const input = new Float32Array(3 * size);
+                      if (!yoloInput || yoloInput.length !== 3 * size) yoloInput = new Float32Array(3 * size);
                       for (let i = 0; i < size; i++) {
-                        input[i] = data[i * 4] / 255;
-                        input[i + size] = data[i * 4 + 1] / 255;
-                        input[i + size * 2] = data[i * 4 + 2] / 255;
+                        yoloInput[i] = data[i * 4] / 255;
+                        yoloInput[i + size] = data[i * 4 + 1] / 255;
+                        yoloInput[i + size * 2] = data[i * 4 + 2] / 255;
                       }
-                      const tensor = new ort.Tensor('float32', input, [1, 3, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE]);
+                      const tensor = new ort.Tensor('float32', yoloInput, [1, 3, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE]);
                       const outputs = await yoloSession.run({ [yoloInputName]: tensor });
                       let outName = yoloSession.outputNames[0];
                       let out = outputs[outName];
@@ -2788,14 +2796,24 @@
                     
                         const vConf = configOverrides?.vehicleConf !== undefined ? configOverrides.vehicleConf : 0.25;
                         const bConf = configOverrides?.bodyConf !== undefined ? configOverrides.bodyConf : 0.40;
+                        const yoloIntervalMs = configOverrides?.yoloIntervalMs !== undefined ? configOverrides.yoloIntervalMs : 250;
 
                         const tasks = [human.detect(imageData)];
                         if (configOverrides?.vehicles === true) {
                           if (!yoloSession) console.warn("YOLO tentou rodar, mas a sessão é nula.");
-                          tasks.push(yoloDetect(imageData, vConf).catch((e) => { 
-                            console.error("[YOLO] Falha na Inferência:", e); 
-                            return []; 
-                          }));
+                          const now = Date.now();
+                          if (now - lastYoloRun >= yoloIntervalMs && yoloSession) {
+                            tasks.push(yoloDetect(imageData, vConf).then((preds) => {
+                              lastYoloPreds = preds || [];
+                              lastYoloRun = now;
+                              return lastYoloPreds;
+                            }).catch((e) => { 
+                              console.error("[YOLO] Falha na Inferência:", e); 
+                              return lastYoloPreds || []; 
+                            }));
+                          } else {
+                            tasks.push(Promise.resolve(lastYoloPreds || []));
+                          }
                         } else { 
                           tasks.push(Promise.resolve([])); 
                         }
@@ -2882,6 +2900,7 @@
             let lastMotionData = null; 
             let sleepTimer = 0; 
             let hadTargetsPrevFrame = false;
+            let hadFacesPrevFrame = false;
 
             // ROLLING BUFFER: Guarda sempre os últimos 10 segundos na memória 
             if (!window.cameraBuffers[cam.id]) window.cameraBuffers[cam.id] = []; 
@@ -2964,7 +2983,10 @@
                         if (!isWaitingForWorker) { 
                             isWaitingForWorker = true; 
                             try { 
-                                const MAX_DIM = 1920; 
+                                const now = Date.now();
+                                const wantHighRes = camCfg.faceRec !== false && (hadFacesPrevFrame || (now - (loopState.lastHighResTs || 0) > 5000));
+                                const MAX_DIM = wantHighRes ? 1600 : 960; 
+                                if (wantHighRes) loopState.lastHighResTs = now;
                                 const scale = Math.min(1, MAX_DIM / sampleCanvas.width, MAX_DIM / sampleCanvas.height); 
                                 loopState.inferScale = scale; 
                                 const w = Math.max(1, Math.round(sampleCanvas.width * scale)); 
@@ -2990,13 +3012,14 @@
                                 vehiclePredictions: window.latestWorkerResults[cam.id].vehiclePredictions || [], 
                                 isAwake 
                             }; 
+                            hadFacesPrevFrame = (latestState.faces && latestState.faces.length > 0);
                             hadTargetsPrevFrame = (latestState.bodies.length > 0 || latestState.vehiclePredictions.length > 0); 
                             globalFramesRendered++; 
                             loopState.aiSeq = (loopState.aiSeq || 0) + 1; 
                             window.latestWorkerResults[cam.id].isReady = false; 
                             isWaitingForWorker = false; 
                         } 
-                        waitTime = 1; 
+                        waitTime = isWaitingForWorker ? 20 : 1; 
                     } else { 
                         latestState = { faces: [], bodies: [], vehiclePredictions: [], isAwake: false }; 
                         hadTargetsPrevFrame = false; 
