@@ -2483,8 +2483,8 @@
             const fallbackCount = Math.max(1, visibleIds.length);
             const targetFps = sumW > 0 ? (totalBudgetFps * (myW / sumW)) : (totalBudgetFps / fallbackCount);
 
-            const minInterval = isFocus ? 70 : 180;
-            const maxInterval = isFocus ? 350 : 1500;
+            const minInterval = isFocus ? 60 : 180;
+            const maxInterval = isFocus ? 220 : 1500;
             let tickMs = targetFps > 0 ? Math.round(1000 / targetFps) : maxInterval;
             tickMs = Math.max(minInterval, Math.min(maxInterval, tickMs));
 
@@ -3109,6 +3109,7 @@
                     
                     // ACORDA SE: Há movimento OU desenhou linha OU tinha alvos no frame anterior OU o Heartbeat forçou (15 loops) 
                     let isAwake = (activeDrawCamId === cam.id || hadTargetsPrevFrame || hadFacesPrevFrame || motionScore >= wakeThreshold || framesSinceLastAwake > 15); 
+                    if (perf.isFocus) isAwake = true;
                     
                     if (isAwake) { 
                         framesSinceLastAwake = 0; // Reset ao Heartbeat 
