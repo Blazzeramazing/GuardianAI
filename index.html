@@ -518,7 +518,7 @@
                                     </div>
                                     <div id="min-face-size-value" class="text-xs font-mono text-blue-300 bg-blue-900/20 border border-blue-900/40 px-2 py-1 rounded">90 px</div>
                                 </div>
-                                <input id="min-face-size" type="range" min="20" max="250" step="5" class="w-full accent-blue-500">
+                                <input id="min-face-size" type="range" min="10" max="250" step="5" class="w-full accent-blue-500">
                             </div>
                             
                             <div class="bg-gray-950 border border-gray-800 rounded-xl p-5">
@@ -856,7 +856,7 @@
 
         function getMinFaceSize() {
             const v = Number(localStorage.getItem('vms_min_face_size'));
-            return Number.isFinite(v) && v > 0 ? Math.min(250, Math.max(20, Math.round(v))) : 80;
+            return Number.isFinite(v) && v > 0 ? Math.min(250, Math.max(10, Math.round(v))) : 80;
         }
 
         function getAiMaxDim() {
@@ -2283,7 +2283,7 @@
             if (minSlider && minSlider.dataset.hydrated !== '1') {
                 minSlider.dataset.hydrated = '1';
                 minSlider.addEventListener('input', (e) => {
-                    const v = Math.min(250, Math.max(20, Math.round(Number(e.target.value) || 90)));
+                    const v = Math.min(250, Math.max(10, Math.round(Number(e.target.value) || 80)));
                     localStorage.setItem('vms_min_face_size', String(v));
                     if (minLabel) minLabel.innerText = v + ' px';
                 });
