@@ -572,6 +572,42 @@
                                 </div>
                             </div> 
 
+                            <div class="bg-gray-950 border border-teal-800 rounded-xl p-5 space-y-4"> 
+                                <h3 class="text-white font-bold text-sm uppercase tracking-widest border-b border-gray-800 pb-2 mb-2 text-teal-500">Deteção de Pessoas (Corpos)</h3> 
+                                <div> 
+                                    <div class="flex justify-between gap-4 mb-2"><div class="text-sm font-semibold text-white">Confiança de Corpos (bodyConf)</div><div id="val-body-conf" class="text-xs font-mono text-teal-300 bg-teal-900/20 px-2 py-1 rounded border border-teal-900/40">0.40</div></div> 
+                                    <p class="text-xs text-gray-500 mb-2">Filtra corpos fracos para reduzir ruído e melhorar rastreamento.</p> 
+                                    <input id="slider-body-conf" type="range" min="0.1" max="0.9" step="0.05" class="w-full accent-teal-500"> 
+                                </div> 
+                            </div> 
+
+                            <div class="bg-gray-950 border border-yellow-800 rounded-xl p-5 space-y-4"> 
+                                <h3 class="text-white font-bold text-sm uppercase tracking-widest border-b border-gray-800 pb-2 mb-2 text-yellow-500">Deteção de Veículos (YOLOv8)</h3> 
+                                <div> 
+                                    <div class="flex justify-between gap-4 mb-2"><div class="text-sm font-semibold text-white">Confiança YOLO (vehicleConf)</div><div id="val-vehicle-conf" class="text-xs font-mono text-yellow-300 bg-yellow-900/20 px-2 py-1 rounded border border-yellow-900/40">0.25</div></div> 
+                                    <p class="text-xs text-gray-500 mb-2">Baixe para captar carros ao longe; aumente para reduzir falsos positivos.</p> 
+                                    <input id="slider-vehicle-conf" type="range" min="0.1" max="0.9" step="0.05" class="w-full accent-yellow-500"> 
+                                </div> 
+                                <div class="pt-2 border-t border-gray-800"> 
+                                    <div class="flex justify-between gap-4 mb-2"><div class="text-sm font-semibold text-white">Tamanho Mínimo (vehMinSize)</div><div id="val-veh-size" class="text-xs font-mono text-yellow-300 bg-yellow-900/20 px-2 py-1 rounded border border-yellow-900/40">30 px</div></div> 
+                                    <p class="text-xs text-gray-500 mb-2">Ignora lixo visual e objetos minúsculos (em pixels no ecrã).</p> 
+                                    <input id="slider-veh-size" type="range" min="10" max="200" step="5" class="w-full accent-yellow-500"> 
+                                </div> 
+                                <div class="pt-3 border-t border-gray-800"> 
+                                    <div class="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Perfis Rápidos</div> 
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3"> 
+                                        <button onclick="applyVehiclePreset('gate')" class="bg-gray-900 hover:bg-yellow-900/30 border border-gray-700 hover:border-yellow-500 text-gray-200 py-3 rounded-lg flex flex-col items-center justify-center gap-1 transition-all"> 
+                                            <span class="font-black text-sm text-white">Portaria/Cancela</span> 
+                                            <span class="text-[10px] uppercase tracking-wider text-gray-500">MinSize alto, Conf alto</span> 
+                                        </button> 
+                                        <button onclick="applyVehiclePreset('parking')" class="bg-gray-900 hover:bg-yellow-900/20 border border-gray-700 hover:border-yellow-500 text-gray-200 py-3 rounded-lg flex flex-col items-center justify-center gap-1 transition-all"> 
+                                            <span class="font-black text-sm text-white">Estacionamento Amplo</span> 
+                                            <span class="text-[10px] uppercase tracking-wider text-gray-500">MinSize baixo, Conf baixo</span> 
+                                        </button> 
+                                    </div> 
+                                </div> 
+                            </div> 
+
                             <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 space-y-6 shadow-[0_0_15px_rgba(249,115,22,0.05)]"> 
                                 <h3 class="text-white font-bold text-sm uppercase tracking-widest border-b border-gray-800 pb-2 mb-4 text-orange-500">Radar Semântico (Busca Longa Distância)</h3> 
                                 <p class="text-xs text-gray-400 mb-4">Localize alvos até 15 metros cruzando género e cor da roupa, quando o rosto está longe demais para reconhecimento biométrico.</p> 
@@ -864,7 +900,8 @@
             webhookUrl: '', flowCount: false,
             telegramToken: '', telegramChatId: '',
             scheduleActive: false, scheduleStart: '18:00', scheduleEnd: '08:00',
-            loiteringTime: 0, waUrl: '', waToken: '', waPhone: ''
+            loiteringTime: 0, waUrl: '', waToken: '', waPhone: '',
+            bodyConf: 0.40, vehicleConf: 0.25, vehMinSize: 30
         };
         let currentSettingsCamId = null;
         let globalFramesRendered = 0;
@@ -2464,7 +2501,7 @@
                       } catch (e) {}
                     }
                     
-                    async function yoloDetect(imageData) {
+                    async function yoloDetect(imageData, threshold) {
                       if (!yoloSession || !yoloInputName) return [];
                       const origW = imageData.width;
                       const origH = imageData.height;
@@ -2519,7 +2556,7 @@
                         return [];
                       }
                       const numClasses = cols - 4;
-                      const scoreThreshold = 0.25;
+                      const scoreThreshold = (typeof threshold === 'number' && Number.isFinite(threshold)) ? threshold : 0.25;
                       const iouThreshold = 0.45;
                       const maxDet = 100;
                     
@@ -2612,8 +2649,11 @@
                           if (configOverrides.extConf !== undefined) human.config.face.description.minConfidence = configOverrides.extConf;
                         }
                     
+                        const vConf = configOverrides?.vehicleConf !== undefined ? configOverrides.vehicleConf : 0.25;
+                        const bConf = configOverrides?.bodyConf !== undefined ? configOverrides.bodyConf : 0.40;
+
                         const tasks = [human.detect(imageData)];
-                        if (configOverrides?.vehicles === true) tasks.push(yoloDetect(imageData).catch((e) => { console.warn("Falha no YOLOv8:", e); return []; }));
+                        if (configOverrides?.vehicles === true) tasks.push(yoloDetect(imageData, vConf).catch((e) => { console.warn("Falha no YOLOv8:", e); return []; }));
                         else tasks.push(Promise.resolve([]));
                     
                         const res = await Promise.all(tasks);
@@ -2627,7 +2667,7 @@
                           embedding: f.embedding ? Array.from(f.embedding) : null
                         }));
                     
-                        const safeBodies = (humanResult.body || []).map(b => ({ boxRaw: b.boxRaw, id: b.id }));
+                        const safeBodies = (humanResult.body || []).filter(b => (b?.score ?? 1) >= bConf).map(b => ({ boxRaw: b.boxRaw, id: b.id, score: b.score }));
                     
                         postMessage({ type: 'PROCESS_RESULT', camId, result: { faces: safeFaces, bodies: safeBodies, vehiclePredictions: vPreds } });
                       } catch (error) {
@@ -3072,8 +3112,11 @@
                 const detections = []; 
                 if (vehiclePredictions && vehiclePredictions.length > 0) { 
                     const scale = loopState.inferScale || 1; 
+                    const vConf = camCfg.vehicleConf !== undefined ? camCfg.vehicleConf : 0.25; 
+                    const vehMinSize = camCfg.vehMinSize !== undefined ? camCfg.vehMinSize : 30; 
+                    const vehicleClasses = ['car', 'truck', 'bus', 'motorcycle', 'bicycle']; 
                     vehiclePredictions.forEach(pred => { 
-                        if (!pred?.bbox || pred.score < 0.20) return; 
+                        if (!pred?.bbox || pred.score < vConf) return; 
                         const px = pred.bbox[0] / scale; 
                         const py = pred.bbox[1] / scale; 
                         const pw = pred.bbox[2] / scale; 
@@ -3085,11 +3128,15 @@
                         if (!Number.isFinite(nx) || !Number.isFinite(ny) || !Number.isFinite(nw) || !Number.isFinite(nh)) return; 
                         const bbox = [nx, ny, nw, nh]; 
                         const cls = pred.class || 'object'; 
-                        detections.push({ bbox, cls, score: pred.score || 0, isVehicle: (cls !== 'person') }); 
+                        const isVeh = vehicleClasses.includes(cls); 
+                        if (isVeh && (pw < vehMinSize || ph < vehMinSize)) return; 
+                        if (!isVeh) return; 
+                        detections.push({ bbox, cls, score: pred.score || 0, isVehicle: true }); 
                     }); 
                 } 
                 bodies.forEach(b => { 
-                    if (b && b.boxRaw && b.boxRaw.length >= 4) { 
+                    const bConf = camCfg.bodyConf !== undefined ? camCfg.bodyConf : 0.40; 
+                    if (b && b.boxRaw && b.boxRaw.length >= 4 && ((b.score ?? 1) >= bConf)) { 
                         detections.push({ 
                             bbox: b.boxRaw, 
                             cls: 'person', 
@@ -3211,22 +3258,40 @@
                     uiOffsetY -= 5; 
                 } 
 
+                if (camCfg.vehicles === true) { 
+                    const liveVehicles = nextTracks.filter(t => t.isVehicle === true && t.visible === true).length; 
+                    uiOffsetY -= 35; 
+                    ctx.fillStyle = 'rgba(234, 179, 8, 1)'; 
+                    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)'; 
+                    ctx.lineWidth = 1; 
+                    ctx.fillRect(10, uiOffsetY, 210, 35); 
+                    ctx.strokeRect(10, uiOffsetY, 210, 35); 
+                    ctx.fillStyle = 'black'; 
+                    ctx.font = 'bold 14px ui-monospace, monospace'; 
+                    ctx.textBaseline = 'middle'; 
+                    ctx.fillText("🚗 VEÍCULOS NO LOCAL: " + liveVehicles, 20, uiOffsetY + 17); 
+                    uiOffsetY -= 5; 
+                } 
+
                 if (camCfg.vehicles === true && vehiclePredictions && vehiclePredictions.length > 0) { 
                     const vehicleClasses = ['car', 'truck', 'bus', 'motorcycle', 'bicycle']; 
                     const animalClasses = ['dog', 'cat', 'bird', 'horse', 'cow', 'sheep', 'bear']; 
                     let vCount = 0; let aCount = 0; 
                     const scale = loopState.inferScale || 1; 
+                    const vConf = camCfg.vehicleConf !== undefined ? camCfg.vehicleConf : 0.25; 
+                    const vehMinSize = camCfg.vehMinSize !== undefined ? camCfg.vehMinSize : 30; 
                     vehiclePredictions.forEach(pred => { 
-                        if (pred.score < 0.20) return; 
+                        if (pred.score < vConf) return; 
                         const isVeh = vehicleClasses.includes(pred.class); 
                         const isAni = animalClasses.includes(pred.class); 
                         if (!isVeh && !isAni) return; 
-                        if (isVeh) vCount++; 
-                        if (isAni) aCount++; 
                         const x = pred.bbox[0] / scale; 
                         const y = pred.bbox[1] / scale; 
                         const w = pred.bbox[2] / scale; 
                         const h = pred.bbox[3] / scale; 
+                        if (isVeh && (w < vehMinSize || h < vehMinSize)) return; 
+                        if (isVeh) vCount++; 
+                        if (isAni) aCount++; 
                         const objKey = `${cam.id}_obj_${pred.class}_${Math.round((x + w / 2) / 60)}_${Math.round((y + h / 2) / 60)}`; 
                         let objSmooth = smoothBoxes[objKey]; 
                         if (!objSmooth) { 
@@ -3680,6 +3745,39 @@
             setupSlider('slider-max-modelo', 'val-max-modelo', 'vms_max_modelo', getMaxModelo);
             setupSlider('slider-liveness', 'val-liveness', 'vms_liveness_conf', getLivenessConf);
             setupSlider('slider-motion-sens', 'val-motion-sens', 'vms_motion_sens', getMotionSens);
+            const bodyConfSlider = document.getElementById('slider-body-conf');
+            const bodyConfVal = document.getElementById('val-body-conf');
+            if (bodyConfSlider && bodyConfVal) {
+                bodyConfSlider.value = String(defaultCamConfig.bodyConf);
+                bodyConfVal.innerText = defaultCamConfig.bodyConf.toFixed(2);
+                bodyConfSlider.oninput = (e) => {
+                    const val = Number(e.target.value);
+                    bodyConfVal.innerText = val.toFixed(2);
+                    if (currentSettingsCamId) window.saveCamSetting('bodyConf', val);
+                };
+            }
+            const vehicleConfSlider = document.getElementById('slider-vehicle-conf');
+            const vehicleConfVal = document.getElementById('val-vehicle-conf');
+            if (vehicleConfSlider && vehicleConfVal) {
+                vehicleConfSlider.value = String(defaultCamConfig.vehicleConf);
+                vehicleConfVal.innerText = defaultCamConfig.vehicleConf.toFixed(2);
+                vehicleConfSlider.oninput = (e) => {
+                    const val = Number(e.target.value);
+                    vehicleConfVal.innerText = val.toFixed(2);
+                    if (currentSettingsCamId) window.saveCamSetting('vehicleConf', val);
+                };
+            }
+            const vehSizeSlider = document.getElementById('slider-veh-size');
+            const vehSizeVal = document.getElementById('val-veh-size');
+            if (vehSizeSlider && vehSizeVal) {
+                vehSizeSlider.value = String(defaultCamConfig.vehMinSize);
+                vehSizeVal.innerText = defaultCamConfig.vehMinSize + ' px';
+                vehSizeSlider.oninput = (e) => {
+                    const val = Number(e.target.value);
+                    vehSizeVal.innerText = val + ' px';
+                    if (currentSettingsCamId) window.saveCamSetting('vehMinSize', val);
+                };
+            }
             const contextToggle = document.getElementById('toggle-context-ui'); 
             if (contextToggle) contextToggle.checked = showContext;
             const rg = document.getElementById('radar-gender'); if (rg) rg.value = localStorage.getItem('vms_radar_gender') || 'all'; 
@@ -3736,6 +3834,24 @@
             document.getElementById('slider-liveness').value = cfg.liveness; document.getElementById('val-liveness').innerText = cfg.liveness.toFixed(2);
             document.getElementById('slider-min-size').value = cfg.minSize; document.getElementById('val-min-size').innerText = cfg.minSize + ' px';
             document.getElementById('slider-motion-sens').value = cfg.motionSens; document.getElementById('val-motion-sens').innerText = cfg.motionSens.toFixed(2);
+            const bodyConfSlider = document.getElementById('slider-body-conf');
+            const bodyConfVal = document.getElementById('val-body-conf');
+            if (bodyConfSlider && bodyConfVal) {
+                bodyConfSlider.value = cfg.bodyConf !== undefined ? cfg.bodyConf : defaultCamConfig.bodyConf;
+                bodyConfVal.innerText = Number(bodyConfSlider.value).toFixed(2);
+            }
+            const vehicleConfSlider = document.getElementById('slider-vehicle-conf');
+            const vehicleConfVal = document.getElementById('val-vehicle-conf');
+            if (vehicleConfSlider && vehicleConfVal) {
+                vehicleConfSlider.value = cfg.vehicleConf !== undefined ? cfg.vehicleConf : defaultCamConfig.vehicleConf;
+                vehicleConfVal.innerText = Number(vehicleConfSlider.value).toFixed(2);
+            }
+            const vehSizeSlider = document.getElementById('slider-veh-size');
+            const vehSizeVal = document.getElementById('val-veh-size');
+            if (vehSizeSlider && vehSizeVal) {
+                vehSizeSlider.value = cfg.vehMinSize !== undefined ? cfg.vehMinSize : defaultCamConfig.vehMinSize;
+                vehSizeVal.innerText = Number(vehSizeSlider.value) + ' px';
+            }
 
             const webhookInput = document.getElementById('input-webhook');
             if (webhookInput) {
@@ -3761,6 +3877,11 @@
         window.saveCamSetting = (key, value) => {
             if (!currentSettingsCamId) return;
             if (!camConfigs[currentSettingsCamId]) camConfigs[currentSettingsCamId] = { ...defaultCamConfig, customZones: [] };
+            const numericKeys = new Set(['detConf', 'extConf', 'liveness', 'minSize', 'motionSens', 'loiteringTime', 'bodyConf', 'vehicleConf', 'vehMinSize']);
+            if (numericKeys.has(key)) {
+                const n = Number(value);
+                if (Number.isFinite(n)) value = n;
+            }
             camConfigs[currentSettingsCamId][key] = value;
             
             // LIMPEZA AUTOMÁTICA DE FLUXO QUANDO DESATIVADO 
@@ -4389,6 +4510,21 @@
             document.getElementById('slider-det-conf')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); 
              
             showToast(`Perfil Tático [${distance} Metro(s)] carregado com sucesso!`, "success"); 
+        };
+
+        window.applyVehiclePreset = (preset) => { 
+            if (!currentSettingsCamId) return; 
+            let p = { vehicleConf: defaultCamConfig.vehicleConf, vehMinSize: defaultCamConfig.vehMinSize }; 
+            if (preset === 'gate') { 
+                p = { vehicleConf: 0.45, vehMinSize: 120 }; 
+            } else if (preset === 'parking') { 
+                p = { vehicleConf: 0.20, vehMinSize: 30 }; 
+            } 
+            const confSlider = document.getElementById('slider-vehicle-conf'); 
+            const sizeSlider = document.getElementById('slider-veh-size'); 
+            if (confSlider) { confSlider.value = String(p.vehicleConf); confSlider.dispatchEvent(new Event('input')); } 
+            if (sizeSlider) { sizeSlider.value = String(p.vehMinSize); sizeSlider.dispatchEvent(new Event('input')); } 
+            showToast(`Perfil YOLO aplicado: ${preset === 'gate' ? 'Portaria/Cancela' : 'Estacionamento Amplo'}`, "success"); 
         };
 
         let chartLevelsInstance = null;
