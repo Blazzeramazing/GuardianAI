@@ -2497,21 +2497,47 @@
                       ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
                       ort.env.wasm.numThreads = 1;
 
-                      const YOLO_MODEL_URL = 'https://cdn.jsdelivr.net/gh/AndreyG/yolov8-web-demo@main/public/yolov8n.onnx';
+                      // Matriz de Redundância: Tenta Local primeiro, depois CDNs de alta disponibilidade
+                      const mirrors = [
+                        './yolov8n.onnx',
+                        'https://raw.githubusercontent.com/mikel-brostrom/yolov8_onnx_tensorrt_video_tracking/main/models/yolov8n.onnx',
+                        'https://huggingface.co/isker/yolov8n/resolve/main/yolov8n.onnx',
+                        'https://cdn.jsdelivr.net/gh/zaigie/yolov8-onnx-js/public/yolov8n.onnx'
+                      ];
+
+                      let modelBuffer = null;
+                      let lastError = "";
+
+                      for (const url of mirrors) {
+                        try {
+                          const response = await fetch(url);
+                          if (!response.ok) {
+                            lastError = response.status;
+                            continue;
+                          }
+                          const buffer = await response.arrayBuffer();
+
+                          // Validação vital: O modelo real tem de ter mais de 2MB (Geralmente 12MB)
+                          if (buffer.byteLength > 2000000) {
+                            modelBuffer = buffer;
+                            console.log("[YOLO] Modelo carregado com sucesso da fonte:", url);
+                            break;
+                          }
+                        } catch (e) {
+                          lastError = e.message;
+                          console.warn("[YOLO] Fonte falhou:", url);
+                        }
+                      }
+
+                      if (!modelBuffer) {
+                        throw new Error("Download bloqueado. Descarregue o yolov8n.onnx e coloque na mesma pasta do index.html.");
+                      }
 
                       try {
-                        const response = await fetch(YOLO_MODEL_URL);
-                        if (!response.ok) throw new Error("Falha HTTP no download: " + response.status);
-                        const buffer = await response.arrayBuffer();
-
-                        if (buffer.byteLength < 5000000) {
-                          throw new Error("O modelo descarregado tem menos de 5MB, possivelmente um ficheiro de texto LFS falso.");
-                        }
-
-                        yoloSession = await ort.InferenceSession.create(buffer, { executionProviders: ['wasm'] });
+                        yoloSession = await ort.InferenceSession.create(modelBuffer, { executionProviders: ['wasm'] });
                         yoloInputName = yoloSession.inputNames[0];
                       } catch (e) {
-                        throw new Error("Falha ao inicializar o YOLOv8: " + (e.message || String(e)));
+                        throw new Error("Sessão ONNX rejeitou o buffer: " + (e.message || String(e)));
                       }
                     }
                     
