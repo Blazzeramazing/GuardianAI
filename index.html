@@ -3064,7 +3064,7 @@
                             isAwake: latestState.isAwake === true 
                         }; 
                         hadFacesPrevFrame = (latestState.faces && latestState.faces.length > 0);
-                        hadTargetsPrevFrame = (latestState.bodies.length > 0 || latestState.vehiclePredictions.length > 0); 
+                        hadTargetsPrevFrame = (latestState.bodies.length > 0 || latestState.vehiclePredictions.length > 0 || (latestState.faces && latestState.faces.length > 0)); 
                         globalFramesRendered++; 
                         loopState.aiSeq = (loopState.aiSeq || 0) + 1; 
                         window.latestWorkerResults[cam.id].isReady = false; 
@@ -3103,12 +3103,12 @@
                     lastMotionData = new Uint8ClampedArray(currentMotionData); 
                     
                     const rawSens = camCfg.motionSens !== undefined ? camCfg.motionSens : getMotionSens(); 
-                    const wakeThreshold = rawSens / 10; 
+                    const wakeThreshold = (rawSens / 10) * (perf.isFocus ? 0.6 : 1); 
                     
                     framesSinceLastAwake++; 
                     
                     // ACORDA SE: Há movimento OU desenhou linha OU tinha alvos no frame anterior OU o Heartbeat forçou (15 loops) 
-                    let isAwake = (activeDrawCamId === cam.id || hadTargetsPrevFrame || motionScore >= wakeThreshold || framesSinceLastAwake > 15); 
+                    let isAwake = (activeDrawCamId === cam.id || hadTargetsPrevFrame || hadFacesPrevFrame || motionScore >= wakeThreshold || framesSinceLastAwake > 15); 
                     
                     if (isAwake) { 
                         framesSinceLastAwake = 0; // Reset ao Heartbeat 
@@ -3147,6 +3147,7 @@
                     } else { 
                         latestState = { faces: [], bodies: [], vehiclePredictions: [], isAwake: false }; 
                         hadTargetsPrevFrame = false; 
+                        hadFacesPrevFrame = false;
                     } 
                 } catch(e) { 
                     isWaitingForWorker = false; 
@@ -3279,10 +3280,15 @@
                         sb.kind = 'face'; 
                         sb.targetX = x; sb.targetY = y; sb.targetW = w; sb.targetH = h; sb.ts = nowTs; 
  
-                        if (sb.targetX !== undefined) sb.x += (sb.targetX - sb.x) * 0.3; 
-                        if (sb.targetY !== undefined) sb.y += (sb.targetY - sb.y) * 0.3; 
-                        if (sb.targetW !== undefined) sb.w += (sb.targetW - sb.w) * 0.3; 
-                        if (sb.targetH !== undefined) sb.h += (sb.targetH - sb.h) * 0.3; 
+                        const dt = Math.max(1, nowTs - (sb.lastTs || nowTs)); 
+                        sb.lastTs = nowTs; 
+                        const tau = perf.isFocus ? 70 : 110; 
+                        let a = 1 - Math.exp(-dt / tau); 
+                        a = Math.max(0.08, Math.min(0.65, a)); 
+                        if (sb.targetX !== undefined) sb.x += (sb.targetX - sb.x) * a; 
+                        if (sb.targetY !== undefined) sb.y += (sb.targetY - sb.y) * a; 
+                        if (sb.targetW !== undefined) sb.w += (sb.targetW - sb.w) * a; 
+                        if (sb.targetH !== undefined) sb.h += (sb.targetH - sb.h) * a; 
  
                         const score = face.boxScore || face.score || 0; 
                         const detLimit = camCfg.detConf !== undefined ? camCfg.detConf : getDetectorConf(); 
