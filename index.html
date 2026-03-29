@@ -608,6 +608,35 @@
                                 </div> 
                             </div> 
 
+                            <div class="bg-gray-950 border border-purple-800 rounded-xl p-5 space-y-4"> 
+                                <h3 class="text-white font-bold text-sm uppercase tracking-widest border-b border-gray-800 pb-2 mb-2 text-purple-500">Performance IA</h3> 
+                                <div> 
+                                    <div class="flex justify-between gap-4 mb-2"><div class="text-sm font-semibold text-white">Cadência do YOLO (ms)</div><div id="val-yolo-interval" class="text-xs font-mono text-purple-300 bg-purple-900/20 px-2 py-1 rounded border border-purple-900/40">250 ms</div></div> 
+                                    <p class="text-xs text-gray-500 mb-2">Menor = deteta veículos em movimento melhor, mas usa mais CPU.</p> 
+                                    <input id="slider-yolo-interval" type="range" min="100" max="1500" step="50" class="w-full accent-purple-500"> 
+                                </div> 
+                                <div class="pt-2 border-t border-gray-800"> 
+                                    <div class="flex justify-between gap-4 mb-2"><div class="text-sm font-semibold text-white">Prioridade de CPU (0–100)</div><div id="val-ai-priority" class="text-xs font-mono text-purple-300 bg-purple-900/20 px-2 py-1 rounded border border-purple-900/40">50</div></div> 
+                                    <p class="text-xs text-gray-500 mb-2">Define quanto desta câmara deve disputar ciclos quando há várias na grelha.</p> 
+                                    <input id="slider-ai-priority" type="range" min="0" max="100" step="5" class="w-full accent-purple-500"> 
+                                </div>
+                                <div class="pt-2 border-t border-gray-800"> 
+                                    <div class="flex justify-between gap-4 mb-2"><div class="text-sm font-semibold text-white">Qualidade de Imagem para IA (px)</div><div id="val-ai-maxdim" class="text-xs font-mono text-purple-300 bg-purple-900/20 px-2 py-1 rounded border border-purple-900/40">1600 px</div></div> 
+                                    <p class="text-xs text-gray-500 mb-2">Controla a resolução máxima da análise. 3840 px = 4K (quando disponível).</p> 
+                                    <input id="slider-ai-maxdim" type="range" min="640" max="3840" step="160" class="w-full accent-purple-500"> 
+                                </div>
+                                <div class="pt-2 border-t border-gray-800 space-y-2"> 
+                                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-800 bg-gray-900 hover:bg-gray-800 cursor-pointer transition-colors">
+                                        <div><div class="text-sm font-bold text-white">Prioridade Automática 1x1</div><div class="text-[10px] text-gray-400">Ao maximizar uma câmara, reduz a carga das restantes.</div></div>
+                                        <input type="checkbox" id="perf-focus-boost" class="w-5 h-5 accent-purple-500">
+                                    </label>
+                                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-800 bg-gray-900 hover:bg-gray-800 cursor-pointer transition-colors">
+                                        <div><div class="text-sm font-bold text-white">Pausar Câmaras Ocultas</div><div class="text-[10px] text-gray-400">Corta envio de frames para Workers quando não estão em foco.</div></div>
+                                        <input type="checkbox" id="perf-pause-hidden" class="w-5 h-5 accent-purple-500">
+                                    </label>
+                                </div>
+                            </div>
+
                             <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 space-y-6 shadow-[0_0_15px_rgba(249,115,22,0.05)]"> 
                                 <h3 class="text-white font-bold text-sm uppercase tracking-widest border-b border-gray-800 pb-2 mb-4 text-orange-500">Radar Semântico (Busca Longa Distância)</h3> 
                                 <p class="text-xs text-gray-400 mb-4">Localize alvos até 15 metros cruzando género e cor da roupa, quando o rosto está longe demais para reconhecimento biométrico.</p> 
@@ -901,7 +930,9 @@
             telegramToken: '', telegramChatId: '',
             scheduleActive: false, scheduleStart: '18:00', scheduleEnd: '08:00',
             loiteringTime: 0, waUrl: '', waToken: '', waPhone: '',
-            bodyConf: 0.40, vehicleConf: 0.10, vehMinSize: 10
+            bodyConf: 0.40, vehicleConf: 0.10, vehMinSize: 10, yoloIntervalMs: 250,
+            aiPriority: 50,
+            aiMaxDim: 1600
         };
         let currentSettingsCamId = null;
         let globalFramesRendered = 0;
@@ -2407,6 +2438,74 @@
             aiLoops = {};
         }
 
+        function getPerfFlags() {
+            const focusBoost = (localStorage.getItem('vms_perf_focus_boost') ?? '1') !== '0';
+            const pauseHidden = (localStorage.getItem('vms_perf_pause_hidden') ?? '1') !== '0';
+            return { focusBoost, pauseHidden };
+        }
+
+        function getVisibleCamIds() {
+            const ids = [];
+            for (let i = 0; i < layout; i++) {
+                const cam = cameras[i];
+                if (cam && cam.id) ids.push(cam.id);
+            }
+            return ids;
+        }
+
+        function computePerfProfile(camId, camCfg) {
+            const visibleIds = getVisibleCamIds();
+            const isVisible = visibleIds.includes(camId);
+            const { focusBoost, pauseHidden } = getPerfFlags();
+            const focusId = maximizedSlotId || (layout === 1 && cameras[0] ? cameras[0].id : null);
+            const isFocus = !!focusId && camId === focusId;
+            const isHiddenByMaximize = !!maximizedSlotId && camId !== maximizedSlotId;
+            const shouldPause = isVisible && pauseHidden && isHiddenByMaximize;
+
+            const weights = new Map();
+            for (const id of visibleIds) {
+                const cfg = camConfigs?.[id] || defaultCamConfig;
+                const aiOn = (cfg?.aiPower ?? true) === true;
+                let w = aiOn ? Number(cfg?.aiPriority ?? defaultCamConfig.aiPriority) : 0;
+                if (!Number.isFinite(w)) w = defaultCamConfig.aiPriority;
+                w = Math.max(0, Math.min(100, w));
+                w = w / 50;
+                if (focusBoost && maximizedSlotId) {
+                    w = id === maximizedSlotId ? w * 3 : w * 0.35;
+                }
+                weights.set(id, w);
+            }
+
+            const totalBudgetFps = 12;
+            let sumW = 0;
+            for (const v of weights.values()) sumW += v;
+            const myW = weights.get(camId) ?? 0;
+            const fallbackCount = Math.max(1, visibleIds.length);
+            const targetFps = sumW > 0 ? (totalBudgetFps * (myW / sumW)) : (totalBudgetFps / fallbackCount);
+
+            const minInterval = isFocus ? 70 : 180;
+            const maxInterval = isFocus ? 350 : 1500;
+            let tickMs = targetFps > 0 ? Math.round(1000 / targetFps) : maxInterval;
+            tickMs = Math.max(minInterval, Math.min(maxInterval, tickMs));
+
+            const configOverrides = { ...camCfg };
+            let yoloInterval = Number(configOverrides.yoloIntervalMs ?? defaultCamConfig.yoloIntervalMs);
+            if (!Number.isFinite(yoloInterval)) yoloInterval = defaultCamConfig.yoloIntervalMs;
+            if (maximizedSlotId && focusBoost) {
+                yoloInterval = isFocus ? Math.max(80, Math.round(yoloInterval * 0.6)) : Math.min(2500, Math.round(yoloInterval * 1.8));
+            }
+            configOverrides.yoloIntervalMs = yoloInterval;
+
+            let dimCap = Number(camCfg?.aiMaxDim ?? defaultCamConfig.aiMaxDim);
+            if (!Number.isFinite(dimCap)) dimCap = defaultCamConfig.aiMaxDim;
+            dimCap = Math.max(640, Math.min(3840, Math.round(dimCap)));
+
+            const maxDimHigh = Math.min((isFocus ? 1600 : (maximizedSlotId ? 1200 : 1400)), dimCap);
+            const maxDimLow = Math.min((isFocus ? 960 : (maximizedSlotId ? 720 : 900)), dimCap);
+
+            return { isVisible, isFocus, paused: shouldPause, tickMs, maxDimHigh, maxDimLow, configOverrides };
+        }
+
         // Extrator Matemático de Cores (Amostragem Rápida RGB) 
         function getClothingColor(ctx, bodyBox, canvasW, canvasH) { 
             if (!bodyBox) return ""; 
@@ -2945,9 +3044,42 @@
                 if (media.tagName === 'VIDEO' && media.readyState < 2) { setTimeout(inferenceLoop, 500); return; } 
                 
                 const camCfg = camConfigs[cam.id] || defaultCamConfig; 
-                let waitTime = 150; 
+                const perf = computePerfProfile(cam.id, camCfg);
+                let waitTime = perf.tickMs || 150; 
+
+                if (perf.paused) {
+                    latestState = { faces: [], bodies: [], vehiclePredictions: [], isAwake: false }; 
+                    hadTargetsPrevFrame = false; 
+                    isWaitingForWorker = false;
+                    setTimeout(inferenceLoop, 500);
+                    return;
+                }
                 
                 try { 
+                    if (window.latestWorkerResults[cam.id].isReady) { 
+                        latestState = { 
+                            faces: window.latestWorkerResults[cam.id].faces || [], 
+                            bodies: window.latestWorkerResults[cam.id].bodies || [], 
+                            vehiclePredictions: window.latestWorkerResults[cam.id].vehiclePredictions || [], 
+                            isAwake: latestState.isAwake === true 
+                        }; 
+                        hadFacesPrevFrame = (latestState.faces && latestState.faces.length > 0);
+                        hadTargetsPrevFrame = (latestState.bodies.length > 0 || latestState.vehiclePredictions.length > 0); 
+                        globalFramesRendered++; 
+                        loopState.aiSeq = (loopState.aiSeq || 0) + 1; 
+                        window.latestWorkerResults[cam.id].isReady = false; 
+                        isWaitingForWorker = false; 
+                    } 
+
+                    const nowTick = Date.now();
+                    const nextTickAt = loopState.nextTickAt || 0;
+                    if (nowTick < nextTickAt) {
+                        waitTime = isWaitingForWorker ? 20 : Math.min(200, Math.max(10, nextTickAt - nowTick));
+                        setTimeout(inferenceLoop, waitTime);
+                        return;
+                    }
+                    loopState.nextTickAt = nowTick + perf.tickMs;
+
                     syncCanvasToMedia(canvas, media); 
                     if (sampleCanvas.width !== canvas.width) sampleCanvas.width = canvas.width; 
                     if (sampleCanvas.height !== canvas.height) sampleCanvas.height = canvas.height; 
@@ -2993,7 +3125,7 @@
                             try { 
                                 const now = Date.now();
                                 const wantHighRes = camCfg.faceRec !== false && (hadFacesPrevFrame || (now - (loopState.lastHighResTs || 0) > 5000));
-                                const MAX_DIM = wantHighRes ? 1600 : 960; 
+                                const MAX_DIM = wantHighRes ? perf.maxDimHigh : perf.maxDimLow; 
                                 if (wantHighRes) loopState.lastHighResTs = now;
                                 const scale = Math.min(1, MAX_DIM / sampleCanvas.width, MAX_DIM / sampleCanvas.height); 
                                 loopState.inferScale = scale; 
@@ -3002,7 +3134,7 @@
                                 if (inferenceCanvas.width !== w) { inferenceCanvas.width = w; inferenceCanvas.height = h; } 
                                 infCtx.drawImage(sampleCanvas, 0, 0, w, h); 
                                 const bitmap = await createImageBitmap(inferenceCanvas); 
-                                aiWorkers[cam.id].postMessage({ type: 'PROCESS_FRAME', payload: { bitmap, camId: cam.id, configOverrides: camCfg } }, [bitmap]); 
+                                aiWorkers[cam.id].postMessage({ type: 'PROCESS_FRAME', payload: { bitmap, camId: cam.id, configOverrides: perf.configOverrides } }, [bitmap]); 
                                 
                                 setTimeout(() => { isWaitingForWorker = false; }, 2000); 
                             } catch (err) { 
@@ -3011,21 +3143,7 @@
                             } 
                         } 
                         
-                        if (window.latestWorkerResults[cam.id].isReady) { 
-                            latestState = { 
-                                faces: window.latestWorkerResults[cam.id].faces || [], 
-                                bodies: window.latestWorkerResults[cam.id].bodies || [], 
-                                vehiclePredictions: window.latestWorkerResults[cam.id].vehiclePredictions || [], 
-                                isAwake 
-                            }; 
-                            hadFacesPrevFrame = (latestState.faces && latestState.faces.length > 0);
-                            hadTargetsPrevFrame = (latestState.bodies.length > 0 || latestState.vehiclePredictions.length > 0); 
-                            globalFramesRendered++; 
-                            loopState.aiSeq = (loopState.aiSeq || 0) + 1; 
-                            window.latestWorkerResults[cam.id].isReady = false; 
-                            isWaitingForWorker = false; 
-                        } 
-                        waitTime = isWaitingForWorker ? 20 : 1; 
+                        waitTime = isWaitingForWorker ? 20 : perf.tickMs; 
                     } else { 
                         latestState = { faces: [], bodies: [], vehiclePredictions: [], isAwake: false }; 
                         hadTargetsPrevFrame = false; 
@@ -3039,19 +3157,28 @@
 
             function renderLoop() { 
                 if (!loopState.active) return; 
-                requestAnimationFrame(renderLoop); 
+                const camCfg = camConfigs[cam.id] || defaultCamConfig; 
+                const perf = computePerfProfile(cam.id, camCfg);
+                if (perf.paused) setTimeout(renderLoop, 250); else requestAnimationFrame(renderLoop); 
                 if (document.hidden || activeTab !== 'live' || !media.clientWidth) return; 
                 
                 syncCanvasToMedia(canvas, media); 
                 const ctx = canvas.getContext('2d'); 
                 ctx.clearRect(0, 0, canvas.width, canvas.height); 
+
+                if (perf.paused) {
+                    ctx.fillStyle = 'rgba(147, 197, 253, 0.9)'; 
+                    ctx.font = 'bold 12px ui-monospace, monospace'; 
+                    ctx.textBaseline = 'top'; 
+                    ctx.fillText("⏸ PAUSADO (Foco 1x1)", 10, 10); 
+                    return;
+                }
                 
                 const nowTs = Date.now(); 
                 for (const k in smoothBoxes) { 
                     if (nowTs - smoothBoxes[k].ts > 500) delete smoothBoxes[k]; 
                 } 
 
-                const camCfg = camConfigs[cam.id] || defaultCamConfig; 
                 let faces = Array.isArray(latestState.faces) ? latestState.faces : []; 
                 let bodies = Array.isArray(latestState.bodies) ? latestState.bodies : []; 
                 let vehiclePredictions = Array.isArray(latestState.vehiclePredictions) ? latestState.vehiclePredictions : []; 
@@ -3963,6 +4090,49 @@
                     if (currentSettingsCamId) window.saveCamSetting('vehMinSize', val);
                 };
             }
+            const yoloIntervalSlider = document.getElementById('slider-yolo-interval');
+            const yoloIntervalVal = document.getElementById('val-yolo-interval');
+            if (yoloIntervalSlider && yoloIntervalVal) {
+                yoloIntervalSlider.value = String(defaultCamConfig.yoloIntervalMs);
+                yoloIntervalVal.innerText = defaultCamConfig.yoloIntervalMs + ' ms';
+                yoloIntervalSlider.oninput = (e) => {
+                    const val = Number(e.target.value);
+                    yoloIntervalVal.innerText = val + ' ms';
+                    if (currentSettingsCamId) window.saveCamSetting('yoloIntervalMs', val);
+                };
+            }
+            const aiPrioritySlider = document.getElementById('slider-ai-priority');
+            const aiPriorityVal = document.getElementById('val-ai-priority');
+            if (aiPrioritySlider && aiPriorityVal) {
+                aiPrioritySlider.value = String(defaultCamConfig.aiPriority);
+                aiPriorityVal.innerText = String(defaultCamConfig.aiPriority);
+                aiPrioritySlider.oninput = (e) => {
+                    const val = Number(e.target.value);
+                    aiPriorityVal.innerText = String(val);
+                    if (currentSettingsCamId) window.saveCamSetting('aiPriority', val);
+                };
+            }
+            const aiMaxDimSlider = document.getElementById('slider-ai-maxdim');
+            const aiMaxDimVal = document.getElementById('val-ai-maxdim');
+            if (aiMaxDimSlider && aiMaxDimVal) {
+                aiMaxDimSlider.value = String(defaultCamConfig.aiMaxDim);
+                aiMaxDimVal.innerText = defaultCamConfig.aiMaxDim + ' px';
+                aiMaxDimSlider.oninput = (e) => {
+                    const val = Number(e.target.value);
+                    aiMaxDimVal.innerText = val + ' px';
+                    if (currentSettingsCamId) window.saveCamSetting('aiMaxDim', val);
+                };
+            }
+            const focusBoostEl = document.getElementById('perf-focus-boost');
+            if (focusBoostEl) {
+                focusBoostEl.checked = (localStorage.getItem('vms_perf_focus_boost') ?? '1') !== '0';
+                focusBoostEl.onchange = (e) => localStorage.setItem('vms_perf_focus_boost', e.target.checked ? '1' : '0');
+            }
+            const pauseHiddenEl = document.getElementById('perf-pause-hidden');
+            if (pauseHiddenEl) {
+                pauseHiddenEl.checked = (localStorage.getItem('vms_perf_pause_hidden') ?? '1') !== '0';
+                pauseHiddenEl.onchange = (e) => localStorage.setItem('vms_perf_pause_hidden', e.target.checked ? '1' : '0');
+            }
             const contextToggle = document.getElementById('toggle-context-ui'); 
             if (contextToggle) contextToggle.checked = showContext;
             const rg = document.getElementById('radar-gender'); if (rg) rg.value = localStorage.getItem('vms_radar_gender') || 'all'; 
@@ -4037,6 +4207,24 @@
                 vehSizeSlider.value = cfg.vehMinSize !== undefined ? cfg.vehMinSize : defaultCamConfig.vehMinSize;
                 vehSizeVal.innerText = Number(vehSizeSlider.value) + ' px';
             }
+            const yoloIntervalSlider = document.getElementById('slider-yolo-interval');
+            const yoloIntervalVal = document.getElementById('val-yolo-interval');
+            if (yoloIntervalSlider && yoloIntervalVal) {
+                yoloIntervalSlider.value = cfg.yoloIntervalMs !== undefined ? cfg.yoloIntervalMs : defaultCamConfig.yoloIntervalMs;
+                yoloIntervalVal.innerText = Number(yoloIntervalSlider.value) + ' ms';
+            }
+            const aiPrioritySlider = document.getElementById('slider-ai-priority');
+            const aiPriorityVal = document.getElementById('val-ai-priority');
+            if (aiPrioritySlider && aiPriorityVal) {
+                aiPrioritySlider.value = cfg.aiPriority !== undefined ? cfg.aiPriority : defaultCamConfig.aiPriority;
+                aiPriorityVal.innerText = String(Number(aiPrioritySlider.value));
+            }
+            const aiMaxDimSlider = document.getElementById('slider-ai-maxdim');
+            const aiMaxDimVal = document.getElementById('val-ai-maxdim');
+            if (aiMaxDimSlider && aiMaxDimVal) {
+                aiMaxDimSlider.value = cfg.aiMaxDim !== undefined ? cfg.aiMaxDim : defaultCamConfig.aiMaxDim;
+                aiMaxDimVal.innerText = String(Number(aiMaxDimSlider.value)) + ' px';
+            }
 
             const webhookInput = document.getElementById('input-webhook');
             if (webhookInput) {
@@ -4062,7 +4250,7 @@
         window.saveCamSetting = (key, value) => {
             if (!currentSettingsCamId) return;
             if (!camConfigs[currentSettingsCamId]) camConfigs[currentSettingsCamId] = { ...defaultCamConfig, customZones: [] };
-            const numericKeys = new Set(['detConf', 'extConf', 'liveness', 'minSize', 'motionSens', 'loiteringTime', 'bodyConf', 'vehicleConf', 'vehMinSize']);
+            const numericKeys = new Set(['detConf', 'extConf', 'liveness', 'minSize', 'motionSens', 'loiteringTime', 'bodyConf', 'vehicleConf', 'vehMinSize', 'yoloIntervalMs', 'aiPriority', 'aiMaxDim']);
             if (numericKeys.has(key)) {
                 const n = Number(value);
                 if (Number.isFinite(n)) value = n;
