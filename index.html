@@ -2613,7 +2613,7 @@
                         }
                     
                         const tasks = [human.detect(imageData)];
-                        if (configOverrides?.vehicles === true) tasks.push(yoloDetect(imageData).catch(() => []));
+                        if (configOverrides?.vehicles === true) tasks.push(yoloDetect(imageData).catch((e) => { console.warn("Falha no YOLOv8:", e); return []; }));
                         else tasks.push(Promise.resolve([]));
                     
                         const res = await Promise.all(tasks);
@@ -3088,6 +3088,16 @@
                         detections.push({ bbox, cls, score: pred.score || 0, isVehicle: (cls !== 'person') }); 
                     }); 
                 } 
+                bodies.forEach(b => { 
+                    if (b && b.boxRaw && b.boxRaw.length >= 4) { 
+                        detections.push({ 
+                            bbox: b.boxRaw, 
+                            cls: 'person', 
+                            score: 1.0, 
+                            isVehicle: false 
+                        }); 
+                    } 
+                }); 
  
                 if (!loopState.iouTracker) loopState.iouTracker = new IOUTracker({ iouThreshold: 0.3, ttl: 30 }); 
                 const seq = loopState.aiSeq || 0; 
