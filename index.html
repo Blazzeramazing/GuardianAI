@@ -2459,7 +2459,7 @@
                         throw e;
                     });
                 }
-                const workerCode = `
+                    const workerCode = `
                     importScripts('https://cdn.jsdelivr.net/npm/@vladmandic/human@3.2.2/dist/human.js');
                     importScripts('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js');
                     
@@ -2559,10 +2559,10 @@
                       }
                     }
                     
-                    async function yoloDetect(imageData, threshold) {
+                    async function yoloDetect(source, threshold) {
                       if (!yoloSession || !yoloInputName) return [];
-                      const origW = imageData.width;
-                      const origH = imageData.height;
+                      const origW = source.width;
+                      const origH = source.height;
                       if (!origW || !origH) return [];
                     
                       const ratio = Math.min(YOLO_INPUT_SIZE / origW, YOLO_INPUT_SIZE / origH);
@@ -2579,11 +2579,12 @@
                       ctx.clearRect(0, 0, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE);
                       ctx.fillStyle = 'black';
                       ctx.fillRect(0, 0, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE);
+                      const isBitmap = (typeof ImageBitmap !== 'undefined' && source instanceof ImageBitmap);
                       let bitmap;
                       try {
-                        bitmap = await createImageBitmap(imageData);
+                        bitmap = isBitmap ? source : await createImageBitmap(source);
                         ctx.drawImage(bitmap, padX, padY, newW, newH);
-                        bitmap.close();
+                        if (!isBitmap) bitmap.close();
                       } catch(imgErr) {
                         console.error("[YOLO] Erro de Bitmap:", imgErr);
                         return [];
@@ -2782,7 +2783,7 @@
                       }
                     }
                     
-                    async function processFrame(imageData, camId, configOverrides) {
+                    async function processFrame(payload, camId, configOverrides) {
                       if (!isReady || !human) {
                         postMessage({ type: 'PROCESS_RESULT', camId, error: 'Not Ready' });
                         return;
@@ -2797,13 +2798,18 @@
                         const vConf = configOverrides?.vehicleConf !== undefined ? configOverrides.vehicleConf : 0.25;
                         const bConf = configOverrides?.bodyConf !== undefined ? configOverrides.bodyConf : 0.40;
                         const yoloIntervalMs = configOverrides?.yoloIntervalMs !== undefined ? configOverrides.yoloIntervalMs : 250;
+                        const source = payload?.bitmap || payload?.imageData;
+                        if (!source) {
+                          postMessage({ type: 'PROCESS_RESULT', camId, error: 'No Frame' });
+                          return;
+                        }
 
-                        const tasks = [human.detect(imageData)];
+                        const tasks = [human.detect(source)];
                         if (configOverrides?.vehicles === true) {
                           if (!yoloSession) console.warn("YOLO tentou rodar, mas a sessão é nula.");
                           const now = Date.now();
                           if (now - lastYoloRun >= yoloIntervalMs && yoloSession) {
-                            tasks.push(yoloDetect(imageData, vConf).then((preds) => {
+                            tasks.push(yoloDetect(source, vConf).then((preds) => {
                               lastYoloPreds = preds || [];
                               lastYoloRun = now;
                               return lastYoloPreds;
@@ -2832,8 +2838,10 @@
                         const safeBodies = (humanResult.body || []).filter(b => (b?.score ?? 1) >= bConf).map(b => ({ boxRaw: b.boxRaw, id: b.id, score: b.score }));
                     
                         postMessage({ type: 'PROCESS_RESULT', camId, result: { faces: safeFaces, bodies: safeBodies, vehiclePredictions: vPreds } });
+                        if (payload?.bitmap && typeof payload.bitmap.close === 'function') payload.bitmap.close();
                       } catch (error) {
                         postMessage({ type: 'PROCESS_RESULT', camId, error: error.message || String(error) });
+                        if (payload?.bitmap && typeof payload.bitmap.close === 'function') payload.bitmap.close();
                       }
                     }
                     
@@ -2842,7 +2850,7 @@
                       const type = msg.type;
                       const payload = msg.payload || {};
                       if (type === 'INIT_ENGINE') await initEngine(payload.config, payload.backend, payload.modelBuffer);
-                      if (type === 'PROCESS_FRAME') await processFrame(payload.imageData, payload.camId, payload.configOverrides);
+                      if (type === 'PROCESS_FRAME') await processFrame(payload, payload.camId, payload.configOverrides);
                     };
                 `;
                  
@@ -2993,10 +3001,8 @@
                                 const h = Math.max(1, Math.round(sampleCanvas.height * scale)); 
                                 if (inferenceCanvas.width !== w) { inferenceCanvas.width = w; inferenceCanvas.height = h; } 
                                 infCtx.drawImage(sampleCanvas, 0, 0, w, h); 
-                                const imageData = infCtx.getImageData(0, 0, w, h); 
-                                
-                                
-                                aiWorkers[cam.id].postMessage({ type: 'PROCESS_FRAME', payload: { imageData, camId: cam.id, configOverrides: camCfg } }); 
+                                const bitmap = await createImageBitmap(inferenceCanvas); 
+                                aiWorkers[cam.id].postMessage({ type: 'PROCESS_FRAME', payload: { bitmap, camId: cam.id, configOverrides: camCfg } }, [bitmap]); 
                                 
                                 setTimeout(() => { isWaitingForWorker = false; }, 2000); 
                             } catch (err) { 
