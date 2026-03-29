@@ -2613,7 +2613,8 @@
                         }
                     
                         const tasks = [human.detect(imageData)];
-                        tasks.push(yoloDetect(imageData).catch(() => []));
+                        if (configOverrides?.vehicles === true) tasks.push(yoloDetect(imageData).catch(() => []));
+                        else tasks.push(Promise.resolve([]));
                     
                         const res = await Promise.all(tasks);
                         const humanResult = res[0] || {};
@@ -2671,6 +2672,8 @@
  
             const loopState = { active: true }; 
             aiLoops[cam.id] = loopState; 
+            const smoothBoxes = {}; 
+            const spatialTrackers = []; 
              
             const identityTracker = {}; // Buffer Temporal de Histerese por Identidade 
             const sampleCanvas = document.createElement('canvas');
@@ -2818,7 +2821,6 @@
                 const ctx = canvas.getContext('2d'); 
                 ctx.clearRect(0, 0, canvas.width, canvas.height); 
                 
-                const smoothBoxes = window.smoothRenderBoxes; 
                 const nowTs = Date.now(); 
                 for (const k in smoothBoxes) { 
                     if (nowTs - smoothBoxes[k].ts > 500) delete smoothBoxes[k]; 
@@ -3092,9 +3094,10 @@
                 if (loopState._lastTrackSeq !== seq) { 
                     loopState._lastTrackSeq = seq; 
                     loopState._tracked = loopState.iouTracker.update(detections); 
-                    window.spatialTrackers[cam.id] = loopState._tracked; 
+                    spatialTrackers.length = 0; 
+                    spatialTrackers.push(...loopState._tracked); 
                 } 
-                const nextTracks = window.spatialTrackers[cam.id] || []; 
+                const nextTracks = spatialTrackers; 
  
                 if (camCfg.heatmap) { 
                     if (!window.camHeatmaps[cam.id]) window.camHeatmaps[cam.id] = []; 
