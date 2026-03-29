@@ -1,0 +1,37 @@
+pytorch2.8.0:Ȇ�
+�
+images
+model.0.conv.weight
+model.0.conv.bias/model.0/conv/Conv_output_0/model.0/conv/Conv"Conv*
+	dilations@@�*
+group�*
+kernel_shape@@�*
+pads@@@@�*
+strides@@�
+[
+/model.0/conv/Conv_output_0/model.0/act/Sigmoid_output_0/model.0/act/Sigmoid"Sigmoid
+n
+/model.0/conv/Conv_output_0
+/model.0/act/Sigmoid_output_0/model.0/act/Mul_output_0/model.0/act/Mul"Mul
+�
+/model.0/act/Mul_output_0
+model.1.conv.weight
+model.1.conv.bias/model.1/conv/Conv_output_0/model.1/conv/Conv"Conv*
+	dilations@@�*
+group�*
+kernel_shape@@�*
+pads@@@@�*
+strides@@�
+[
+/model.1/conv/Conv_output_0/model.1/act/Sigmoid_output_0/model.1/act/Sigmoid"Sigmoid
+n
+/model.1/conv/Conv_output_0
+/model.1/act/Sigmoid_output_0/model.1/act/Mul_output_0/model.1/act/Mul"Mul
+�
+/model.1/act/Mul_output_0
+model.2.cv1.conv.weight
+model.2.cv1.conv.bias/model.2/cv1/conv/Conv_output_0/model.2/cv1/conv/Conv"Conv*
+	dilations@@�*
+group�*
+kernel_shape@@�*
+pads@
