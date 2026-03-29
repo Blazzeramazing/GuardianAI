@@ -2495,37 +2495,23 @@
                     async function initYolo() {
                       if (typeof ort === 'undefined') throw new Error("Biblioteca ONNX Runtime não carregada.");
                       ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
-                      ort.env.wasm.numThreads = 1; // Previne avisos de COOP/COEP e estabiliza a RAM
+                      ort.env.wasm.numThreads = 1;
 
-                      const mirrors = [
-                        'https://huggingface.co/bofenghuang/yolov8n-onnx/resolve/main/yolov8n.onnx',
-                        'https://raw.githubusercontent.com/ibaiGorordo/ONNX-YOLOv8-Object-Detection/main/models/yolov8n.onnx'
-                      ];
-
-                      let modelBuffer = null;
-                      for (const url of mirrors) {
-                        try {
-                          const response = await fetch(url);
-                          if (!response.ok) continue;
-                          const buffer = await response.arrayBuffer();
-                          if (buffer.byteLength > 1000000) {
-                            modelBuffer = buffer;
-                            break;
-                          }
-                        } catch (e) {
-                          console.warn("[YOLO] Falha ao tentar mirror:", url);
-                        }
-                      }
-
-                      if (!modelBuffer) {
-                        throw new Error("Falha ao descarregar o binário do modelo de todos os mirrors.");
-                      }
+                      const YOLO_MODEL_URL = 'https://cdn.jsdelivr.net/gh/AndreyG/yolov8-web-demo@main/public/yolov8n.onnx';
 
                       try {
-                        yoloSession = await ort.InferenceSession.create(modelBuffer, { executionProviders: ['wasm'] });
+                        const response = await fetch(YOLO_MODEL_URL);
+                        if (!response.ok) throw new Error("Falha HTTP no download: " + response.status);
+                        const buffer = await response.arrayBuffer();
+
+                        if (buffer.byteLength < 5000000) {
+                          throw new Error("O modelo descarregado tem menos de 5MB, possivelmente um ficheiro de texto LFS falso.");
+                        }
+
+                        yoloSession = await ort.InferenceSession.create(buffer, { executionProviders: ['wasm'] });
                         yoloInputName = yoloSession.inputNames[0];
                       } catch (e) {
-                        throw new Error("Sessão ONNX rejeitou o buffer: " + (e.message || String(e)));
+                        throw new Error("Falha ao inicializar o YOLOv8: " + (e.message || String(e)));
                       }
                     }
                     
