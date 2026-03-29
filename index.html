@@ -654,11 +654,11 @@
             filter: { equalization: true },
             face: {
                 enabled: true,
-                detector: { rotation: false, return: true, minConfidence: 0.20, maxDetected: 10 },
+                detector: { rotation: false, return: true, minConfidence: 0.20, maxDetected: 25 },
                 antispoof: { enabled: true },
                 mesh: { enabled: false },
                 iris: { enabled: false },
-                description: { enabled: true, minConfidence: 0.40 },
+                description: { enabled: true, minConfidence: 0.45 },
                 emotion: { enabled: false }
             },
             body: { enabled: false },
@@ -813,7 +813,7 @@
 
         function getExtractConf() {
             const v = Number(localStorage.getItem('vms_ext_conf'));
-            return Number.isFinite(v) && v > 0 ? Math.min(0.9, Math.max(0.1, v)) : 0.40;
+            return Number.isFinite(v) && v > 0 ? Math.min(0.9, Math.max(0.1, v)) : 0.45;
         }
 
         function getEqualizationEnabled() {
@@ -826,7 +826,7 @@
 
         function getMaxDetected() {
             const v = Number(localStorage.getItem('vms_max_detected'));
-            return Number.isFinite(v) && v > 0 ? Math.min(50, Math.max(1, Math.round(v))) : 10;
+            return Number.isFinite(v) && v > 0 ? Math.min(50, Math.max(1, Math.round(v))) : 25;
         }
 
         function getLivenessEnabled() {
@@ -840,7 +840,7 @@
 
         function getMinFaceSize() {
             const v = Number(localStorage.getItem('vms_min_face_size'));
-            return Number.isFinite(v) && v > 0 ? Math.min(250, Math.max(20, Math.round(v))) : 90;
+            return Number.isFinite(v) && v > 0 ? Math.min(250, Math.max(20, Math.round(v))) : 80;
         }
 
         function getAiMaxDim() {
@@ -850,7 +850,7 @@
 
         function getHeavyIntervalMs() {
             const v = Number(localStorage.getItem('vms_heavy_interval'));
-            return Number.isFinite(v) && v > 0 ? Math.min(2000, Math.max(200, Math.round(v))) : 350;
+            return Number.isFinite(v) && v > 0 ? Math.min(2000, Math.max(200, Math.round(v))) : 250;
         }
 
         function getBaseHumana() {
