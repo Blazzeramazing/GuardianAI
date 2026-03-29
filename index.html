@@ -2495,12 +2495,37 @@
                     async function initYolo() {
                       if (typeof ort === 'undefined') throw new Error("Biblioteca ONNX Runtime não carregada.");
                       ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
-                      ort.env.wasm.numThreads = 1;
+                      ort.env.wasm.numThreads = 1; // Previne avisos de COOP/COEP e estabiliza a RAM
+
+                      const mirrors = [
+                        'https://huggingface.co/bofenghuang/yolov8n-onnx/resolve/main/yolov8n.onnx',
+                        'https://raw.githubusercontent.com/ibaiGorordo/ONNX-YOLOv8-Object-Detection/main/models/yolov8n.onnx'
+                      ];
+
+                      let modelBuffer = null;
+                      for (const url of mirrors) {
+                        try {
+                          const response = await fetch(url);
+                          if (!response.ok) continue;
+                          const buffer = await response.arrayBuffer();
+                          if (buffer.byteLength > 1000000) {
+                            modelBuffer = buffer;
+                            break;
+                          }
+                        } catch (e) {
+                          console.warn("[YOLO] Falha ao tentar mirror:", url);
+                        }
+                      }
+
+                      if (!modelBuffer) {
+                        throw new Error("Falha ao descarregar o binário do modelo de todos os mirrors.");
+                      }
+
                       try {
-                        yoloSession = await ort.InferenceSession.create(YOLO_MODEL_URL, { executionProviders: ['wasm'] });
+                        yoloSession = await ort.InferenceSession.create(modelBuffer, { executionProviders: ['wasm'] });
                         yoloInputName = yoloSession.inputNames[0];
                       } catch (e) {
-                        throw new Error("Download do Modelo ou WASM falhou: " + (e?.message || String(e)));
+                        throw new Error("Sessão ONNX rejeitou o buffer: " + (e.message || String(e)));
                       }
                     }
                     
