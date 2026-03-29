@@ -584,12 +584,12 @@
                             <div class="bg-gray-950 border border-yellow-800 rounded-xl p-5 space-y-4"> 
                                 <h3 class="text-white font-bold text-sm uppercase tracking-widest border-b border-gray-800 pb-2 mb-2 text-yellow-500">Deteção de Veículos (YOLOv8)</h3> 
                                 <div> 
-                                    <div class="flex justify-between gap-4 mb-2"><div class="text-sm font-semibold text-white">Confiança YOLO (vehicleConf)</div><div id="val-vehicle-conf" class="text-xs font-mono text-yellow-300 bg-yellow-900/20 px-2 py-1 rounded border border-yellow-900/40">0.25</div></div> 
+                                    <div class="flex justify-between gap-4 mb-2"><div class="text-sm font-semibold text-white">Confiança YOLO (vehicleConf)</div><div id="val-vehicle-conf" class="text-xs font-mono text-yellow-300 bg-yellow-900/20 px-2 py-1 rounded border border-yellow-900/40">0.10</div></div> 
                                     <p class="text-xs text-gray-500 mb-2">Baixe para captar carros ao longe; aumente para reduzir falsos positivos.</p> 
                                     <input id="slider-vehicle-conf" type="range" min="0.1" max="0.9" step="0.05" class="w-full accent-yellow-500"> 
                                 </div> 
                                 <div class="pt-2 border-t border-gray-800"> 
-                                    <div class="flex justify-between gap-4 mb-2"><div class="text-sm font-semibold text-white">Tamanho Mínimo (vehMinSize)</div><div id="val-veh-size" class="text-xs font-mono text-yellow-300 bg-yellow-900/20 px-2 py-1 rounded border border-yellow-900/40">30 px</div></div> 
+                                    <div class="flex justify-between gap-4 mb-2"><div class="text-sm font-semibold text-white">Tamanho Mínimo (vehMinSize)</div><div id="val-veh-size" class="text-xs font-mono text-yellow-300 bg-yellow-900/20 px-2 py-1 rounded border border-yellow-900/40">10 px</div></div> 
                                     <p class="text-xs text-gray-500 mb-2">Ignora lixo visual e objetos minúsculos (em pixels no ecrã).</p> 
                                     <input id="slider-veh-size" type="range" min="10" max="200" step="5" class="w-full accent-yellow-500"> 
                                 </div> 
@@ -901,7 +901,7 @@
             telegramToken: '', telegramChatId: '',
             scheduleActive: false, scheduleStart: '18:00', scheduleEnd: '08:00',
             loiteringTime: 0, waUrl: '', waToken: '', waPhone: '',
-            bodyConf: 0.40, vehicleConf: 0.25, vehMinSize: 30
+            bodyConf: 0.40, vehicleConf: 0.10, vehMinSize: 10
         };
         let currentSettingsCamId = null;
         let globalFramesRendered = 0;
