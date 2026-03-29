@@ -2447,6 +2447,18 @@
             // 1. SUBSTITUIR A GESTÃO DO WORKER POOL POR ESTE BLOCO (INLINE BLOB)
             if (!aiWorkers[cam.id]) { 
                 const absoluteModelPath = new URL('yolov8n.onnx', window.location.href).href;
+                if (!window.__yoloModelBufferPromise) {
+                    window.__yoloModelBufferPromise = (async () => {
+                        const response = await fetch(absoluteModelPath);
+                        if (!response.ok) throw new Error(String(response.status));
+                        const buffer = await response.arrayBuffer();
+                        if (buffer.byteLength <= 2000000) throw new Error("Modelo YOLO local inválido (muito pequeno).");
+                        return buffer;
+                    })().catch((e) => {
+                        window.__yoloModelBufferPromise = null;
+                        throw e;
+                    });
+                }
                 const workerCode = `
                     importScripts('https://cdn.jsdelivr.net/npm/@vladmandic/human@3.2.2/dist/human.js');
                     importScripts('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js');
@@ -2493,45 +2505,45 @@
                       return keep;
                     }
                     
-                    async function initYolo() {
+                    async function initYolo(modelBuffer) {
                       if (typeof ort === 'undefined') throw new Error("Biblioteca ONNX Runtime não carregada.");
                       ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
                       ort.env.wasm.numThreads = 1;
 
-                      // Matriz de Redundância: Tenta Local primeiro, depois CDNs de alta disponibilidade
-                      const mirrors = [
-                        '${absoluteModelPath}',
-                        'https://huggingface.co/bofenghuang/yolov8n-onnx/resolve/main/yolov8n.onnx',
-                        'https://huggingface.co/spaces/jofthomas/YOLOv8-Object-Detection/resolve/main/yolov8n.onnx',
-                        'https://cdn.jsdelivr.net/gh/zaigie/yolov8-onnx-js/public/yolov8n.onnx'
-                      ];
+                      if (!modelBuffer || modelBuffer.byteLength <= 2000000) {
+                        const mirrors = [
+                          '${absoluteModelPath}',
+                          'https://huggingface.co/bofenghuang/yolov8n-onnx/resolve/main/yolov8n.onnx',
+                          'https://huggingface.co/spaces/jofthomas/YOLOv8-Object-Detection/resolve/main/yolov8n.onnx',
+                          'https://cdn.jsdelivr.net/gh/zaigie/yolov8-onnx-js/public/yolov8n.onnx'
+                        ];
 
-                      let modelBuffer = null;
-                      let lastError = "";
+                        let downloaded = null;
+                        let lastError = "";
 
-                      for (const url of mirrors) {
-                        try {
-                          const response = await fetch(url);
-                          if (!response.ok) {
-                            lastError = response.status;
-                            continue;
+                        for (const url of mirrors) {
+                          try {
+                            const response = await fetch(url);
+                            if (!response.ok) {
+                              lastError = response.status;
+                              continue;
+                            }
+                            const buffer = await response.arrayBuffer();
+                            if (buffer.byteLength > 2000000) {
+                              downloaded = buffer;
+                              console.log("[YOLO] Modelo carregado com sucesso da fonte:", url);
+                              break;
+                            }
+                          } catch (e) {
+                            lastError = e.message;
+                            console.warn("[YOLO] Fonte falhou:", url);
                           }
-                          const buffer = await response.arrayBuffer();
-
-                          // Validação vital: O modelo real tem de ter mais de 2MB (Geralmente 12MB)
-                          if (buffer.byteLength > 2000000) {
-                            modelBuffer = buffer;
-                            console.log("[YOLO] Modelo carregado com sucesso da fonte:", url);
-                            break;
-                          }
-                        } catch (e) {
-                          lastError = e.message;
-                          console.warn("[YOLO] Fonte falhou:", url);
                         }
-                      }
 
-                      if (!modelBuffer) {
-                        throw new Error("Download bloqueado. Descarregue o yolov8n.onnx e coloque na mesma pasta do index.html.");
+                        if (!downloaded) {
+                          throw new Error("Download bloqueado. Descarregue o yolov8n.onnx e coloque na mesma pasta do index.html.");
+                        }
+                        modelBuffer = downloaded;
                       }
 
                       try {
@@ -2656,7 +2668,7 @@
                       return results;
                     }
                     
-                    async function initEngine(config, requestedBackend) {
+                    async function initEngine(config, requestedBackend, modelBuffer) {
                       try {
                         const HumanCtor = (typeof Human === 'function') ? Human : (Human?.Human || Human?.default);
                         human = new HumanCtor(config);
@@ -2676,7 +2688,7 @@
                     
                         if (!loaded) throw new Error("Hardware bloqueado ou não suportado.");
                         try { 
-                          await initYolo(); 
+                          await initYolo(modelBuffer); 
                         } catch (e) { 
                           postMessage({ type: 'YOLO_ERROR', error: e.message || String(e) }); 
                         }
@@ -2737,7 +2749,7 @@
                       const msg = e.data || {};
                       const type = msg.type;
                       const payload = msg.payload || {};
-                      if (type === 'INIT_ENGINE') await initEngine(payload.config, payload.backend);
+                      if (type === 'INIT_ENGINE') await initEngine(payload.config, payload.backend, payload.modelBuffer);
                       if (type === 'PROCESS_FRAME') await processFrame(payload.imageData, payload.camId, payload.configOverrides);
                     };
                 `;
@@ -2766,10 +2778,18 @@
                     } 
                 }; 
   
-                aiWorkers[cam.id].postMessage({ 
-                    type: 'INIT_ENGINE', 
-                    payload: { config: humanConfig, backend: 'wasm' } 
-                }); 
+                window.__yoloModelBufferPromise.then((buf) => {
+                    const copy = buf.slice(0);
+                    aiWorkers[cam.id].postMessage({ 
+                        type: 'INIT_ENGINE', 
+                        payload: { config: humanConfig, backend: 'wasm', modelBuffer: copy } 
+                    }, [copy]); 
+                }).catch(() => {
+                    aiWorkers[cam.id].postMessage({ 
+                        type: 'INIT_ENGINE', 
+                        payload: { config: humanConfig, backend: 'wasm' } 
+                    }); 
+                });
             } 
  
             const loopState = { active: true }; 
