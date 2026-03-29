@@ -603,6 +603,62 @@
                                     <i data-lucide="volume-2" class="w-4 h-4"></i> Som Ativo
                                 </button>
                             </div>
+                            
+                            <div class="bg-gray-950 border border-gray-800 rounded-xl p-5 space-y-4">
+                                <div class="flex items-center justify-between gap-4">
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-semibold text-white">Automação (Relés Wi‑Fi / Webhooks)</div>
+                                        <div class="text-xs text-gray-400">Aciona dispositivos como Shelly, Sonoff/Tasmota, ESP8266 via HTTP.</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div class="space-y-2">
+                                        <div class="text-xs text-gray-400">Nome do Dispositivo</div>
+                                        <input id="relay-name" type="text" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <div class="text-xs text-gray-400">Tipo</div>
+                                        <select id="relay-type" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 appearance-none transition-colors">
+                                            <option value="generic">Genérico (HTTP)</option>
+                                            <option value="shelly">Shelly</option>
+                                            <option value="tasmota">Tasmota/Sonoff</option>
+                                            <option value="esp8266">ESP8266</option>
+                                            <option value="zigbee">Zigbee (via Hub)</option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-2 md:col-span-2">
+                                        <div class="text-xs text-gray-400">URL ON (ex.: http://192.168.1.50/relay/0?turn=on)</div>
+                                        <input id="relay-onurl" type="text" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors" placeholder="http://...">
+                                    </div>
+                                    <div class="space-y-2 md:col-span-2">
+                                        <div class="text-xs text-gray-400">URL OFF (opcional)</div>
+                                        <input id="relay-offurl" type="text" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors" placeholder="http://...">
+                                    </div>
+                                    <div class="space-y-2 md:col-span-2">
+                                        <div class="text-xs text-gray-400">Headers (opcional, um por linha: Chave: Valor)</div>
+                                        <textarea id="relay-headers" rows="2" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors" placeholder="Authorization: Bearer ..."></textarea>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <div class="text-xs text-gray-400">Auto-OFF (ms, opcional)</div>
+                                        <input id="relay-autooff" type="number" min="0" step="100" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors" placeholder="0">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <div class="text-xs text-gray-400">Disparos Automáticos</div>
+                                        <div class="flex items-center gap-3">
+                                            <label class="flex items-center gap-2 text-xs text-gray-300"><input id="relay-on-recognition" type="checkbox" class="w-4 h-4 accent-blue-500"> Reconhecimento</label>
+                                            <label class="flex items-center gap-2 text-xs text-gray-300"><input id="relay-on-suspect" type="checkbox" class="w-4 h-4 accent-blue-500"> Suspeito</label>
+                                            <label class="flex items-center gap-2 text-xs text-gray-300"><input id="relay-on-danger" type="checkbox" class="w-4 h-4 accent-blue-500"> Perigoso</label>
+                                        </div>
+                                    </div>
+                                    <div class="md:col-span-2 flex items-center gap-2">
+                                        <button onclick="addRelayFromForm()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors">Adicionar Dispositivo</button>
+                                        <button onclick="hydrateRelaysControls()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors">Atualizar Lista</button>
+                                    </div>
+                                </div>
+                                
+                                <div id="relay-list" class="space-y-2"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2200,9 +2256,9 @@
                 } catch(e) {}
             }
 
-            if (person.level === 'danger') triggerTacticalAlarm(person, cam, snapshotBase64);
-            else if (person.level === 'suspect') { showToast(`SUSPEITO: ${person.name} em ${cam.name}`, "warning"); playBeep(); }
-            else showToast(`Reconhecimento: ${person.name} em ${cam.name}`, "success");
+            if (person.level === 'danger') { triggerTacticalAlarm(person, cam, snapshotBase64); triggerAutomation('danger', { person, cam }); }
+            else if (person.level === 'suspect') { showToast(`SUSPEITO: ${person.name} em ${cam.name}`, "warning"); playBeep(); triggerAutomation('suspect', { person, cam }); }
+            else { showToast(`Reconhecimento: ${person.name} em ${cam.name}`, "success"); triggerAutomation('recognition', { person, cam }); }
         }
 
         function triggerTacticalAlarm(person, cam, snapshot) {
@@ -2829,6 +2885,108 @@
 
         // ================= UTILIDADES =================
         function escapeHtml(value) { return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;'); }
+        function parseHeaders(text) {
+            const headers = {};
+            String(text || '').split(/\r?\n/).forEach(line => {
+                const m = line.split(':');
+                if (m.length >= 2) {
+                    const k = m.shift().trim();
+                    const v = m.join(':').trim();
+                    if (k) headers[k] = v;
+                }
+            });
+            return headers;
+        }
+        async function sendWebhook(url, method = 'GET', headersText = '', body = null) {
+            try {
+                if (!url) return { ok: false, status: 0 };
+                const headers = parseHeaders(headersText);
+                const opt = { method, headers };
+                if (method !== 'GET' && body) {
+                    opt.body = typeof body === 'string' ? body : JSON.stringify(body);
+                    if (!headers['Content-Type']) opt.headers['Content-Type'] = 'application/json';
+                }
+                const res = await fetch(url, opt);
+                return { ok: res.ok, status: res.status };
+            } catch (e) {
+                return { ok: false, status: 0, error: String(e) };
+            }
+        }
+        function getRelays() {
+            try { return JSON.parse(localStorage.getItem('vms_relays') || '[]') || []; } catch { return []; }
+        }
+        function setRelays(list) {
+            localStorage.setItem('vms_relays', JSON.stringify(list || []));
+        }
+        function renderRelayItem(relay) {
+            const safeName = escapeHtml(relay.name || '');
+            return `
+            <div class="p-3 bg-gray-950 border border-gray-800 rounded-lg flex items-center justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                    <div class="text-sm font-semibold text-white truncate">${safeName}</div>
+                    <div class="text-[10px] text-gray-400 truncate">ON: ${escapeHtml(relay.onUrl || '')}</div>
+                    ${relay.offUrl ? `<div class="text-[10px] text-gray-400 truncate">OFF: ${escapeHtml(relay.offUrl || '')}</div>` : ``}
+                    <div class="text-[10px] text-gray-500">Disparos: ${relay.onRecognition?'Rec ':' '}${relay.onSuspect?'Sus ':' '}${relay.onDanger?'Per ':' '}</div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <button class="px-2 py-1 bg-green-700 hover:bg-green-600 text-white rounded text-[11px]" onclick="testRelay('${relay.id}', true)">ON</button>
+                    <button class="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-[11px]" onclick="testRelay('${relay.id}', false)">OFF</button>
+                    <button class="px-2 py-1 bg-red-700 hover:bg-red-600 text-white rounded text-[11px]" onclick="removeRelay('${relay.id}')"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                </div>
+            </div>`;
+        }
+        function hydrateRelaysControls() {
+            const listEl = document.getElementById('relay-list');
+            if (!listEl) return;
+            const relays = getRelays();
+            listEl.innerHTML = relays.length ? relays.map(renderRelayItem).join('') : `<div class="p-3 bg-gray-950 border border-gray-800 rounded-lg text-sm text-gray-400">Nenhum dispositivo configurado.</div>`;
+            lucide.createIcons();
+        }
+        function addRelayFromForm() {
+            const name = document.getElementById('relay-name')?.value?.trim();
+            const type = document.getElementById('relay-type')?.value || 'generic';
+            const onUrl = document.getElementById('relay-onurl')?.value?.trim();
+            const offUrl = document.getElementById('relay-offurl')?.value?.trim();
+            const headersText = document.getElementById('relay-headers')?.value || '';
+            const autoOffMs = Math.max(0, Number(document.getElementById('relay-autooff')?.value || 0));
+            const onRecognition = !!document.getElementById('relay-on-recognition')?.checked;
+            const onSuspect = !!document.getElementById('relay-on-suspect')?.checked;
+            const onDanger = !!document.getElementById('relay-on-danger')?.checked;
+            if (!name || !onUrl) { showToast("Preencha pelo menos Nome e URL ON.", "warning"); return; }
+            const relays = getRelays();
+            const id = 'relay_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+            relays.push({ id, name, type, onUrl, offUrl, headersText, autoOffMs, onRecognition, onSuspect, onDanger });
+            setRelays(relays);
+            hydrateRelaysControls();
+            showToast("Dispositivo adicionado.", "success");
+        }
+        function removeRelay(id) {
+            const relays = getRelays().filter(r => r.id !== id);
+            setRelays(relays);
+            hydrateRelaysControls();
+        }
+        async function testRelay(id, turnOn = true) {
+            const relay = getRelays().find(r => r.id === id);
+            if (!relay) return;
+            const url = turnOn ? relay.onUrl : (relay.offUrl || relay.onUrl);
+            const res = await sendWebhook(url, 'GET', relay.headersText || '', null);
+            showToast(`Teste ${turnOn ? 'ON' : 'OFF'}: ${res.ok ? 'OK' : 'Falha'} (${res.status || 0})`, res.ok ? 'success' : 'error');
+        }
+        async function triggerAutomation(eventType, ctx) {
+            const relays = getRelays();
+            for (const r of relays) {
+                let should = false;
+                if (eventType === 'recognition' && r.onRecognition) should = true;
+                if (eventType === 'suspect' && r.onSuspect) should = true;
+                if (eventType === 'danger' && r.onDanger) should = true;
+                if (!should) continue;
+                const res = await sendWebhook(r.onUrl, 'GET', r.headersText || '', null);
+                if (!res.ok) showToast(`Falha ao acionar ${escapeHtml(r.name)} (${res.status||0})`, 'error');
+                if (r.autoOffMs > 0 && r.offUrl) {
+                    setTimeout(() => { sendWebhook(r.offUrl, 'GET', r.headersText || '', null); }, r.autoOffMs);
+                }
+            }
+        }
         function debounce(fn, waitMs) { let t = null; return (...args) => { if (t) clearTimeout(t); t = setTimeout(() => fn(...args), waitMs); }; }
         function setButtonDisabled(el, disabled) { if (!el) return; el.disabled = !!disabled; el.classList.toggle('opacity-50', !!disabled); el.classList.toggle('cursor-not-allowed', !!disabled); }
 
