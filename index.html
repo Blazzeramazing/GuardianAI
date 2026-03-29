@@ -258,6 +258,13 @@
                                             <option value="danger">🔴 Ameaça Crítica (Dispara Alarme)</option>
                                         </select>
                                     </div>
+                                    <label class="flex items-center gap-3 p-3 rounded-lg border border-gray-700 bg-gray-950">
+                                        <input id="person-authorized" type="checkbox" class="w-5 h-5 accent-green-500">
+                                        <div class="min-w-0">
+                                            <div class="text-sm font-semibold text-white">Pessoal Autorizado</div>
+                                            <div class="text-[11px] text-gray-400">Quando reconhecido, pode acionar relés (portão/porta) conforme configuração.</div>
+                                        </div>
+                                    </label>
                                     <div class="pt-2">
                                         <button type="submit" class="w-full bg-green-600 hover:bg-green-500 text-white font-medium py-3.5 rounded-lg transition-colors shadow flex justify-center items-center gap-2 active:scale-95">
                                             <i data-lucide="save" class="w-5 h-5"></i> Guardar
@@ -643,9 +650,15 @@
                                         <div class="text-xs text-gray-400">Auto-OFF (ms, opcional)</div>
                                         <input id="relay-autooff" type="number" min="0" step="100" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors" placeholder="0">
                                     </div>
+                                    <div class="space-y-2 md:col-span-2">
+                                        <div class="text-xs text-gray-400">Câmeras Permitidas (vazio = todas)</div>
+                                        <select id="relay-cams" multiple class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors">
+                                        </select>
+                                    </div>
                                     <div class="space-y-2">
                                         <div class="text-xs text-gray-400">Disparos Automáticos</div>
-                                        <div class="flex items-center gap-3">
+                                        <div class="flex items-center gap-3 flex-wrap">
+                                            <label class="flex items-center gap-2 text-xs text-gray-300"><input id="relay-on-authorized" type="checkbox" class="w-4 h-4 accent-green-500"> Autorizados</label>
                                             <label class="flex items-center gap-2 text-xs text-gray-300"><input id="relay-on-recognition" type="checkbox" class="w-4 h-4 accent-blue-500"> Reconhecimento</label>
                                             <label class="flex items-center gap-2 text-xs text-gray-300"><input id="relay-on-suspect" type="checkbox" class="w-4 h-4 accent-blue-500"> Suspeito</label>
                                             <label class="flex items-center gap-2 text-xs text-gray-300"><input id="relay-on-danger" type="checkbox" class="w-4 h-4 accent-blue-500"> Perigoso</label>
@@ -720,6 +733,13 @@
                         <option value="danger">🔴 Ameaça Crítica</option>
                     </select>
                 </div>
+                <label class="flex items-center gap-3 p-3 rounded-lg border border-gray-700 bg-gray-950">
+                    <input id="edit-person-authorized" type="checkbox" class="w-5 h-5 accent-green-500">
+                    <div class="min-w-0">
+                        <div class="text-sm font-semibold text-white">Pessoal Autorizado</div>
+                        <div class="text-[11px] text-gray-400">Permite acionar relés quando reconhecido (por câmara).</div>
+                    </div>
+                </label>
                 <div class="pt-2 flex flex-col sm:flex-row gap-3">
                     <button type="button" onclick="closeEditPersonModal()" class="w-full sm:flex-1 py-3 bg-gray-950 hover:bg-gray-800 text-white rounded-lg font-medium border border-gray-700 transition-colors">Cancelar</button>
                     <button type="submit" class="w-full sm:flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium shadow transition-colors active:scale-95">Guardar Alterações</button>
@@ -1021,7 +1041,7 @@
                     try {
                         const parsed = typeof d === 'string' ? JSON.parse(d) : d;
                         if (!Array.isArray(parsed) || parsed.length === 0) return;
-                        humanFaceDB.push({ id: p.id, name: p.name, level: p.level, descriptor: new Float32Array(parsed) });
+                        humanFaceDB.push({ id: p.id, name: p.name, level: p.level, authorized: p.authorized === true, descriptor: new Float32Array(parsed) });
                     } catch (e) {}
                 });
             });
@@ -1378,6 +1398,7 @@
             const person = {
                 name: document.getElementById('person-name').value,
                 level: document.getElementById('person-level').value,
+                authorized: !!document.getElementById('person-authorized')?.checked,
                 photo: compressedPhoto,
                 descriptors: tempDescriptors.map(d => JSON.stringify(d))
             };
@@ -2259,6 +2280,7 @@
             if (person.level === 'danger') { triggerTacticalAlarm(person, cam, snapshotBase64); triggerAutomation('danger', { person, cam }); }
             else if (person.level === 'suspect') { showToast(`SUSPEITO: ${person.name} em ${cam.name}`, "warning"); playBeep(); triggerAutomation('suspect', { person, cam }); }
             else { showToast(`Reconhecimento: ${person.name} em ${cam.name}`, "success"); triggerAutomation('recognition', { person, cam }); }
+            if (person.authorized === true) triggerAutomation('authorized', { person, cam });
         }
 
         function triggerTacticalAlarm(person, cam, snapshot) {
@@ -2579,6 +2601,7 @@
             if (maxLabel) maxLabel.innerText = maxCurrent.toFixed(2);
 
             updateMuteButton();
+            hydrateRelaysControls();
         }
 
         // ================= LOGS (HISTÓRICO LOCAL) =================
@@ -2799,7 +2822,10 @@
                         <img src="${escapeHtml(p.photo)}" class="w-12 h-12 rounded-full object-cover border border-gray-700 bg-black shrink-0" onerror="this.src=''; this.classList.add('bg-gray-800')">
                         <div class="min-w-0 flex-1">
                             <div class="text-sm font-bold text-white truncate w-full" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
-                            <div class="mt-1">${levelBadgeHtml(p.level)}</div>
+                            <div class="mt-1 flex items-center gap-1.5 flex-wrap">
+                                ${levelBadgeHtml(p.level)}
+                                ${p.authorized === true ? `<span class="px-2 py-1 rounded-full text-[10px] font-semibold bg-green-900/30 border border-green-700/60 text-green-200">AUTORIZADO</span>` : ``}
+                            </div>
                         </div>
                     </div>
                     <div class="flex gap-2 mt-auto pt-3 border-t border-gray-800/50">
@@ -2853,6 +2879,8 @@
             document.getElementById('edit-person-photo').src = p.photo || '';
             document.getElementById('edit-person-name').value = p.name || '';
             document.getElementById('edit-person-level').value = p.level || 'normal';
+            const authEl = document.getElementById('edit-person-authorized');
+            if (authEl) authEl.checked = p.authorized === true;
             document.getElementById('edit-person-modal').classList.remove('hidden');
         };
 
@@ -2866,8 +2894,9 @@
             if (!db || !currentEditPersonId) return;
             const name = document.getElementById('edit-person-name').value.trim();
             const level = document.getElementById('edit-person-level').value;
+            const authorized = !!document.getElementById('edit-person-authorized')?.checked;
             try {
-                await updateDoc(doc(db, 'students', currentEditPersonId), { name, level });
+                await updateDoc(doc(db, 'students', currentEditPersonId), { name, level, authorized });
                 showToast("Alvo atualizado.", "success");
                 closeEditPersonModal();
             } catch (err) { showToast("Erro ao atualizar alvo.", "error"); }
@@ -2918,15 +2947,24 @@
         function setRelays(list) {
             localStorage.setItem('vms_relays', JSON.stringify(list || []));
         }
+        function hydrateRelayCameraOptions() {
+            const sel = document.getElementById('relay-cams');
+            if (!sel) return;
+            sel.innerHTML = cameras.filter(c => c).map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('');
+        }
         function renderRelayItem(relay) {
             const safeName = escapeHtml(relay.name || '');
+            const camIds = Array.isArray(relay.camIds) ? relay.camIds : [];
+            const camNames = camIds.length ? camIds.map(id => cameras.find(c => c && c.id === id)?.name || id) : [];
+            const camsText = camIds.length ? camNames.join(', ') : 'Todas';
             return `
             <div class="p-3 bg-gray-950 border border-gray-800 rounded-lg flex items-center justify-between gap-3">
                 <div class="min-w-0 flex-1">
                     <div class="text-sm font-semibold text-white truncate">${safeName}</div>
                     <div class="text-[10px] text-gray-400 truncate">ON: ${escapeHtml(relay.onUrl || '')}</div>
                     ${relay.offUrl ? `<div class="text-[10px] text-gray-400 truncate">OFF: ${escapeHtml(relay.offUrl || '')}</div>` : ``}
-                    <div class="text-[10px] text-gray-500">Disparos: ${relay.onRecognition?'Rec ':' '}${relay.onSuspect?'Sus ':' '}${relay.onDanger?'Per ':' '}</div>
+                    <div class="text-[10px] text-gray-400 truncate">Câmeras: ${escapeHtml(camsText)}</div>
+                    <div class="text-[10px] text-gray-500">Disparos: ${relay.onAuthorized?'Aut ':' '}${relay.onRecognition?'Rec ':' '}${relay.onSuspect?'Sus ':' '}${relay.onDanger?'Per ':' '}</div>
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
                     <button class="px-2 py-1 bg-green-700 hover:bg-green-600 text-white rounded text-[11px]" onclick="testRelay('${relay.id}', true)">ON</button>
@@ -2938,6 +2976,7 @@
         function hydrateRelaysControls() {
             const listEl = document.getElementById('relay-list');
             if (!listEl) return;
+            hydrateRelayCameraOptions();
             const relays = getRelays();
             listEl.innerHTML = relays.length ? relays.map(renderRelayItem).join('') : `<div class="p-3 bg-gray-950 border border-gray-800 rounded-lg text-sm text-gray-400">Nenhum dispositivo configurado.</div>`;
             lucide.createIcons();
@@ -2949,13 +2988,15 @@
             const offUrl = document.getElementById('relay-offurl')?.value?.trim();
             const headersText = document.getElementById('relay-headers')?.value || '';
             const autoOffMs = Math.max(0, Number(document.getElementById('relay-autooff')?.value || 0));
+            const camIds = Array.from(document.getElementById('relay-cams')?.selectedOptions || []).map(o => o.value).filter(Boolean);
+            const onAuthorized = !!document.getElementById('relay-on-authorized')?.checked;
             const onRecognition = !!document.getElementById('relay-on-recognition')?.checked;
             const onSuspect = !!document.getElementById('relay-on-suspect')?.checked;
             const onDanger = !!document.getElementById('relay-on-danger')?.checked;
             if (!name || !onUrl) { showToast("Preencha pelo menos Nome e URL ON.", "warning"); return; }
             const relays = getRelays();
             const id = 'relay_' + Date.now() + '_' + Math.floor(Math.random()*1000);
-            relays.push({ id, name, type, onUrl, offUrl, headersText, autoOffMs, onRecognition, onSuspect, onDanger });
+            relays.push({ id, name, type, onUrl, offUrl, headersText, autoOffMs, camIds, onAuthorized, onRecognition, onSuspect, onDanger });
             setRelays(relays);
             hydrateRelaysControls();
             showToast("Dispositivo adicionado.", "success");
@@ -2975,7 +3016,11 @@
         async function triggerAutomation(eventType, ctx) {
             const relays = getRelays();
             for (const r of relays) {
+                const camId = ctx?.cam?.id;
+                const allowed = Array.isArray(r.camIds) ? r.camIds : [];
+                if (allowed.length && camId && !allowed.includes(camId)) continue;
                 let should = false;
+                if (eventType === 'authorized' && r.onAuthorized && ctx?.person?.authorized === true) should = true;
                 if (eventType === 'recognition' && r.onRecognition) should = true;
                 if (eventType === 'suspect' && r.onSuspect) should = true;
                 if (eventType === 'danger' && r.onDanger) should = true;
