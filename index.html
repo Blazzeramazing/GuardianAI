@@ -2493,12 +2493,14 @@
                     }
                     
                     async function initYolo() {
-                      if (typeof ort === 'undefined') return;
+                      if (typeof ort === 'undefined') throw new Error("Biblioteca ONNX Runtime não carregada.");
                       ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
                       try {
                         yoloSession = await ort.InferenceSession.create(YOLO_MODEL_URL, { executionProviders: ['wasm'] });
                         yoloInputName = yoloSession.inputNames[0];
-                      } catch (e) {}
+                      } catch (e) {
+                        throw new Error("Download do Modelo ou WASM falhou: " + (e?.message || String(e)));
+                      }
                     }
                     
                     async function yoloDetect(imageData, threshold) {
@@ -2518,9 +2520,15 @@
                       ctx.clearRect(0, 0, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE);
                       ctx.fillStyle = 'black';
                       ctx.fillRect(0, 0, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE);
-                      const bitmap = await createImageBitmap(imageData);
-                      ctx.drawImage(bitmap, padX, padY, newW, newH);
-                      bitmap.close();
+                      let bitmap;
+                      try {
+                        bitmap = await createImageBitmap(imageData);
+                        ctx.drawImage(bitmap, padX, padY, newW, newH);
+                        bitmap.close();
+                      } catch(imgErr) {
+                        console.error("[YOLO] Erro de Bitmap:", imgErr);
+                        return [];
+                      }
                       const data = ctx.getImageData(0, 0, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE).data;
                     
                       const size = YOLO_INPUT_SIZE * YOLO_INPUT_SIZE;
@@ -2628,7 +2636,11 @@
                         }
                     
                         if (!loaded) throw new Error("Hardware bloqueado ou não suportado.");
-                        try { await initYolo(); } catch (e) {}
+                        try { 
+                          await initYolo(); 
+                        } catch (e) { 
+                          postMessage({ type: 'YOLO_ERROR', error: e.message || String(e) }); 
+                        }
                     
                         isReady = true;
                         postMessage({ type: 'INIT_SUCCESS', backend: human.config.backend });
@@ -2653,8 +2665,15 @@
                         const bConf = configOverrides?.bodyConf !== undefined ? configOverrides.bodyConf : 0.40;
 
                         const tasks = [human.detect(imageData)];
-                        if (configOverrides?.vehicles === true) tasks.push(yoloDetect(imageData, vConf).catch((e) => { console.warn("Falha no YOLOv8:", e); return []; }));
-                        else tasks.push(Promise.resolve([]));
+                        if (configOverrides?.vehicles === true) {
+                          if (!yoloSession) console.warn("YOLO tentou rodar, mas a sessão é nula.");
+                          tasks.push(yoloDetect(imageData, vConf).catch((e) => { 
+                            console.error("[YOLO] Falha na Inferência:", e); 
+                            return []; 
+                          }));
+                        } else { 
+                          tasks.push(Promise.resolve([])); 
+                        }
                     
                         const res = await Promise.all(tasks);
                         const humanResult = res[0] || {};
@@ -2697,6 +2716,10 @@
                     else if (type === 'PROCESS_RESULT') { 
                         window.latestWorkerResults[cam.id] = result || { faces: [], bodies: [], vehiclePredictions: [] }; 
                         window.latestWorkerResults[cam.id].isReady = true; 
+                    } 
+                    else if (type === 'YOLO_ERROR') { 
+                        console.error(`[Guardian SJN] Bloqueio YOLO na câmara ${cam.name}:`, error); 
+                        showToast(`Motor de Veículos Bloqueado (${cam.name}). Pressione F12 para detalhes.`, "error"); 
                     } 
                     else if (type === 'INIT_ERROR') { 
                         console.error(`Erro no Worker da câmara ${cam.name}:`, error); 
